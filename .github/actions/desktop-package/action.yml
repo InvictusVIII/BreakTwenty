@@ -1,0 +1,440 @@
+name: Desktop package
+description: Build, verify, and upload one BreakTwenty desktop package family.
+
+inputs:
+  artifact:
+    required: true
+    description: Artifact name suffix.
+  artifact-basename:
+    required: false
+    default: BreakTwenty
+    description: Product basename used by generated package files and application executables.
+  desktop-identity-config:
+    required: false
+    default: ""
+    description: Optional JSON electron-builder identity overlay supplied by a private packaging lane.
+  extra-args:
+    required: false
+    default: ""
+    description: Extra arguments appended to the npm packaging script.
+  frontend-build-artifact:
+    required: false
+    default: ""
+    description: Optional prebuilt frontend/build artifact name to download instead of rebuilding the frontend in this job.
+  script:
+    required: true
+    description: Desktop npm script to run.
+  signing-platform:
+    required: false
+    default: ""
+    description: Empty for unsigned Linux, win for Azure signing, or mac for Developer ID signing.
+  updater-owner:
+    required: true
+    description: GitHub owner stamped into app-update.yml.
+  updater-private:
+    required: true
+    description: Whether the updater feed is private.
+  updater-repo:
+    required: true
+    description: GitHub repository stamped into app-update.yml.
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node
+      uses: actions/setup-node@v5
+      with:
+        node-version: "22.23.2"
+        cache: npm
+        cache-dependency-path: |
+          frontend/package-lock.json
+          desktop/package-lock.json
+
+    - name: Install Linux update-helper build dependencies
+      if: ${{ runner.os == 'Linux' }}
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install --yes libgtk-3-dev pkg-config
+
+    - name: Configure desktop package caches
+      shell: bash
+      run: |
+        set -euo pipefail
+        cache_root="${GITHUB_WORKSPACE}/desktop/dist/ci-cache/${RUNNER_OS}-${RUNNER_ARCH}"
+        mkdir -p "${cache_root}/electron" "${cache_root}/electron-builder" "${cache_root}/pip"
+        {
+          echo "ELECTRON_CACHE=${cache_root}/electron"
+          echo "ELECTRON_BUILDER_CACHE=${cache_root}/electron-builder"
+          echo "PIP_CACHE_DIR=${cache_root}/pip"
+        } >> "$GITHUB_ENV"
+
+    - name: Restore Electron package caches
+      uses: actions/cache@v4
+      with:
+        path: |
+          desktop/dist/ci-cache/${{ runner.os }}-${{ runner.arch }}/electron
+          desktop/dist/ci-cache/${{ runner.os }}-${{ runner.arch }}/electron-builder
+        key: desktop-package-electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('desktop/package-lock.json', 'desktop/electron-builder.release.cjs', 'desktop/electron-builder.yml') }}
+        restore-keys: |
+          desktop-package-electron-${{ runner.os }}-${{ runner.arch }}-
+
+    - name: Restore portable Python download caches
+      uses: actions/cache@v4
+      with:
+        path: |
+          desktop/dist/portable-python/cache
+          desktop/dist/ci-cache/${{ runner.os }}-${{ runner.arch }}/pip
+        key: desktop-package-python-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('backend/runtime-policy.json', 'backend/requirements-bootstrap.lock', 'backend/requirements-macos-x64-build.lock', 'backend/requirements.lock', 'scripts/prepare_portable_python_runtime.js', 'scripts/python_runtime_install_policy.js', 'scripts/verify_sqlcipher_runtime.py') }}
+        restore-keys: |
+          desktop-package-python-${{ runner.os }}-${{ runner.arch }}-
+
+    - name: Install frontend dependencies
+      if: ${{ inputs.frontend-build-artifact == '' }}
+      shell: bash
+      run: npm --prefix frontend ci
+
+    - name: Download prebuilt frontend
+      if: ${{ inputs.frontend-build-artifact != '' }}
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.frontend-build-artifact }}
+        path: frontend/build
+
+    - name: Verify prebuilt frontend
+      if: ${{ inputs.frontend-build-artifact != '' }}
+      shell: bash
+      run: test -s frontend/build/index.html
+
+    - name: Install desktop dependencies
+      shell: bash
+      run: npm --prefix desktop ci
+
+    - name: Validate signing configuration
+      if: ${{ inputs.signing-platform != '' }}
+      shell: bash
+      env:
+        SIGNING_PLATFORM: ${{ inputs.signing-platform }}
+      run: |
+        set -euo pipefail
+        require_env() {
+          local name="$1"
+          if [ -z "${!name:-}" ]; then
+            echo "::error title=Desktop signing configuration missing::${name} is required for official ${SIGNING_PLATFORM} package signing."
+            exit 1
+          fi
+        }
+
+        case "$SIGNING_PLATFORM" in
+          win)
+            require_env AZURE_CLIENT_ID
+            require_env AZURE_TENANT_ID
+            require_env AZURE_ARTIFACT_SIGNING_ENDPOINT
+            require_env AZURE_ARTIFACT_SIGNING_ACCOUNT
+            require_env AZURE_ARTIFACT_SIGNING_PROFILE
+            require_env AZURE_ARTIFACT_SIGNING_PUBLISHER
+            ;;
+          mac)
+            require_env CSC_LINK
+            require_env CSC_KEY_PASSWORD
+            require_env APPLE_API_KEY
+            require_env APPLE_API_KEY_ID
+            require_env APPLE_API_ISSUER
+            require_env APPLE_TEAM_ID
+            ;;
+          *)
+            echo "::error title=Unsupported signing platform::Expected win or mac, got ${SIGNING_PLATFORM}."
+            exit 1
+            ;;
+        esac
+
+    - name: Validate package identity inputs
+      shell: bash
+      env:
+        ARTIFACT_BASENAME: ${{ inputs.artifact-basename }}
+        DESKTOP_IDENTITY_CONFIG: ${{ inputs.desktop-identity-config }}
+      run: |
+        set -euo pipefail
+        if [[ ! "$ARTIFACT_BASENAME" =~ ^[A-Za-z0-9._-]+$ ]]; then
+          echo "::error title=Unsafe artifact basename::Use only letters, numbers, dots, underscores, or hyphens."
+          exit 1
+        fi
+        if [ -n "$DESKTOP_IDENTITY_CONFIG" ]; then
+          IDENTITY_CONFIG="$DESKTOP_IDENTITY_CONFIG" node -e '
+            const value = JSON.parse(process.env.IDENTITY_CONFIG);
+            for (const field of ["appId", "productName", "executableName"]) {
+              if (typeof value?.[field] !== "string" || !value[field].trim()) process.exit(1);
+            }
+          ' || {
+            echo "::error title=Invalid desktop identity overlay::The supplied JSON identity is incomplete or malformed."
+            exit 1
+          }
+        fi
+
+    - name: Request Azure federated token
+      if: ${{ inputs.signing-platform == 'win' }}
+      shell: bash
+      run: node scripts/request_azure_oidc_token.js
+
+    - name: Materialize Apple API key file
+      id: apple-api-key-file
+      if: ${{ inputs.signing-platform == 'mac' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ -f "$APPLE_API_KEY" ]; then
+          echo "path=$APPLE_API_KEY" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        key_dir="${RUNNER_TEMP:-/tmp}/breaktwenty-notary"
+        key_path="${key_dir}/AuthKey_${APPLE_API_KEY_ID}.p8"
+        install -d -m 700 "$key_dir"
+        APPLE_API_KEY_PATH="$key_path" python3 - <<'PY'
+        import base64
+        import os
+        import pathlib
+
+        value = os.environ["APPLE_API_KEY"].strip().replace("\\n", "\n")
+        if "BEGIN PRIVATE KEY" not in value:
+          try:
+            decoded = base64.b64decode("".join(value.split()), validate=True).decode("utf-8")
+          except Exception:
+            decoded = value
+          value = decoded.replace("\\n", "\n")
+        if not value.endswith("\n"):
+          value += "\n"
+        pathlib.Path(os.environ["APPLE_API_KEY_PATH"]).write_text(value, encoding="utf-8")
+        PY
+        chmod 600 "$key_path"
+        if ! grep -q "BEGIN PRIVATE KEY" "$key_path"; then
+          echo "::error title=Apple API key format invalid::APPLE_API_KEY must contain the App Store Connect AuthKey_${APPLE_API_KEY_ID}.p8 private key, either as PEM text or base64-encoded PEM."
+          exit 1
+        fi
+        if ! openssl pkey -in "$key_path" -noout > /dev/null 2>&1; then
+          echo "::error title=Apple API key parse failed::APPLE_API_KEY was written to AuthKey_${APPLE_API_KEY_ID}.p8, but OpenSSL could not parse it as a private key."
+          exit 1
+        fi
+        echo "path=$key_path" >> "$GITHUB_OUTPUT"
+
+    - name: Verify Apple notarization credentials
+      if: ${{ inputs.signing-platform == 'mac' }}
+      shell: bash
+      env:
+        BREAKTWENTY_APPLE_API_KEY_PATH: ${{ steps.apple-api-key-file.outputs.path }}
+      run: |
+        set -euo pipefail
+        if [ -z "${BREAKTWENTY_APPLE_API_KEY_PATH:-}" ] || [ ! -f "$BREAKTWENTY_APPLE_API_KEY_PATH" ]; then
+          echo "::error title=Apple API key file missing::Materialized Apple API key file is unavailable for notarization credential verification."
+          exit 1
+        fi
+        xcrun notarytool history \
+          --key "$BREAKTWENTY_APPLE_API_KEY_PATH" \
+          --key-id "$APPLE_API_KEY_ID" \
+          --issuer "$APPLE_API_ISSUER" \
+          > /dev/null
+
+    - name: Build desktop package
+      shell: bash
+      env:
+        BREAKTWENTY_RELEASE_SIGNING_PLATFORM: ${{ inputs.signing-platform }}
+        BREAKTWENTY_APPLE_API_KEY_PATH: ${{ steps.apple-api-key-file.outputs.path }}
+        BREAKTWENTY_DESKTOP_IDENTITY_CONFIG: ${{ inputs.desktop-identity-config }}
+        BREAKTWENTY_UPDATER_OWNER: ${{ inputs.updater-owner }}
+        BREAKTWENTY_UPDATER_PRIVATE: ${{ inputs.updater-private }}
+        BREAKTWENTY_UPDATER_REPO: ${{ inputs.updater-repo }}
+        CI: false
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        if [ "${BREAKTWENTY_RELEASE_SIGNING_PLATFORM}" = "mac" ]; then
+          if [ -z "${BREAKTWENTY_APPLE_API_KEY_PATH:-}" ] || [ ! -f "$BREAKTWENTY_APPLE_API_KEY_PATH" ]; then
+            echo "::error title=Apple API key file missing::Materialized Apple API key file is unavailable for macOS notarization."
+            exit 1
+          fi
+          export APPLE_API_KEY="$BREAKTWENTY_APPLE_API_KEY_PATH"
+          export DEBUG="${DEBUG:+${DEBUG},}electron-notarize*"
+        fi
+        npm --prefix desktop run "${{ inputs.script }}" -- \
+          ${{ inputs.extra-args }} \
+          --config electron-builder.release.cjs \
+          --publish=never \
+          "--config.publish.owner=${BREAKTWENTY_UPDATER_OWNER}" \
+          "--config.publish.repo=${BREAKTWENTY_UPDATER_REPO}" \
+          "--config.publish.private=${BREAKTWENTY_UPDATER_PRIVATE}"
+
+    - name: Verify packaged Windows update helper
+      if: ${{ runner.os == 'Windows' }}
+      shell: pwsh
+      env:
+        SIGNING_PLATFORM: ${{ inputs.signing-platform }}
+      run: |
+        $helperPath = "desktop/dist/electron/win-unpacked/resources/desktop/update-helper/BreakTwentyUpdateHelper.exe"
+        if (-not (Test-Path -LiteralPath $helperPath -PathType Leaf)) {
+          throw "Packaged Windows update helper is missing: $helperPath"
+        }
+        if ((Get-Item -LiteralPath $helperPath).Length -le 0) {
+          throw "Packaged Windows update helper is empty: $helperPath"
+        }
+        $resources = [Reflection.Assembly]::LoadFile((Resolve-Path -LiteralPath $helperPath)).GetManifestResourceNames()
+        foreach ($requiredResource in @("BreakTwenty.UpdateHelper.Mark.png", "BreakTwenty.UpdateHelper.Wordmark.png")) {
+          if ($resources -notcontains $requiredResource) {
+            throw "Packaged Windows update helper is missing embedded brand resource: $requiredResource"
+          }
+        }
+        if ($env:SIGNING_PLATFORM -eq "win") {
+          $signature = Get-AuthenticodeSignature -LiteralPath $helperPath
+          if ($signature.Status -ne "Valid") {
+            throw "Packaged Windows update helper signature is $($signature.Status), expected Valid."
+          }
+        }
+
+    - name: Verify packaged Linux update helper
+      if: ${{ runner.os == 'Linux' }}
+      shell: bash
+      run: |
+        helper_path="desktop/dist/electron/linux-unpacked/resources/desktop/update-helper/BreakTwentyUpdateHelper"
+        test -s "$helper_path"
+        test -x "$helper_path"
+
+    - name: Verify packaged macOS update helper
+      if: ${{ runner.os == 'macOS' }}
+      shell: bash
+      env:
+        ARTIFACT_BASENAME: ${{ inputs.artifact-basename }}
+      run: |
+        set -euo pipefail
+        shopt -s nullglob
+        helpers=(desktop/dist/electron/mac*/"${ARTIFACT_BASENAME}.app"/Contents/Resources/desktop/update-helper/BreakTwentyUpdateHelper)
+        if [ "${#helpers[@]}" -ne 1 ]; then
+          echo "Expected exactly one packaged macOS update helper, found ${#helpers[@]}."
+          exit 1
+        fi
+        test -s "${helpers[0]}"
+        test -x "${helpers[0]}"
+        codesign --verify --strict --verbose=2 "${helpers[0]}"
+
+    - name: Verify packaged Linux taskbar icon contract
+      if: ${{ runner.os == 'Linux' }}
+      shell: bash
+      run: python3 scripts/verify_desktop_linux_icon_contract.py --artifact-basename "${{ inputs.artifact-basename }}"
+
+    - name: Verify updater metadata
+      shell: bash
+      env:
+        DESKTOP_SCRIPT: ${{ inputs.script }}
+        ARTIFACT_BASENAME: ${{ inputs.artifact-basename }}
+      run: |
+        set -euo pipefail
+        shopt -s nullglob
+        packages=(
+          desktop/dist/electron/${ARTIFACT_BASENAME}-*.AppImage
+          desktop/dist/electron/${ARTIFACT_BASENAME}-*.deb
+          desktop/dist/electron/${ARTIFACT_BASENAME}-*.exe
+          desktop/dist/electron/${ARTIFACT_BASENAME}-*.dmg
+          desktop/dist/electron/${ARTIFACT_BASENAME}-*.zip
+        )
+        metadata=(desktop/dist/electron/latest*.yml)
+        blockmaps=(desktop/dist/electron/*.blockmap)
+        release_packages=()
+        for file in "${packages[@]}"; do
+          case "$file" in
+            *.__uninstaller.exe) ;;
+            *) release_packages+=("$file") ;;
+          esac
+        done
+
+        if [ "${#release_packages[@]}" -eq 0 ]; then
+          echo "No package artifacts were produced."
+          exit 1
+        fi
+
+        case "$DESKTOP_SCRIPT" in
+          dist:linux|dist:linux:prebuilt-frontend) required=(desktop/dist/electron/latest-linux.yml) ;;
+          dist:win|dist:win:prebuilt-frontend) required=(desktop/dist/electron/latest.yml) ;;
+          dist:mac|dist:mac:prebuilt-frontend) required=(desktop/dist/electron/latest-mac.yml) ;;
+          *)
+            echo "Unknown desktop release script: $DESKTOP_SCRIPT"
+            exit 1
+            ;;
+        esac
+        for file in "${required[@]}"; do
+          if [ ! -f "$file" ]; then
+            echo "Missing required updater metadata: $file"
+            exit 1
+          fi
+        done
+
+        if [ "$DESKTOP_SCRIPT" = "dist:mac" ] || [ "$DESKTOP_SCRIPT" = "dist:mac:prebuilt-frontend" ]; then
+          mac_dmgs=(desktop/dist/electron/${ARTIFACT_BASENAME}-*.dmg)
+          mac_zips=(desktop/dist/electron/${ARTIFACT_BASENAME}-*.zip)
+          mac_zip_blockmaps=(desktop/dist/electron/${ARTIFACT_BASENAME}-*.zip.blockmap)
+          if [ "${#mac_dmgs[@]}" -eq 0 ]; then
+            echo "Missing required macOS installer artifact: desktop/dist/electron/${ARTIFACT_BASENAME}-*.dmg"
+            exit 1
+          fi
+          if [ "${#mac_zips[@]}" -eq 0 ]; then
+            echo "Missing required macOS auto-update payload: desktop/dist/electron/${ARTIFACT_BASENAME}-*.zip"
+            exit 1
+          fi
+          if [ "${#mac_zip_blockmaps[@]}" -eq 0 ]; then
+            echo "Missing required macOS differential-update blockmap: desktop/dist/electron/${ARTIFACT_BASENAME}-*.zip.blockmap"
+            exit 1
+          fi
+          if ! grep -q '\.zip' desktop/dist/electron/latest-mac.yml; then
+            echo "latest-mac.yml does not reference the macOS zip update payload."
+            exit 1
+          fi
+
+          forbidden=(
+            desktop/dist/electron/${ARTIFACT_BASENAME}-*-mac-x64.*
+          )
+          if [ "${#forbidden[@]}" -gt 0 ]; then
+            echo "Unexpected mac release artifact(s):"
+            printf '  %s\n' "${forbidden[@]}"
+            exit 1
+          fi
+        fi
+
+        printf 'Packages:\n'
+        printf '  %s\n' "${release_packages[@]}"
+        printf 'Updater metadata:\n'
+        printf '  %s\n' "${metadata[@]}"
+        printf 'Blockmaps:\n'
+        printf '  %s\n' "${blockmaps[@]}"
+
+    - name: Verify Windows signatures
+      if: ${{ inputs.signing-platform == 'win' }}
+      shell: pwsh
+      run: ./scripts/verify_windows_signatures.ps1 -DistDir desktop/dist/electron -ExpectedPublisher $env:AZURE_ARTIFACT_SIGNING_PUBLISHER -ArtifactBasename "${{ inputs.artifact-basename }}"
+
+    - name: Verify macOS signing and notarization
+      if: ${{ inputs.signing-platform == 'mac' }}
+      shell: bash
+      env:
+        BREAKTWENTY_EXPECTED_APP_NAME: ${{ inputs.artifact-basename }}
+        BREAKTWENTY_EXPECTED_ARTIFACT_BASENAME: ${{ inputs.artifact-basename }}
+      run: ./scripts/verify_macos_signing.sh desktop/dist/electron
+
+    - name: Upload validated package artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: desktop-${{ inputs.artifact }}
+        if-no-files-found: error
+        retention-days: 1
+        path: |
+          desktop/dist/electron/${{ inputs.artifact-basename }}-*.AppImage
+          desktop/dist/electron/${{ inputs.artifact-basename }}-*.deb
+          desktop/dist/electron/${{ inputs.artifact-basename }}-*.exe
+          desktop/dist/electron/${{ inputs.artifact-basename }}-*.dmg
+          desktop/dist/electron/${{ inputs.artifact-basename }}-*.zip
+          desktop/dist/electron/latest*.yml
+          desktop/dist/electron/*.blockmap
+          !desktop/dist/electron/*.__uninstaller.exe
+
+    - name: Remove Azure federated token file
+      if: ${{ always() && inputs.signing-platform == 'win' }}
+      shell: bash
+      run: |
+        if [ -n "${AZURE_FEDERATED_TOKEN_FILE:-}" ]; then
+          rm -f "$AZURE_FEDERATED_TOKEN_FILE"
+        fi

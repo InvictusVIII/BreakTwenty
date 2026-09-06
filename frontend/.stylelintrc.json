@@ -1,0 +1,12 @@
+{
+  "ignoreFiles": ["src/theme/tokens.generated.css"],
+  "rules": {
+    "declaration-property-value-disallowed-list": {
+      "font-size": ["/^[0-9.]+px$/", "/^[0-9.]+rem$/", "/^var\\(--font-size-/"],
+      "font-weight": ["/^[0-9]+$/"],
+      "/.+/": ["/rgba?\\(\\s*(?!0\\s*,\\s*0\\s*,\\s*0)\\d/"]
+    },
+    "color-no-hex": true,
+    "color-named": "never"
+  }
+}

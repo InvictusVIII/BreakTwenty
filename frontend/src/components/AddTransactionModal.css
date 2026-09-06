@@ -1,0 +1,525 @@
+.add-transaction-modal {
+  width: min(28rem, 92vw);
+  max-width: 28rem;
+  max-height: min(85vh, calc(100vh - 2rem));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Import-from-file mode is wider so the instruction paragraphs fit on fewer lines. */
+.add-transaction-modal--wide {
+  width: min(38rem, 94vw);
+  max-width: 38rem;
+}
+
+.add-transaction-modal .settings-instructions .modal-desc,
+.add-transaction-modal .settings-instructions ol,
+.add-transaction-modal .settings-instructions code {
+  color: var(--color-text-secondary);
+}
+
+/* Red caution note in the import instructions. */
+.add-transaction-modal .settings-instructions .add-txn-import-warn {
+  color: var(--color-negative);
+}
+
+/* Import account picker option: type badge + (truncating) account name. */
+.add-txn-acct-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.add-txn-acct-option .account-type {
+  flex: 0 0 auto;
+  max-width: none;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.add-txn-acct-option-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.add-txn-import-account .app-dropdown-trigger > .app-dropdown-value,
+.add-txn-import-account-dropdown-popover .app-dropdown-option > .app-control-label {
+  overflow: visible;
+}
+
+.add-txn-import-account-dropdown-popover .app-dropdown-option {
+  --control-height: calc(var(--panel-control-min-height) + var(--space-3));
+}
+
+.add-transaction-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin-right: var(--space-1);
+  padding-right: calc(var(--modal-padding) - var(--space-1));
+  scrollbar-color: var(--app-scrollbar-thumb) var(--app-scrollbar-track);
+}
+
+.add-transaction-body::-webkit-scrollbar-button,
+.add-transaction-body::-webkit-scrollbar-track,
+.add-transaction-body::-webkit-scrollbar-track-piece,
+.add-transaction-body::-webkit-scrollbar-corner {
+  background: var(--app-scrollbar-track-bg);
+}
+
+.add-transaction-body::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.add-txn-manual-grid,
+.add-txn-import-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 0.75rem 0.6rem;
+  align-items: start;
+}
+
+.add-txn-manual-grid .settings-field,
+.add-txn-import-grid .settings-field,
+.add-txn-import-grid .settings-instructions-dropdown {
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.add-txn-span-full {
+  grid-column: 1 / -1;
+}
+
+.add-txn-field-account {
+  grid-column: 1 / span 8;
+}
+
+.add-txn-field-currency {
+  grid-column: span 4;
+  align-self: start;
+}
+
+.add-txn-field-category {
+  grid-column: 1 / -1;
+}
+
+.add-txn-field-amount {
+  grid-column: span 8;
+}
+
+.add-txn-field-date {
+  grid-column: span 5;
+}
+
+.add-txn-field-description {
+  grid-column: span 7;
+}
+
+.add-txn-import-account {
+  grid-column: span 8;
+}
+
+.add-txn-import-data {
+  grid-column: span 4;
+}
+
+.add-txn-import-file {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  justify-self: center;
+  width: min(100%, 22rem);
+}
+
+/* Shared control surface for the modal's inputs/category trigger. */
+.add-txn-input {
+  width: 100%;
+  height: var(--panel-control-min-height);
+  box-sizing: border-box;
+  background: var(--surface-text-field-bg);
+  border: var(--surface-text-field-border-width) solid var(--surface-text-field-border-color);
+  border-radius: var(--surface-text-field-radius);
+  padding: var(--space-0) 0.875rem;
+  font-size: var(--type-input-size);
+  font-weight: var(--type-input-weight);
+  color: var(--surface-text-field-color);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.add-txn-input:focus,
+.add-txn-input:focus-visible {
+  border-color: var(--surface-text-field-focus-border-color);
+}
+
+.add-transaction-modal .settings-field input.add-txn-input {
+  background: var(--surface-text-field-bg);
+  border-color: var(--surface-text-field-border-color);
+}
+
+.add-transaction-modal .settings-field input.add-txn-input:focus,
+.add-transaction-modal .settings-field input.add-txn-input:focus-visible {
+  border-color: var(--surface-text-field-focus-border-color);
+}
+
+.add-transaction-modal
+  :is(
+    .add-txn-field-account,
+    .add-txn-field-currency,
+    .add-txn-import-account,
+    .add-txn-import-data
+  )
+  .app-dropdown-trigger,
+.add-transaction-modal .add-txn-field-date .single-date-trigger,
+.add-transaction-modal .add-txn-category-trigger {
+  --control-label-size: var(--type-input-size);
+  --control-label-weight: var(--type-input-weight);
+  --control-label-line-height: var(--type-button-label-line-height);
+  --control-label-letter-spacing: 0;
+  height: var(--panel-control-min-height);
+  background: var(--surface-text-field-bg);
+  border: var(--surface-text-field-border-width) solid var(--surface-text-field-border-color);
+  border-radius: var(--surface-text-field-radius);
+  padding: var(--space-0) 0.875rem;
+  font-size: var(--type-input-size);
+  font-weight: var(--type-input-weight);
+  letter-spacing: 0;
+  color: var(--surface-text-field-color);
+  box-shadow: var(--surface-text-field-shadow);
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.add-transaction-modal
+  :is(
+    .add-txn-field-account,
+    .add-txn-field-currency,
+    .add-txn-import-account,
+    .add-txn-import-data
+  )
+  .app-dropdown-trigger:hover:not(:disabled),
+.add-transaction-modal
+  :is(
+    .add-txn-field-account,
+    .add-txn-field-currency,
+    .add-txn-import-account,
+    .add-txn-import-data
+  )
+  .app-dropdown-trigger:focus-visible:not(:disabled),
+.add-transaction-modal .add-txn-field-date .single-date-trigger:hover,
+.add-transaction-modal .add-txn-field-date .single-date-trigger:focus-visible,
+.add-transaction-modal .add-txn-category-trigger:hover,
+.add-transaction-modal .add-txn-category-trigger:focus-visible {
+  background: var(--surface-text-field-bg);
+  border-color: var(--surface-text-field-focus-border-color);
+  color: var(--surface-text-field-color);
+  box-shadow: var(--surface-text-field-shadow);
+  outline: none;
+}
+
+.add-transaction-modal
+  :is(
+    .add-txn-field-account,
+    .add-txn-field-currency,
+    .add-txn-import-account,
+    .add-txn-import-data
+  )
+  .app-dropdown-trigger.is-open,
+.add-transaction-modal .add-txn-field-date .single-date-trigger.is-open,
+.add-transaction-modal .add-txn-category-trigger[aria-expanded="true"] {
+  background: var(--surface-text-field-bg);
+  border-color: var(--surface-text-field-border-color);
+  color: var(--surface-text-field-color);
+  box-shadow: var(--surface-text-field-shadow);
+  outline: none;
+}
+
+.add-transaction-modal .add-txn-field-currency .app-dropdown-trigger {
+  min-width: 5rem;
+  justify-content: space-between;
+}
+
+.add-transaction-modal
+  :is(
+    .add-txn-field-account,
+    .add-txn-field-currency,
+    .add-txn-import-account,
+    .add-txn-import-data
+  )
+  .app-dropdown-chevron,
+.add-transaction-modal
+  :is(
+    .add-txn-field-account,
+    .add-txn-field-currency,
+    .add-txn-import-account,
+    .add-txn-import-data
+  )
+  .app-dropdown-trigger.is-open
+  .app-dropdown-chevron {
+  color: var(--surface-text-field-color);
+}
+
+/* Placeholder text is a field hint, not a chosen value — muted grey, not the
+   warm secondary guidance color. */
+.add-transaction-modal .settings-field input::placeholder {
+  color: var(--surface-text-field-placeholder-color);
+}
+
+.add-txn-category-trigger {
+  display: inline-flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: var(--control-gap);
+  text-align: left;
+  cursor: pointer;
+  min-height: var(--control-height);
+}
+
+.add-txn-category-value {
+  min-width: 0;
+  color: inherit;
+}
+
+.add-txn-category-chevron {
+  color: var(--surface-text-field-color);
+  transition: color 0.15s ease;
+}
+
+.add-txn-category-trigger[aria-expanded="true"] .add-txn-category-chevron {
+  color: var(--surface-text-field-color);
+}
+
+.add-txn-category-trigger:focus-visible .add-txn-category-chevron {
+  color: var(--surface-text-field-color);
+}
+
+.add-txn-category-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.add-txn-category-chip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.add-txn-category-placeholder {
+  color: var(--surface-text-field-placeholder-color);
+}
+
+.add-txn-amount-input {
+  width: 100%;
+  min-width: 0;
+}
+
+.add-txn-sign-hint {
+  display: block;
+  margin-top: 0.375rem;
+  font-size: var(--type-field-hint-size);
+  font-weight: var(--type-field-hint-weight);
+  color: var(--type-field-hint-color);
+}
+
+.add-txn-submit {
+  width: min(50%, 13rem);
+  align-self: center;
+  margin-top: 0.5rem;
+  padding-block: 0.75rem;
+}
+
+/* Manual / Import mode switch: resting and selected states use the same shell
+   aliases as dropdowns/buttons inside the modal. */
+.add-txn-modes {
+  display: flex;
+  gap: 0.375rem;
+  margin-bottom: 0.875rem;
+}
+
+.add-txn-mode {
+  flex: 1;
+  min-height: var(--panel-control-min-height);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--panel-control-padding-block) var(--panel-control-padding-inline);
+  border-radius: var(--panel-control-radius);
+  border: var(--surface-button-border-width) solid var(--surface-button-border-color);
+  background: var(--surface-button-bg);
+  color: var(--surface-button-color);
+  font-family: var(--type-button-label-family);
+  font-size: var(--type-button-label-size);
+  font-weight: var(--type-button-label-weight);
+  line-height: var(--type-button-label-line-height);
+  letter-spacing: var(--type-button-label-letter-spacing);
+  cursor: pointer;
+  box-shadow: var(--surface-button-shadow);
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.add-txn-mode:hover:not(.is-active),
+.add-txn-mode:focus-visible:not(.is-active) {
+  --button-state-shell-bg: var(--surface-button-hover-bg);
+  --button-state-shell-border-color: var(--surface-button-hover-border-color);
+  --button-state-shell-border-width: var(--button-state-shell-hover-border-width);
+  --button-state-shell-assist-shadow: inset 0 0 0 var(--button-state-shell-assist-border-width) var(--button-state-shell-border-color);
+  --button-state-shell-shadow: var(--surface-button-hover-shadow);
+  --button-state-shell-opacity: 1;
+  border-color: var(--button-state-physical-hover-border-color);
+  background: transparent;
+  color: var(--surface-button-hover-color);
+  box-shadow: none;
+  outline: none;
+}
+
+.add-txn-mode.is-active {
+  --button-state-shell-bg: var(--surface-button-selected-bg);
+  --button-state-shell-border-color: var(--surface-button-selected-border-color);
+  --button-state-shell-border-width: var(--button-state-shell-selected-border-width);
+  --button-state-shell-assist-shadow: inset 0 0 0 var(--button-state-shell-assist-border-width) var(--button-state-shell-border-color);
+  --button-state-shell-shadow: var(--surface-button-selected-shadow);
+  --button-state-shell-opacity: 1;
+  background: transparent;
+  border-color: var(--button-state-physical-selected-border-color);
+  color: var(--surface-button-selected-color);
+  box-shadow: none;
+}
+
+/* CSV example header row — label on its own line, columns on one line. */
+.add-txn-csv-example {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+}
+
+.add-txn-csv-example code {
+  white-space: nowrap;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* File import */
+.add-txn-file-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-width: 0;
+  width: fit-content;
+}
+
+.add-txn-file-label {
+  flex: 0 0 auto;
+  font-family: var(--type-subsection-title-family);
+  font-size: var(--type-subsection-title-size);
+  font-weight: var(--type-subsection-title-weight);
+  color: var(--type-subsection-title-color);
+  line-height: var(--type-subsection-title-line-height);
+  letter-spacing: var(--type-subsection-title-letter-spacing);
+  text-transform: uppercase;
+}
+
+.add-txn-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--type-field-hint-size);
+  color: var(--color-text-secondary);
+}
+
+.add-txn-import-actions {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 0.85rem;
+}
+
+.add-txn-import-actions > button {
+  flex: 1;
+}
+
+.add-txn-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.75rem 0.875rem;
+  margin-top: 0.25rem;
+  background: var(--surface-text-field-bg);
+  border: var(--surface-text-field-border-width) solid var(--surface-text-field-border-color);
+  border-radius: var(--surface-text-field-radius);
+  box-shadow: var(--surface-text-field-shadow);
+}
+
+.add-txn-preview-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--type-body-size);
+  color: var(--type-input-color);
+}
+
+.add-txn-preview-warn {
+  margin: 0.25rem 0 0;
+  font-size: var(--type-field-hint-size);
+  color: var(--type-field-hint-color);
+}
+
+.add-txn-import-empty {
+  margin: 0.5rem 0;
+  text-align: center;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  font-size: var(--type-body-size);
+}
+
+.add-txn-mode-hint {
+  margin: 0 0 0.75rem;
+  text-align: center;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  font-size: var(--type-body-size);
+}
+
+@media (max-width: 34rem) {
+  .add-txn-field-account,
+  .add-txn-field-currency,
+  .add-txn-field-category,
+  .add-txn-field-amount,
+  .add-txn-field-date,
+  .add-txn-field-description,
+  .add-txn-import-account,
+  .add-txn-import-data {
+    grid-column: 1 / -1;
+  }
+
+  .add-txn-submit {
+    width: min(100%, 13rem);
+  }
+
+  .add-txn-import-file,
+  .add-txn-file-row {
+    flex-wrap: wrap;
+  }
+}
+
+.add-txn-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3, 0.75rem);
+  padding: 1.5rem 0 0.75rem;
+  text-align: center;
+}

@@ -1,0 +1,483 @@
+/* Settings page styles.
+ * Extracted from App.css in Stage 3 of the CSS split. Every block here has
+ * selectors that reference classes exclusively used by pages/Settings.js (verified
+ * against className occurrences in all pages and components). The split is
+ * purely file organization — Vite bundles all imported CSS together, so the
+ * rules remain globally scoped at runtime. Imported from pages/Settings.js.
+ */
+
+
+
+/* Settings page */
+.settings-card {
+  --settings-card-padding: clamp(1.25rem, 2vw, 1.5rem);
+  --settings-card-normal-scroll-width: 100%;
+  padding: var(--settings-card-padding);
+}
+
+.settings-card-scroll-frame {
+  width: calc(100% + (2 * var(--settings-card-padding)));
+  min-width: 0;
+  margin-inline: calc(-1 * var(--settings-card-padding));
+}
+
+.settings-card-scroll-viewport {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.settings-card-scroll-viewport::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.settings-card-scroll-surface {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: var(--settings-card-normal-scroll-width);
+  padding-inline: var(--settings-card-padding);
+}
+
+/* Dropdown menus must leave the horizontal clip while open. */
+.settings-card:has(.settings-dropdown.is-open) {
+  z-index: var(--app-panel-popover-layer);
+}
+
+.settings-card:has(.settings-dropdown.is-open) .settings-card-scroll-viewport {
+  overflow-x: clip;
+  overflow-y: visible;
+}
+
+.licenses-content-card {
+  background: var(--surface-panel-table-bg);
+  box-shadow: var(--surface-panel-table-shadow);
+}
+
+.settings-card-title {
+  color: var(--type-panel-title-color);
+  font-family: var(--type-panel-title-family);
+  font-size: var(--type-panel-title-size);
+  font-weight: var(--type-panel-title-weight);
+  letter-spacing: var(--type-panel-title-letter-spacing);
+  line-height: var(--type-panel-title-line-height);
+  margin-bottom: var(--space-2);
+}
+
+.settings-desc {
+  color: var(--color-text-secondary);
+  font-family: var(--type-body-muted-family);
+  font-size: var(--type-body-muted-size);
+  font-weight: var(--type-body-muted-weight);
+  letter-spacing: var(--type-body-muted-letter-spacing);
+  line-height: var(--type-field-hint-line-height);
+  margin-bottom: var(--space-4);
+}
+
+.settings-dropdown {
+  position: relative;
+  width: 100%;
+}
+
+.settings-field-timezone,
+.settings-field-market-provider {
+  width: min(100%, 23rem);
+}
+
+.settings-field-time-format {
+  width: min(100%, 13rem);
+}
+
+.settings-dropdown-trigger {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--panel-control-min-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: var(--panel-control-padding-block) var(--panel-control-compact-padding-inline);
+  border-radius: var(--panel-control-radius);
+  border: var(--surface-button-border-width) solid var(--surface-button-border-color);
+  background: var(--surface-button-bg);
+  color: var(--surface-button-color);
+  font-family: var(--type-button-label-family);
+  font-size: var(--type-button-label-size);
+  font-weight: var(--type-button-label-weight);
+  line-height: var(--type-button-label-line-height);
+  letter-spacing: var(--type-button-label-letter-spacing);
+  text-align: left;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
+  box-shadow: var(--surface-button-shadow);
+}
+
+.settings-dropdown-trigger:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.settings-dropdown-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-dropdown-icon {
+  color: currentColor;
+  transition: color 0.18s ease;
+}
+
+.settings-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: min(18rem, 48vh);
+  overflow-y: auto;
+  padding: 0.5rem;
+  border-radius: var(--radius-sm);
+  border: var(--surface-floating-border-width) solid var(--surface-floating-border-color);
+  background: var(--app-menu-bg);
+  box-shadow: var(--app-menu-shadow);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-0.25rem);
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease;
+}
+
+.settings-dropdown-option-list {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.settings-dropdown-option {
+  width: 100%;
+  min-height: 2.25rem;
+  display: flex;
+  align-items: center;
+  padding: 0.625rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: var(--surface-row-border-width) solid var(--surface-row-border-color);
+  background: var(--surface-row-bg);
+  color: var(--color-text-primary);
+  text-align: left;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    transform 0.18s ease;
+}
+
+.settings-dropdown-option:hover,
+.settings-dropdown-option:focus-visible {
+  --button-state-shell-bg: var(--surface-row-hover-bg);
+  --button-state-shell-border-color: var(--surface-row-hover-border-color);
+  --button-state-shell-border-width: var(--surface-row-hover-border-width);
+  --button-state-shell-assist-shadow: inset 0 0 0 var(--button-state-shell-assist-border-width) var(--button-state-shell-border-color);
+  --button-state-shell-shadow: var(--surface-row-hover-shadow);
+  --button-state-shell-opacity: 1;
+  transform: none;
+  border-color: var(--surface-row-hover-border-color);
+  background: transparent;
+  color: var(--surface-row-hover-color);
+  box-shadow: none;
+  outline: none;
+}
+
+.settings-dropdown-option.is-selected {
+  --button-state-shell-bg: var(--surface-button-selected-bg);
+  --button-state-shell-border-color: var(--surface-button-selected-border-color);
+  --button-state-shell-border-width: var(--button-state-shell-selected-border-width);
+  --button-state-shell-assist-shadow: inset 0 0 0 var(--button-state-shell-assist-border-width) var(--button-state-shell-border-color);
+  --button-state-shell-shadow: var(--surface-button-selected-shadow);
+  --button-state-shell-opacity: 1;
+  transform: none;
+  border-color: var(--button-state-physical-selected-border-color);
+  background: transparent;
+  color: var(--surface-button-selected-color);
+  box-shadow: none;
+}
+
+.settings-dropdown-option-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--type-menu-option-family);
+  font-size: var(--type-menu-option-size);
+  font-weight: var(--type-menu-option-weight);
+  line-height: var(--line-height-snug);
+}
+
+.settings-actions {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+  flex-wrap: wrap;
+}
+
+.settings-status {
+  margin-bottom: var(--space-4);
+  padding: 0.75rem 0.875rem;
+  border-radius: var(--surface-text-field-radius);
+  border: var(--surface-text-field-border-width) solid var(--surface-text-field-border-color);
+  background: var(--surface-text-field-bg);
+  box-shadow: var(--surface-text-field-shadow);
+  color: var(--color-text-secondary);
+  font-size: var(--type-body-size);
+  line-height: var(--line-height-normal);
+}
+
+.settings-status.has-key {
+  color: var(--color-text-secondary);
+}
+
+.settings-update-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  font-size: var(--type-field-hint-size);
+  font-weight: var(--type-field-hint-weight);
+  color: var(--color-text-secondary);
+}
+
+.settings-update-meta span {
+  padding: 0.35rem 0.55rem;
+  border: var(--surface-text-field-border-width) solid var(--surface-text-field-border-color);
+  border-radius: var(--surface-text-field-radius);
+  background: var(--surface-text-field-bg);
+  box-shadow: var(--surface-text-field-shadow);
+}
+
+.settings-update-progress {
+  height: 0.45rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(var(--rgb-surface), 0.95);
+  border: 1px solid rgba(var(--rgb-text-secondary), 0.14);
+}
+
+.settings-update-progress span {
+  display: block;
+  height: 100%;
+  min-width: 0.2rem;
+  border-radius: inherit;
+  background: var(--color-accent-primary);
+  transition: width 0.2s ease;
+}
+
+.settings-update-progress.is-indeterminate span {
+  width: 42%;
+  animation: settings-update-progress-sweep 0.9s ease-in-out infinite;
+}
+
+@keyframes settings-update-progress-sweep {
+  from {
+    transform: translateX(-110%);
+  }
+
+  to {
+    transform: translateX(250%);
+  }
+}
+
+.settings-secret-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.settings-secret-row input {
+  flex: 1 1 16rem;
+  min-width: min(100%, 16rem);
+  width: auto;
+}
+
+.settings-inline-btn {
+  flex-shrink: 0;
+}
+
+.settings-note {
+  margin-top: var(--space-4);
+  font-size: var(--type-field-hint-size);
+  font-weight: var(--type-field-hint-weight);
+  color: var(--color-text-secondary);
+  line-height: var(--type-field-hint-line-height);
+}
+
+.settings-message {
+  margin-top: 14px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: var(--type-body-size);
+}
+
+.settings-message.success {
+  background: rgba(var(--rgb-positive), 0.08);
+  color: var(--color-positive);
+  border: 1px solid rgba(var(--rgb-positive), 0.19);
+}
+
+.settings-message.error {
+  background: rgba(var(--rgb-negative), 0.08);
+  color: var(--color-negative);
+  border: 1px solid rgba(var(--rgb-negative), 0.19);
+}
+
+.settings-credits-list {
+  margin: 0 0 var(--space-4);
+  padding-left: 1.1rem;
+  display: grid;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--type-body-size);
+  line-height: var(--line-height-normal);
+}
+
+.settings-credits-list strong {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.settings-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+  color: var(--color-text-secondary);
+  font-size: var(--type-body-size);
+}
+
+.settings-checkbox-row input[type="checkbox"] {
+  flex-shrink: 0;
+}
+
+.settings-checkbox-hint {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--type-field-hint-size);
+  line-height: var(--type-field-hint-line-height);
+}
+
+.settings-recovery-warning {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(var(--rgb-warning), 0.34);
+  border-radius: var(--surface-text-field-radius);
+  background: var(--surface-row-warning-bg);
+  box-shadow: var(--surface-text-field-shadow);
+}
+
+.settings-recovery-warning-icon {
+  width: var(--top-control-icon-svg-size);
+  height: var(--top-control-icon-svg-size);
+  margin-top: 0.08rem;
+  color: var(--color-warning);
+}
+
+.settings-recovery-warning-title {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-primary);
+  font-size: var(--type-body-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-snug);
+}
+
+.settings-recovery-warning-copy {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--type-field-hint-size);
+  line-height: var(--type-field-hint-line-height);
+}
+
+.settings-recovery-warning-copy + .settings-recovery-warning-copy {
+  margin-top: var(--space-2);
+}
+
+.settings-recovery-warning code {
+  color: var(--color-text-primary);
+  font-size: 0.94em;
+}
+
+.settings-export-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.settings-export-row button {
+  flex: 1 1 7rem;
+  min-width: 0;
+  max-width: 100%;
+  height: auto;
+  white-space: normal;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.settings-export-row .settings-export-all {
+  flex-basis: 100%;
+}
+
+/* Settings layout: two cards per row — App Updates + Timezone (row 1),
+   Market Data + Data export/import (row 2). Visual order is driven by CSS
+   `order` so the JSX source order is unchanged; `align-items: stretch` makes
+   both cards in a row share the taller card's height. */
+.settings-grid {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+  align-items: stretch;
+}
+
+.settings-grid .settings-pos-1 {
+  order: 1;
+}
+
+.settings-grid .settings-pos-2 {
+  order: 2;
+}
+
+.settings-grid .settings-pos-3 {
+  order: 3;
+}
+
+.settings-grid .settings-pos-4 {
+  order: 4;
+}
+
+.settings-grid .settings-pos-5 {
+  order: 5;
+  grid-column: 1 / -1;
+}
+
+/* Match the Dashboard main-panel transition: stack the shells before their
+   normal-width contents need panel-local horizontal scrolling. */
+@media (max-width: 82rem) {
+  .settings-card {
+    --settings-card-normal-scroll-width: calc((var(--app-work-area-max-cap) - var(--space-5)) / 2 - (2 * var(--surface-panel-border-width)));
+  }
+
+  .settings-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

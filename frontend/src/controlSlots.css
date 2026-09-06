@@ -1,0 +1,553 @@
+.page-shell-toolbar .app-control-root {
+  --control-height: var(--top-control-trigger-height);
+  --control-padding-block: var(--top-control-padding-block);
+  --control-padding-inline: var(--top-control-padding-inline);
+  --control-compact-padding-inline: var(--top-control-compact-padding-inline);
+  --control-gap: var(--top-control-gap);
+  --control-radius: var(--top-control-radius);
+  --control-label-family: var(--type-topbar-trigger-label-family);
+  --control-label-size: var(--type-topbar-trigger-label-size);
+  --control-label-weight: var(--type-topbar-trigger-label-weight);
+  --control-label-line-height: var(--type-button-label-line-height);
+  --control-label-letter-spacing: 0;
+  --control-icon-size: var(--top-control-icon-svg-size);
+  --control-icon-slot-size: var(--top-control-icon-slot-size);
+  --control-chevron-size: var(--top-control-chevron-svg-size);
+  --control-chevron-slot-size: var(--top-control-chevron-slot-size);
+}
+
+.app-view-filter-panel .app-control-root {
+  --control-height: var(--panel-control-min-height);
+  --control-padding-block: var(--panel-control-padding-block);
+  --control-padding-inline: var(--panel-control-padding-inline);
+  --control-compact-padding-inline: var(--panel-control-compact-padding-inline);
+  --control-gap: var(--panel-control-gap);
+  --control-radius: var(--panel-control-radius);
+  --control-label-family: var(--type-button-label-family);
+  --control-label-size: var(--type-button-label-size);
+  --control-label-weight: var(--type-button-label-weight);
+  --control-label-line-height: var(--type-button-label-line-height);
+  --control-label-letter-spacing: var(--type-button-label-letter-spacing);
+  --control-icon-size: var(--view-filter-control-icon-svg-size);
+  --control-icon-slot-size: var(--control-icon-size);
+  --control-chevron-size: var(--panel-control-chevron-svg-size);
+  --control-chevron-slot-size: var(--control-chevron-size);
+}
+
+.page-shell-toolbar .app-control-root,
+.app-view-filter-panel .app-control-root {
+  display: inline-grid !important;
+  align-items: center !important;
+  column-gap: var(--control-object-gap-current) !important;
+  row-gap: 0 !important;
+  height: var(--control-height);
+  min-height: var(--control-height);
+  max-height: var(--control-height);
+  box-sizing: border-box;
+  padding: var(--space-0) var(--control-object-edge-inline-current);
+  border-radius: var(--control-radius);
+}
+
+.page-shell-toolbar .top-toolbar-icon-btn.app-control-root,
+.page-shell-toolbar .app-theme-toggle-btn.app-control-root {
+  --control-icon-size: var(--top-control-icon-button-svg-size);
+  --control-icon-slot-size: 100%;
+  --control-fixed-size: var(--top-control-icon-button-size);
+  flex: 0 0 var(--control-fixed-size);
+  width: var(--control-fixed-size);
+  height: var(--control-fixed-size);
+  min-width: var(--control-fixed-size);
+  min-height: var(--control-fixed-size);
+  max-width: var(--control-fixed-size);
+  max-height: var(--control-fixed-size);
+  padding: var(--space-0);
+  line-height: var(--line-height-none);
+}
+
+.page-shell-toolbar .top-toolbar-icon-btn.app-control-root {
+  --control-icon-size: var(--top-control-icon-button-svg-size-effective);
+  --control-fixed-size: var(--top-control-icon-button-size-effective);
+}
+
+.page-shell-toolbar .app-theme-toggle-btn.app-control-root {
+  --control-fixed-width: var(--app-theme-toggle-button-width);
+  flex-basis: var(--control-fixed-width);
+  width: var(--control-fixed-width);
+  min-width: var(--control-fixed-width);
+  max-width: var(--control-fixed-width);
+}
+
+.page-shell-toolbar .app-theme-toggle-btn.app-control-root:first-child > .app-control-icon:only-child {
+  justify-self: start;
+}
+
+.page-shell-toolbar .app-theme-toggle-btn.app-control-root:last-child > .app-control-icon:only-child {
+  justify-self: end;
+}
+
+.panel-shell .app-control-root:is(
+  .dashboard-action-trigger,
+  .scope-selector-trigger,
+  .investments-filter-trigger,
+  .timeline-selector-trigger,
+  .app-dropdown-trigger,
+  .single-date-trigger
+) {
+  --control-height: var(--panel-control-min-height);
+  --control-padding-block: var(--panel-control-padding-block);
+  --control-padding-inline: var(--panel-control-padding-inline);
+  --control-compact-padding-inline: var(--panel-control-compact-padding-inline);
+  --control-gap: var(--panel-control-gap);
+  --control-radius: var(--panel-control-radius);
+  --control-label-family: var(--type-button-label-family);
+  --control-label-size: var(--type-button-label-size);
+  --control-label-weight: var(--type-button-label-weight);
+  --control-label-line-height: var(--type-button-label-line-height);
+  --control-label-letter-spacing: var(--type-button-label-letter-spacing);
+  --control-icon-size: var(--panel-control-icon-svg-size);
+  --control-icon-slot-size: var(--control-icon-size);
+  --control-chevron-size: var(--panel-control-chevron-svg-size);
+  --control-chevron-slot-size: var(--control-chevron-size);
+  height: var(--control-height);
+  min-height: var(--control-height);
+  max-height: var(--control-height);
+  padding: var(--space-0) var(--control-object-edge-inline-current);
+  border-radius: var(--control-radius);
+}
+
+.single-date-trigger.app-control-root {
+  --control-icon-size: var(--single-date-icon-svg-size);
+  --control-icon-slot-size: var(--control-icon-size);
+}
+
+.panel-shell .cf-timeline-step-btn.app-control-root,
+.chart-view-stepper .chart-view-stepper-btn.app-control-root {
+  --control-icon-size: var(--chart-stepper-icon-svg-size);
+  --control-icon-slot-size: 100%;
+  --control-fixed-size: var(--chart-stepper-button-size);
+  width: var(--control-fixed-size);
+  height: var(--control-fixed-size);
+  min-width: var(--control-fixed-size);
+  min-height: var(--control-fixed-size);
+  max-width: var(--control-fixed-size);
+  max-height: var(--control-fixed-size);
+  padding: var(--space-0);
+}
+
+.panel-shell .cf-timeline-step-btn.cf-timeline-today-btn.app-control-root {
+  --control-fixed-size: var(--panel-current-period-button-size);
+}
+
+.app-control-root {
+  --control-label-line-height: var(--type-button-label-line-height);
+  --control-object-edge-inline-current: var(--control-object-edge-label-inline);
+  --control-object-gap-current: var(--control-object-gap);
+  display: inline-grid !important;
+  grid-template-columns: none;
+  grid-template-rows: auto;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, max-content);
+  align-content: center !important;
+  align-items: center !important;
+  justify-items: center !important;
+  justify-content: center !important;
+  column-gap: var(--control-object-gap-current) !important;
+  row-gap: 0 !important;
+  height: var(--control-height);
+  min-height: var(--control-height);
+  max-height: var(--control-height);
+  box-sizing: border-box;
+  padding-block: var(--space-0) !important;
+  padding-inline: var(--control-object-edge-inline-current) !important;
+  font-synthesis: none;
+  text-align: center;
+}
+
+.app-control-root:has(> .app-control-label):not(:has(> .app-control-icon)):not(:has(> .app-control-chevron)) {
+  --control-object-edge-inline-current: var(--control-object-edge-label-inline);
+  --control-object-gap-current: var(--space-0);
+}
+
+.app-control-root:has(> .app-control-icon):not(:has(> .app-control-label)):not(:has(> .app-control-chevron)),
+.app-control-root:has(> .app-control-chevron):not(:has(> .app-control-icon)):not(:has(> .app-control-label)) {
+  --control-object-edge-inline-current: var(--space-0);
+  --control-object-gap-current: var(--space-0);
+}
+
+.app-control-root:has(> .app-control-icon):has(> .app-control-label),
+.app-control-root:has(> .app-control-icon):has(> .app-control-chevron) {
+  --control-object-edge-inline-current: var(--control-object-edge-icon-inline);
+}
+
+.app-control-root > :is(.app-control-icon, .app-control-label, .app-control-chevron) {
+  grid-row: 1;
+  grid-column: auto;
+  display: grid;
+  place-items: center;
+  align-self: center;
+  justify-self: center;
+  min-height: 0;
+  padding: var(--space-0);
+  box-sizing: border-box;
+}
+
+.app-control-root > :is(.app-control-icon, .app-control-chevron) {
+  line-height: 0;
+}
+
+.app-control-root > .app-control-icon {
+  width: var(--control-icon-slot-size);
+  height: var(--control-icon-slot-size);
+  min-width: var(--control-icon-slot-size);
+  min-height: var(--control-icon-slot-size);
+}
+
+.app-control-root > .app-control-chevron {
+  width: var(--control-chevron-slot-size);
+  height: var(--control-chevron-slot-size);
+  min-width: var(--control-chevron-slot-size);
+  min-height: var(--control-chevron-slot-size);
+}
+
+.app-control-root > :is(.app-control-icon, .app-control-chevron):only-child {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 100%;
+}
+
+.app-control-root > .app-control-label:only-child {
+  grid-column: 1 / -1;
+}
+
+.app-control-root:has(> :is(.app-control-icon, .app-control-label, .app-control-chevron):only-child) {
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-flow: row;
+  justify-content: stretch !important;
+  gap: 0;
+}
+
+.scope-selector-trigger.app-control-root {
+  grid-template-columns:
+    var(--control-icon-slot-size)
+    max-content
+    var(--control-chevron-slot-size);
+  grid-auto-flow: row;
+  justify-content: center !important;
+}
+
+.timeline-selector-trigger.app-control-root,
+.transactions-type-trigger.app-control-root {
+  grid-template-columns:
+    var(--control-icon-slot-size)
+    max-content
+    var(--control-chevron-slot-size);
+  grid-auto-flow: row;
+  justify-content: center !important;
+}
+
+.dashboard-cashflow-header .cf-timeline-trigger.app-control-root {
+  grid-template-columns:
+    max-content
+    var(--control-chevron-slot-size);
+}
+
+:where(
+  .settings-dropdown-trigger,
+  .support-logs-picker-trigger
+).app-control-root,
+.app-dropdown:not(.currency-dropdown, .is-fit-to-options) > .app-dropdown-trigger.app-control-root {
+  grid-template-columns:
+    minmax(0, 1fr)
+    var(--control-chevron-slot-size);
+  grid-auto-flow: row;
+  justify-content: stretch !important;
+}
+
+.app-theme-toggle-btn.app-control-root > .app-control-icon:only-child {
+  --control-theme-state-size: var(--app-theme-toggle-state-size);
+  width: var(--control-theme-state-size);
+  height: var(--control-theme-state-size);
+  min-width: var(--control-theme-state-size);
+  min-height: var(--control-theme-state-size);
+  max-width: var(--control-theme-state-size);
+  max-height: var(--control-theme-state-size);
+}
+
+.app-control-root > .app-control-label {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  font-family: var(--control-label-family);
+  font-size: var(--control-label-size);
+  font-weight: var(--control-label-weight);
+  line-height: var(--control-label-line-height);
+  letter-spacing: var(--control-label-letter-spacing);
+  text-box: trim-both cap alphabetic;
+  white-space: nowrap;
+  overflow: clip;
+  overflow-clip-margin: var(--control-label-ink-overflow);
+  text-align: center;
+  text-overflow: ellipsis;
+}
+
+:where(
+  .app-dropdown-option:not(.is-currency-option),
+  .settings-dropdown-trigger,
+  .settings-dropdown-option,
+  .category-picker-clear
+).app-control-root > .app-control-label {
+  justify-self: stretch;
+  text-align: left;
+}
+
+.tx-detail-reset-category.app-control-root {
+  --control-icon-size: var(--control-icon-size-tiny);
+  --control-icon-slot-size: var(--control-icon-size);
+}
+
+.category-picker-create-trigger.app-control-root,
+.cs-add-sub-button.app-control-root,
+.settings-asset-add-purchase.app-control-root {
+  --control-icon-size: var(--control-icon-size-compact);
+  --control-icon-slot-size: var(--control-icon-size);
+}
+
+.chart-color-trigger.app-control-root,
+.timeline-range-picker-nav.app-control-root,
+.cs-add-group-button.app-control-root {
+  --control-icon-size: var(--control-icon-size-small);
+  --control-icon-slot-size: var(--control-icon-size);
+}
+
+.timeline-range-picker-nav.app-control-root {
+  --control-fixed-size: var(--panel-control-min-height);
+  --control-icon-slot-size: 100%;
+  width: var(--control-fixed-size);
+  height: var(--control-fixed-size);
+  min-width: var(--control-fixed-size);
+  min-height: var(--control-fixed-size);
+  max-width: var(--control-fixed-size);
+  max-height: var(--control-fixed-size);
+  padding: var(--space-0);
+}
+
+.market-strip-config-trigger.app-control-root {
+  --control-icon-size: var(--control-icon-size-market-strip);
+  --control-icon-slot-size: var(--control-icon-size);
+}
+
+.chart-color-trigger.app-control-root,
+.market-strip-config-trigger.app-control-root {
+  --control-fixed-size: var(--panel-round-icon-control-size);
+  width: var(--control-fixed-size);
+  height: var(--control-fixed-size);
+  min-width: var(--control-fixed-size);
+  min-height: 0;
+  max-width: var(--control-fixed-size);
+  max-height: var(--control-fixed-size);
+}
+
+.category-picker-create-icon.app-control-root {
+  --control-icon-size: var(--control-icon-size-medium);
+  --control-icon-slot-size: var(--control-icon-size);
+}
+
+.dashboard-customize-reset.app-control-root {
+  --control-icon-size: var(--dashboard-customize-reset-icon-size);
+  --control-icon-slot-size: var(--control-icon-size);
+}
+
+.app-control-root > :is(.app-control-icon, .app-control-chevron) > svg {
+  display: block;
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.app-control-root > :is(.app-control-icon, .app-control-chevron) > * {
+  display: block;
+}
+
+.app-control-root > .app-control-icon > svg {
+  width: var(--control-icon-size);
+  height: var(--control-icon-size);
+}
+
+.app-control-root > .app-control-chevron > svg {
+  width: var(--control-chevron-size);
+  height: var(--control-chevron-size);
+  transform-origin: center;
+  transition: transform 0.15s ease;
+}
+
+.app-control-root > .app-control-chevron > .app-control-chevron-glyph {
+  fill: currentColor;
+  stroke: none;
+}
+
+.app-control-root[aria-expanded="true"] > .app-control-chevron > svg {
+  transform: rotate(180deg);
+}
+
+/*
+ * Persistent-shell control contract
+ * ---------------------------------
+ * These are the surfaced controls whose internal font and glyph boxes must stay
+ * invariant as browser/Electron zoom changes. Complex rows and tiles retain
+ * their purpose-built grid/flex layout; this layer only removes font synthesis
+ * and inline-SVG baseline behavior. Panel-native actions, data-row buttons,
+ * sortable headers, disclosures, and sync/status controls are intentionally not
+ * listed here.
+ */
+:where(
+  .floating-nav-toggle,
+  .floating-nav-btn,
+  .transaction-import-rail-toggle,
+  .app-theme-toggle-btn,
+  .support-logs-picker-trigger,
+  .support-logs-picker-option,
+  .support-logs-attempt-pill,
+  .market-strip-config-trigger,
+  .market-strip-option,
+  .chart-color-trigger,
+  .chart-color-square,
+  .chart-color-reset,
+  .app-dropdown-trigger,
+  .app-dropdown-option,
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger,
+  .file-pick-btn,
+  .single-date-trigger,
+  .top-toolbar-icon-btn,
+  .category-picker-clear,
+  .category-picker-item,
+  .category-picker-create-icon,
+  .category-picker-create-trigger,
+  .category-picker-create-cancel,
+  .settings-dropdown-trigger,
+  .settings-dropdown-option,
+  .settings-modal-mode-button,
+  .add-txn-mode,
+  .add-inst-item,
+  .add-networth-tile,
+  .institution-filter-toggle-all,
+  .institution-account-selector-tab,
+  .institution-account-selector-tile,
+  .institution-account-selector-account-row,
+  .alloc-tab,
+  .emoji-picker-set-tab,
+  .emoji-picker-cat-tab,
+  .emoji-picker-cell,
+  .emoji-picker-retry,
+  .income-timeline-menu-item,
+  .transactions-toolbar-menu-item,
+  .transactions-page-size-trigger,
+  .transactions-page-size-option,
+  .transactions-pagination-button,
+  .dashboard-customize-arrange-toggle,
+  .dashboard-customize-reset,
+  .dashboard-layout-empty-customize,
+  .dashboard-widget-visibility-switch,
+  .cf-timeline-step-btn,
+  .chart-view-stepper-btn,
+  .dashboard-action-trigger,
+  .accounts-group-trigger,
+  .timeline-range-picker-summary-item,
+  .timeline-range-picker-nav,
+  .timeline-range-picker-title,
+  .timeline-range-picker-day,
+  .timeline-range-picker-cell,
+  .cs-form-button,
+  .cs-add-sub-button,
+  .income-mode-option,
+  .holdings-pnl-toggle,
+  .performance-benchmark-toggle,
+  .tx-detail-reset-category
+) {
+  box-sizing: border-box;
+  font-family: var(--type-button-label-family);
+  font-synthesis: none;
+  line-height: var(--line-height-none);
+}
+
+:where(
+  .floating-nav-toggle,
+  .floating-nav-btn,
+  .transaction-import-rail-toggle,
+  .app-theme-toggle-btn,
+  .support-logs-picker-trigger,
+  .support-logs-attempt-pill,
+  .market-strip-config-trigger,
+  .chart-color-trigger,
+  .chart-color-reset,
+  .app-dropdown-trigger,
+  .app-dropdown-option,
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger,
+  .file-pick-btn,
+  .single-date-trigger,
+  .top-toolbar-icon-btn,
+  .category-picker-clear,
+  .category-picker-create-icon,
+  .category-picker-create-trigger,
+  .category-picker-create-cancel,
+  .settings-dropdown-trigger,
+  .settings-modal-mode-button,
+  .add-txn-mode,
+  .institution-filter-toggle-all,
+  .institution-account-selector-tab,
+  .alloc-tab,
+  .emoji-picker-set-tab,
+  .emoji-picker-cat-tab,
+  .emoji-picker-cell,
+  .emoji-picker-retry,
+  .transactions-page-size-trigger,
+  .transactions-page-size-option,
+  .transactions-pagination-button,
+  .dashboard-customize-reset,
+  .dashboard-layout-empty-customize,
+  .cf-timeline-step-btn,
+  .chart-view-stepper-btn,
+  .dashboard-action-trigger,
+  .timeline-range-picker-nav,
+  .timeline-range-picker-title,
+  .cs-form-button,
+  .cs-add-sub-button,
+  .income-mode-option,
+  .tx-detail-reset-category
+) {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+:where(
+  .floating-nav-toggle,
+  .floating-nav-btn,
+  .transaction-import-rail-toggle,
+  .app-theme-toggle-btn,
+  .market-strip-config-trigger,
+  .chart-color-trigger,
+  .chart-color-square,
+  .chart-color-reset,
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger,
+  .top-toolbar-icon-btn,
+  .category-picker-clear,
+  .category-picker-create-icon,
+  .dashboard-customize-reset,
+  .cf-timeline-step-btn,
+  .chart-view-stepper-btn,
+  .dashboard-action-trigger,
+  .timeline-range-picker-nav,
+  .tx-detail-reset-category
+) > svg {
+  display: block;
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 0;
+  line-height: 0;
+}

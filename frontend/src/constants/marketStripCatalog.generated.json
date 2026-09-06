@@ -1,0 +1,84 @@
+{
+  "max_tiles": 7,
+  "default_watchlist": [
+    "sp500",
+    "nasdaq",
+    "dow",
+    "usd_cad",
+    "bitcoin"
+  ],
+  "tiles": [
+    {
+      "id": "sp500",
+      "label": "S&P 500",
+      "symbol": "^GSPC",
+      "fred_symbol": "SP500",
+      "custom": false,
+      "precision": 2
+    },
+    {
+      "id": "dow",
+      "label": "DOW",
+      "symbol": "^DJI",
+      "fred_symbol": "DJIA",
+      "custom": false,
+      "precision": 2
+    },
+    {
+      "id": "nasdaq",
+      "label": "NASDAQ",
+      "symbol": "^IXIC",
+      "fred_symbol": "NASDAQCOM",
+      "custom": false,
+      "precision": 2
+    },
+    {
+      "id": "russell2000",
+      "label": "RUSSELL 2000",
+      "symbol": "^RUT",
+      "fred_symbol": null,
+      "custom": false,
+      "precision": 2
+    },
+    {
+      "id": "volatility",
+      "label": "VOLATILITY",
+      "symbol": "^VIX",
+      "fred_symbol": "VIXCLS",
+      "custom": false,
+      "precision": 2
+    },
+    {
+      "id": "gold",
+      "label": "GOLD",
+      "symbol": "GCUSD",
+      "fred_symbol": null,
+      "custom": false,
+      "precision": 2
+    },
+    {
+      "id": "bitcoin",
+      "label": "Bitcoin USD",
+      "symbol": "BTCUSD",
+      "fred_symbol": null,
+      "custom": false,
+      "precision": 2
+    },
+    {
+      "id": "usd_cad",
+      "label": "USD/CAD",
+      "symbol": "USDCAD",
+      "fred_symbol": "DEXCAUS",
+      "custom": false,
+      "precision": 4
+    },
+    {
+      "id": "crude_oil",
+      "label": "Crude Oil",
+      "symbol": "CLUSD",
+      "fred_symbol": "DCOILWTICO",
+      "custom": false,
+      "precision": 2
+    }
+  ]
+}

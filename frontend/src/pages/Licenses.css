@@ -1,0 +1,22 @@
+.licenses-page {
+  --page-frame-narrow-max: 72rem;
+}
+
+.licenses-policies,
+.licenses-overview {
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-5);
+  border-bottom: var(--surface-panel-row-divider);
+}
+
+.licenses-policy-links {
+  margin-bottom: var(--space-0);
+}
+
+.licenses-policy-links a {
+  color: var(--color-text-secondary);
+}
+
+.licenses-overview-note {
+  margin-bottom: var(--space-0);
+}

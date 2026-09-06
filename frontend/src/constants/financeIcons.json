@@ -1,0 +1,2118 @@
+{
+  "icons": [
+    {
+      "slug": "money-stack",
+      "name": "Money",
+      "keywords": [
+        "money",
+        "cash",
+        "bills",
+        "transfer"
+      ],
+      "source": "flat-color-icons:money-transfer"
+    },
+    {
+      "slug": "coin-stack",
+      "name": "Stack of Coins",
+      "keywords": [
+        "coins",
+        "stack",
+        "savings",
+        "change"
+      ],
+      "source": "fluent-color:coin-multiple-24"
+    },
+    {
+      "slug": "currency-exchange",
+      "name": "Currency Exchange",
+      "keywords": [
+        "exchange",
+        "fx",
+        "currency",
+        "convert"
+      ],
+      "source": "flat-color-icons:currency-exchange"
+    },
+    {
+      "slug": "debt",
+      "name": "Debt",
+      "keywords": [
+        "debt",
+        "loan",
+        "owed"
+      ],
+      "source": "flat-color-icons:debt"
+    },
+    {
+      "slug": "donate",
+      "name": "Donation",
+      "keywords": [
+        "donate",
+        "charity",
+        "give",
+        "giving"
+      ],
+      "source": "flat-color-icons:donate"
+    },
+    {
+      "slug": "vault",
+      "name": "Vault",
+      "keywords": [
+        "vault",
+        "safe",
+        "security",
+        "savings"
+      ],
+      "source": "fluent-color:vault-24"
+    },
+    {
+      "slug": "safe",
+      "name": "Safe / Lockbox",
+      "keywords": [
+        "safe",
+        "lockbox",
+        "security"
+      ],
+      "source": "flat-color-icons:safe"
+    },
+    {
+      "slug": "bank-building",
+      "name": "Bank Building",
+      "keywords": [
+        "bank",
+        "institution",
+        "building"
+      ],
+      "source": "fluent-color:building-24"
+    },
+    {
+      "slug": "government-building",
+      "name": "Government Building",
+      "keywords": [
+        "government",
+        "irs",
+        "cra",
+        "tax"
+      ],
+      "source": "fluent-color:building-government-24"
+    },
+    {
+      "slug": "retail-store",
+      "name": "Retail Store",
+      "keywords": [
+        "store",
+        "retail",
+        "shop"
+      ],
+      "source": "fluent-color:building-store-24"
+    },
+    {
+      "slug": "lock-secure",
+      "name": "Security Lock",
+      "keywords": [
+        "lock",
+        "secure",
+        "protected",
+        "private"
+      ],
+      "source": "flat-color-icons:lock"
+    },
+    {
+      "slug": "key",
+      "name": "Key",
+      "keywords": [
+        "key",
+        "access",
+        "unlock"
+      ],
+      "source": "flat-color-icons:key"
+    },
+    {
+      "slug": "bullish",
+      "name": "Bullish Market",
+      "keywords": [
+        "stock",
+        "rising",
+        "bull",
+        "up",
+        "gain"
+      ],
+      "source": "flat-color-icons:bullish"
+    },
+    {
+      "slug": "bearish",
+      "name": "Bearish Market",
+      "keywords": [
+        "stock",
+        "falling",
+        "bear",
+        "down",
+        "loss"
+      ],
+      "source": "flat-color-icons:bearish"
+    },
+    {
+      "slug": "sales-performance",
+      "name": "Sales Performance",
+      "keywords": [
+        "chart",
+        "sales",
+        "arrow",
+        "growth"
+      ],
+      "source": "flat-color-icons:sales-performance"
+    },
+    {
+      "slug": "line-chart",
+      "name": "Line Chart",
+      "keywords": [
+        "chart",
+        "graph",
+        "line",
+        "trend"
+      ],
+      "source": "flat-color-icons:line-chart"
+    },
+    {
+      "slug": "bar-chart",
+      "name": "Bar Chart",
+      "keywords": [
+        "chart",
+        "bar",
+        "graph",
+        "data"
+      ],
+      "source": "flat-color-icons:bar-chart"
+    },
+    {
+      "slug": "pie-chart",
+      "name": "Pie Chart",
+      "keywords": [
+        "chart",
+        "pie",
+        "allocation",
+        "distribution"
+      ],
+      "source": "flat-color-icons:pie-chart"
+    },
+    {
+      "slug": "doughnut-chart",
+      "name": "Doughnut Chart",
+      "keywords": [
+        "chart",
+        "doughnut",
+        "donut",
+        "allocation"
+      ],
+      "source": "flat-color-icons:doughnut-chart"
+    },
+    {
+      "slug": "area-chart",
+      "name": "Area Chart",
+      "keywords": [
+        "chart",
+        "area",
+        "cumulative"
+      ],
+      "source": "flat-color-icons:area-chart"
+    },
+    {
+      "slug": "combo-chart",
+      "name": "Combo Chart",
+      "keywords": [
+        "chart",
+        "combo",
+        "mixed",
+        "analytics"
+      ],
+      "source": "flat-color-icons:combo-chart"
+    },
+    {
+      "slug": "flow-chart",
+      "name": "Flow Chart",
+      "keywords": [
+        "chart",
+        "flow",
+        "process"
+      ],
+      "source": "flat-color-icons:flow-chart"
+    },
+    {
+      "slug": "statistics",
+      "name": "Statistics",
+      "keywords": [
+        "stats",
+        "analytics",
+        "data"
+      ],
+      "source": "flat-color-icons:statistics"
+    },
+    {
+      "slug": "trending-up",
+      "name": "Trending Up",
+      "keywords": [
+        "trending",
+        "growth",
+        "rising",
+        "up"
+      ],
+      "source": "fluent-color:data-trending-24"
+    },
+    {
+      "slug": "trending-lines",
+      "name": "Investment Lines",
+      "keywords": [
+        "trending",
+        "lines",
+        "portfolio",
+        "investment"
+      ],
+      "source": "fluent-color:arrow-trending-lines-24"
+    },
+    {
+      "slug": "data-pie",
+      "name": "Data Pie Chart",
+      "keywords": [
+        "chart",
+        "pie",
+        "breakdown",
+        "allocation"
+      ],
+      "source": "fluent-color:data-pie-24"
+    },
+    {
+      "slug": "data-bar-growth",
+      "name": "Bar Chart Growth",
+      "keywords": [
+        "chart",
+        "bar",
+        "growth",
+        "ascending"
+      ],
+      "source": "fluent-color:data-bar-vertical-ascending-24"
+    },
+    {
+      "slug": "chart-multiple",
+      "name": "Multiple Charts",
+      "keywords": [
+        "charts",
+        "analytics",
+        "data"
+      ],
+      "source": "fluent-color:chart-multiple-24"
+    },
+    {
+      "slug": "paycheck-approved",
+      "name": "Paycheck Approved",
+      "keywords": [
+        "paycheck",
+        "approval",
+        "salary",
+        "check"
+      ],
+      "source": "flat-color-icons:approval"
+    },
+    {
+      "slug": "briefcase",
+      "name": "Work / Career",
+      "keywords": [
+        "briefcase",
+        "work",
+        "career",
+        "job",
+        "business"
+      ],
+      "source": "fluent-color:briefcase-24"
+    },
+    {
+      "slug": "business-contact",
+      "name": "Business Contact",
+      "keywords": [
+        "contact",
+        "business",
+        "client"
+      ],
+      "source": "flat-color-icons:business-contact"
+    },
+    {
+      "slug": "businessman",
+      "name": "Businessman",
+      "keywords": [
+        "businessman",
+        "professional",
+        "work"
+      ],
+      "source": "flat-color-icons:businessman"
+    },
+    {
+      "slug": "businesswoman",
+      "name": "Businesswoman",
+      "keywords": [
+        "businesswoman",
+        "professional",
+        "work"
+      ],
+      "source": "flat-color-icons:businesswoman"
+    },
+    {
+      "slug": "receipt",
+      "name": "Receipt",
+      "keywords": [
+        "receipt",
+        "bill",
+        "invoice"
+      ],
+      "source": "fluent-color:receipt-24"
+    },
+    {
+      "slug": "invoice",
+      "name": "Invoice / Statement",
+      "keywords": [
+        "invoice",
+        "document",
+        "statement",
+        "paper"
+      ],
+      "source": "flat-color-icons:document"
+    },
+    {
+      "slug": "document-text",
+      "name": "Document",
+      "keywords": [
+        "document",
+        "text",
+        "paper"
+      ],
+      "source": "fluent-color:document-text-24"
+    },
+    {
+      "slug": "recurring-payment",
+      "name": "Recurring Payment",
+      "keywords": [
+        "recurring",
+        "subscription",
+        "monthly",
+        "schedule"
+      ],
+      "source": "fluent-color:calendar-clock-24"
+    },
+    {
+      "slug": "tax-form",
+      "name": "Tax Form / Rules",
+      "keywords": [
+        "tax",
+        "form",
+        "rules",
+        "regulations"
+      ],
+      "source": "flat-color-icons:rules"
+    },
+    {
+      "slug": "calculator",
+      "name": "Calculator",
+      "keywords": [
+        "calculator",
+        "math",
+        "compute"
+      ],
+      "source": "flat-color-icons:calculator"
+    },
+    {
+      "slug": "idea",
+      "name": "Idea",
+      "keywords": [
+        "idea",
+        "lightbulb",
+        "insight"
+      ],
+      "source": "flat-color-icons:idea"
+    },
+    {
+      "slug": "insurance-shield",
+      "name": "Insurance Shield",
+      "keywords": [
+        "insurance",
+        "shield",
+        "protect",
+        "cover"
+      ],
+      "source": "fluent-color:shield-24"
+    },
+    {
+      "slug": "shield-verified",
+      "name": "Verified Shield",
+      "keywords": [
+        "verified",
+        "shield",
+        "protected",
+        "secure"
+      ],
+      "source": "fluent-color:shield-checkmark-24"
+    },
+    {
+      "slug": "gift",
+      "name": "Gift",
+      "keywords": [
+        "gift",
+        "present",
+        "bonus",
+        "reward"
+      ],
+      "source": "fluent-color:gift-24"
+    },
+    {
+      "slug": "gift-card",
+      "name": "Gift Card",
+      "keywords": [
+        "gift",
+        "card",
+        "voucher"
+      ],
+      "source": "fluent-color:gift-card-24"
+    },
+    {
+      "slug": "home",
+      "name": "Home / Rent",
+      "keywords": [
+        "home",
+        "house",
+        "rent",
+        "mortgage"
+      ],
+      "source": "flat-color-icons:home"
+    },
+    {
+      "slug": "home-modern",
+      "name": "Modern Home",
+      "keywords": [
+        "home",
+        "house",
+        "modern"
+      ],
+      "source": "fluent-color:home-24"
+    },
+    {
+      "slug": "building-home",
+      "name": "Apartment Building",
+      "keywords": [
+        "apartment",
+        "condo",
+        "building"
+      ],
+      "source": "fluent-color:building-home-24"
+    },
+    {
+      "slug": "meal",
+      "name": "Meal",
+      "keywords": [
+        "food",
+        "meal",
+        "restaurant",
+        "dining"
+      ],
+      "source": "fluent-color:food-24"
+    },
+    {
+      "slug": "shopping",
+      "name": "Shopping",
+      "keywords": [
+        "shopping",
+        "retail",
+        "shop",
+        "buy"
+      ],
+      "source": "flat-color-icons:shop"
+    },
+    {
+      "slug": "shipped",
+      "name": "Shipped / Delivery",
+      "keywords": [
+        "shipping",
+        "delivery",
+        "package"
+      ],
+      "source": "flat-color-icons:shipped"
+    },
+    {
+      "slug": "education",
+      "name": "Education",
+      "keywords": [
+        "school",
+        "tuition",
+        "graduation",
+        "education"
+      ],
+      "source": "flat-color-icons:graduation-cap"
+    },
+    {
+      "slug": "heart",
+      "name": "Love / Health",
+      "keywords": [
+        "heart",
+        "love",
+        "health",
+        "care"
+      ],
+      "source": "fluent-color:heart-24"
+    },
+    {
+      "slug": "phone-bill",
+      "name": "Phone Bill",
+      "keywords": [
+        "phone",
+        "mobile",
+        "bill",
+        "cellular"
+      ],
+      "source": "fluent-color:phone-24"
+    },
+    {
+      "slug": "internet",
+      "name": "Internet",
+      "keywords": [
+        "wifi",
+        "internet",
+        "connection",
+        "isp"
+      ],
+      "source": "fluent-color:wifi-24"
+    },
+    {
+      "slug": "crypto-btc",
+      "name": "Bitcoin",
+      "keywords": [
+        "bitcoin",
+        "btc",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:btc"
+    },
+    {
+      "slug": "crypto-eth",
+      "name": "Ethereum",
+      "keywords": [
+        "ethereum",
+        "eth",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:eth"
+    },
+    {
+      "slug": "crypto-usdc",
+      "name": "USDC",
+      "keywords": [
+        "usdc",
+        "stablecoin",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:usdc"
+    },
+    {
+      "slug": "crypto-usdt",
+      "name": "Tether USDT",
+      "keywords": [
+        "usdt",
+        "tether",
+        "stablecoin",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:usdt"
+    },
+    {
+      "slug": "crypto-sol",
+      "name": "Solana",
+      "keywords": [
+        "solana",
+        "sol",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:sol"
+    },
+    {
+      "slug": "crypto-ada",
+      "name": "Cardano",
+      "keywords": [
+        "cardano",
+        "ada",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:ada"
+    },
+    {
+      "slug": "crypto-bnb",
+      "name": "BNB",
+      "keywords": [
+        "bnb",
+        "binance",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:bnb"
+    },
+    {
+      "slug": "crypto-doge",
+      "name": "Dogecoin",
+      "keywords": [
+        "dogecoin",
+        "doge",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:doge"
+    },
+    {
+      "slug": "crypto-ltc",
+      "name": "Litecoin",
+      "keywords": [
+        "litecoin",
+        "ltc",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:ltc"
+    },
+    {
+      "slug": "crypto-xrp",
+      "name": "XRP",
+      "keywords": [
+        "xrp",
+        "ripple",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:xrp"
+    },
+    {
+      "slug": "crypto-matic",
+      "name": "Polygon (MATIC)",
+      "keywords": [
+        "polygon",
+        "matic",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:matic"
+    },
+    {
+      "slug": "crypto-dot",
+      "name": "Polkadot",
+      "keywords": [
+        "polkadot",
+        "dot",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:dot"
+    },
+    {
+      "slug": "crypto-link",
+      "name": "Chainlink",
+      "keywords": [
+        "chainlink",
+        "link",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:link"
+    },
+    {
+      "slug": "crypto-uni",
+      "name": "Uniswap",
+      "keywords": [
+        "uniswap",
+        "uni",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:uni"
+    },
+    {
+      "slug": "crypto-avax",
+      "name": "Avalanche",
+      "keywords": [
+        "avalanche",
+        "avax",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:avax"
+    },
+    {
+      "slug": "crypto-atom",
+      "name": "Cosmos (ATOM)",
+      "keywords": [
+        "cosmos",
+        "atom",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:atom"
+    },
+    {
+      "slug": "crypto-algo",
+      "name": "Algorand",
+      "keywords": [
+        "algorand",
+        "algo",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:algo"
+    },
+    {
+      "slug": "crypto-fil",
+      "name": "Filecoin",
+      "keywords": [
+        "filecoin",
+        "fil",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:fil"
+    },
+    {
+      "slug": "crypto-xlm",
+      "name": "Stellar",
+      "keywords": [
+        "stellar",
+        "xlm",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:xlm"
+    },
+    {
+      "slug": "crypto-trx",
+      "name": "TRON",
+      "keywords": [
+        "tron",
+        "trx",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:trx"
+    },
+    {
+      "slug": "crypto-aave",
+      "name": "Aave",
+      "keywords": [
+        "aave",
+        "defi",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:aave"
+    },
+    {
+      "slug": "crypto-mkr",
+      "name": "Maker (MKR)",
+      "keywords": [
+        "maker",
+        "mkr",
+        "defi",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:mkr"
+    },
+    {
+      "slug": "crypto-comp",
+      "name": "Compound",
+      "keywords": [
+        "compound",
+        "comp",
+        "defi",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:comp"
+    },
+    {
+      "slug": "crypto-snx",
+      "name": "Synthetix",
+      "keywords": [
+        "synthetix",
+        "snx",
+        "defi",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:snx"
+    },
+    {
+      "slug": "crypto-mana",
+      "name": "Decentraland",
+      "keywords": [
+        "mana",
+        "decentraland",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:mana"
+    },
+    {
+      "slug": "crypto-sand",
+      "name": "The Sandbox",
+      "keywords": [
+        "sandbox",
+        "sand",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:sand"
+    },
+    {
+      "slug": "crypto-theta",
+      "name": "Theta",
+      "keywords": [
+        "theta",
+        "crypto"
+      ],
+      "source": "cryptocurrency-color:theta"
+    },
+    {
+      "slug": "cannabis-leaf",
+      "name": "Cannabis Leaf",
+      "keywords": [
+        "cannabis",
+        "weed",
+        "marijuana",
+        "leaf",
+        "dispensary",
+        "kush",
+        "pot"
+      ],
+      "source": "mdi:cannabis"
+    },
+    {
+      "slug": "book",
+      "name": "Book",
+      "keywords": [
+        "book",
+        "reading",
+        "library"
+      ],
+      "source": "fluent-color:book-24"
+    },
+    {
+      "slug": "book-open",
+      "name": "Open Book",
+      "keywords": [
+        "book",
+        "open",
+        "study",
+        "reading"
+      ],
+      "source": "fluent-color:book-open-24"
+    },
+    {
+      "slug": "book-favorite",
+      "name": "Favorite Book",
+      "keywords": [
+        "book",
+        "favorite",
+        "star"
+      ],
+      "source": "fluent-color:book-star-24"
+    },
+    {
+      "slug": "bookmark",
+      "name": "Bookmark",
+      "keywords": [
+        "bookmark",
+        "save"
+      ],
+      "source": "fluent-color:bookmark-24"
+    },
+    {
+      "slug": "notebook",
+      "name": "Notebook",
+      "keywords": [
+        "notebook",
+        "journal",
+        "ledger"
+      ],
+      "source": "fluent-color:notebook-24"
+    },
+    {
+      "slug": "lightbulb",
+      "name": "Lightbulb",
+      "keywords": [
+        "lightbulb",
+        "idea",
+        "insight",
+        "utilities"
+      ],
+      "source": "fluent-color:lightbulb-24"
+    },
+    {
+      "slug": "paw-print",
+      "name": "Pet Paw",
+      "keywords": [
+        "pet",
+        "dog",
+        "cat",
+        "paw",
+        "animal"
+      ],
+      "source": "fluent-color:animal-paw-print-24"
+    },
+    {
+      "slug": "headphones",
+      "name": "Headphones",
+      "keywords": [
+        "music",
+        "audio",
+        "headphones",
+        "streaming"
+      ],
+      "source": "fluent-color:headphones-24"
+    },
+    {
+      "slug": "camera",
+      "name": "Camera",
+      "keywords": [
+        "camera",
+        "photo",
+        "photography"
+      ],
+      "source": "fluent-color:camera-24"
+    },
+    {
+      "slug": "image",
+      "name": "Image",
+      "keywords": [
+        "image",
+        "photo",
+        "picture"
+      ],
+      "source": "fluent-color:image-24"
+    },
+    {
+      "slug": "paint-brush",
+      "name": "Paint Brush",
+      "keywords": [
+        "art",
+        "paint",
+        "brush",
+        "creative",
+        "hobby"
+      ],
+      "source": "fluent-color:paint-brush-24"
+    },
+    {
+      "slug": "design-ideas",
+      "name": "Design Ideas",
+      "keywords": [
+        "design",
+        "creative",
+        "idea"
+      ],
+      "source": "fluent-color:design-ideas-24"
+    },
+    {
+      "slug": "puzzle",
+      "name": "Puzzle Piece",
+      "keywords": [
+        "puzzle",
+        "game",
+        "hobby"
+      ],
+      "source": "fluent-color:puzzle-piece-24"
+    },
+    {
+      "slug": "sport",
+      "name": "Sport",
+      "keywords": [
+        "sport",
+        "fitness",
+        "activity",
+        "gym"
+      ],
+      "source": "fluent-color:sport-24"
+    },
+    {
+      "slug": "trophy",
+      "name": "Trophy",
+      "keywords": [
+        "trophy",
+        "achievement",
+        "award",
+        "winner"
+      ],
+      "source": "fluent-color:trophy-24"
+    },
+    {
+      "slug": "ribbon",
+      "name": "Ribbon",
+      "keywords": [
+        "ribbon",
+        "award",
+        "badge"
+      ],
+      "source": "fluent-color:ribbon-24"
+    },
+    {
+      "slug": "ribbon-star",
+      "name": "Award Ribbon",
+      "keywords": [
+        "ribbon",
+        "star",
+        "achievement",
+        "award"
+      ],
+      "source": "fluent-color:ribbon-star-24"
+    },
+    {
+      "slug": "star",
+      "name": "Star",
+      "keywords": [
+        "star",
+        "favorite",
+        "rating"
+      ],
+      "source": "fluent-color:star-24"
+    },
+    {
+      "slug": "certificate",
+      "name": "Certificate",
+      "keywords": [
+        "certificate",
+        "diploma",
+        "education",
+        "achievement"
+      ],
+      "source": "fluent-color:certificate-24"
+    },
+    {
+      "slug": "weather-sunny",
+      "name": "Sunny Weather",
+      "keywords": [
+        "sun",
+        "weather",
+        "sunny",
+        "vacation"
+      ],
+      "source": "fluent-color:weather-sunny-low-24"
+    },
+    {
+      "slug": "people",
+      "name": "People",
+      "keywords": [
+        "people",
+        "group",
+        "family"
+      ],
+      "source": "fluent-color:people-24"
+    },
+    {
+      "slug": "team",
+      "name": "Team",
+      "keywords": [
+        "team",
+        "group",
+        "business"
+      ],
+      "source": "fluent-color:people-team-24"
+    },
+    {
+      "slug": "community",
+      "name": "Community",
+      "keywords": [
+        "community",
+        "group",
+        "people"
+      ],
+      "source": "fluent-color:people-community-24"
+    },
+    {
+      "slug": "household",
+      "name": "Household",
+      "keywords": [
+        "family",
+        "household",
+        "home"
+      ],
+      "source": "fluent-color:people-home-24"
+    },
+    {
+      "slug": "contact-card",
+      "name": "Contact Card",
+      "keywords": [
+        "contact",
+        "card",
+        "business",
+        "profile"
+      ],
+      "source": "fluent-color:contact-card-24"
+    },
+    {
+      "slug": "megaphone",
+      "name": "Megaphone",
+      "keywords": [
+        "marketing",
+        "announce",
+        "megaphone"
+      ],
+      "source": "fluent-color:megaphone-loud-24"
+    },
+    {
+      "slug": "mail",
+      "name": "Mail",
+      "keywords": [
+        "mail",
+        "email",
+        "envelope",
+        "message"
+      ],
+      "source": "fluent-color:mail-24"
+    },
+    {
+      "slug": "mail-scheduled",
+      "name": "Scheduled Mail",
+      "keywords": [
+        "mail",
+        "scheduled",
+        "reminder"
+      ],
+      "source": "fluent-color:mail-clock-24"
+    },
+    {
+      "slug": "send",
+      "name": "Send",
+      "keywords": [
+        "send",
+        "paper-plane",
+        "transfer"
+      ],
+      "source": "fluent-color:send-24"
+    },
+    {
+      "slug": "scheduled-send",
+      "name": "Scheduled Send",
+      "keywords": [
+        "scheduled",
+        "send",
+        "reminder"
+      ],
+      "source": "fluent-color:send-clock-24"
+    },
+    {
+      "slug": "checkbox",
+      "name": "Checkbox",
+      "keywords": [
+        "todo",
+        "task",
+        "check"
+      ],
+      "source": "fluent-color:checkbox-24"
+    },
+    {
+      "slug": "task-list",
+      "name": "Task List",
+      "keywords": [
+        "tasks",
+        "todo",
+        "clipboard"
+      ],
+      "source": "fluent-color:clipboard-task-24"
+    },
+    {
+      "slug": "checkmark-circle",
+      "name": "Checkmark",
+      "keywords": [
+        "checkmark",
+        "done",
+        "verified"
+      ],
+      "source": "fluent-color:checkmark-circle-24"
+    },
+    {
+      "slug": "pin",
+      "name": "Pin",
+      "keywords": [
+        "pin",
+        "save",
+        "location"
+      ],
+      "source": "fluent-color:pin-24"
+    },
+    {
+      "slug": "location",
+      "name": "Location",
+      "keywords": [
+        "location",
+        "place",
+        "map",
+        "travel"
+      ],
+      "source": "fluent-color:location-ripple-24"
+    },
+    {
+      "slug": "wrench",
+      "name": "Wrench",
+      "keywords": [
+        "wrench",
+        "repair",
+        "fix",
+        "maintenance"
+      ],
+      "source": "fluent-color:wrench-24"
+    },
+    {
+      "slug": "tools",
+      "name": "Tools",
+      "keywords": [
+        "tools",
+        "repair",
+        "maintenance",
+        "hardware"
+      ],
+      "source": "fluent-color:wrench-screwdriver-24"
+    },
+    {
+      "slug": "settings",
+      "name": "Settings",
+      "keywords": [
+        "settings",
+        "gear",
+        "preferences"
+      ],
+      "source": "fluent-color:settings-24"
+    },
+    {
+      "slug": "data-scatter",
+      "name": "Scatter Chart",
+      "keywords": [
+        "chart",
+        "scatter",
+        "data"
+      ],
+      "source": "fluent-color:data-scatter-24"
+    },
+    {
+      "slug": "automotive",
+      "name": "Automotive",
+      "keywords": [
+        "car",
+        "auto",
+        "vehicle"
+      ],
+      "source": "flat-color-icons:automotive"
+    },
+    {
+      "slug": "conference-call",
+      "name": "Conference Call",
+      "keywords": [
+        "meeting",
+        "conference",
+        "call",
+        "team"
+      ],
+      "source": "flat-color-icons:conference-call"
+    },
+    {
+      "slug": "customer-support",
+      "name": "Customer Support",
+      "keywords": [
+        "support",
+        "help",
+        "service"
+      ],
+      "source": "flat-color-icons:customer-support"
+    },
+    {
+      "slug": "services",
+      "name": "Services",
+      "keywords": [
+        "services",
+        "general",
+        "business"
+      ],
+      "source": "flat-color-icons:services"
+    },
+    {
+      "slug": "film",
+      "name": "Film",
+      "keywords": [
+        "movie",
+        "film",
+        "cinema"
+      ],
+      "source": "flat-color-icons:film"
+    },
+    {
+      "slug": "film-reel",
+      "name": "Film Reel",
+      "keywords": [
+        "movie",
+        "film",
+        "reel",
+        "cinema"
+      ],
+      "source": "flat-color-icons:film-reel"
+    },
+    {
+      "slug": "gallery",
+      "name": "Gallery",
+      "keywords": [
+        "gallery",
+        "photos",
+        "images"
+      ],
+      "source": "flat-color-icons:gallery"
+    },
+    {
+      "slug": "music",
+      "name": "Music",
+      "keywords": [
+        "music",
+        "notes",
+        "audio"
+      ],
+      "source": "flat-color-icons:music"
+    },
+    {
+      "slug": "presentation",
+      "name": "Presentation",
+      "keywords": [
+        "presentation",
+        "voice",
+        "speech",
+        "meeting"
+      ],
+      "source": "flat-color-icons:voice-presentation"
+    },
+    {
+      "slug": "video-call",
+      "name": "Video Call",
+      "keywords": [
+        "video",
+        "call",
+        "meeting",
+        "telehealth"
+      ],
+      "source": "flat-color-icons:video-call"
+    },
+    {
+      "slug": "cell-phone",
+      "name": "Cell Phone",
+      "keywords": [
+        "phone",
+        "cell",
+        "mobile"
+      ],
+      "source": "flat-color-icons:cell-phone"
+    },
+    {
+      "slug": "smartphone",
+      "name": "Smartphone",
+      "keywords": [
+        "phone",
+        "mobile",
+        "iphone"
+      ],
+      "source": "flat-color-icons:iphone"
+    },
+    {
+      "slug": "callback",
+      "name": "Callback",
+      "keywords": [
+        "callback",
+        "return",
+        "call"
+      ],
+      "source": "flat-color-icons:callback"
+    },
+    {
+      "slug": "audio-file",
+      "name": "Audio File",
+      "keywords": [
+        "audio",
+        "file",
+        "music"
+      ],
+      "source": "flat-color-icons:audio-file"
+    },
+    {
+      "slug": "video-file",
+      "name": "Video File",
+      "keywords": [
+        "video",
+        "file",
+        "media"
+      ],
+      "source": "flat-color-icons:video-file"
+    },
+    {
+      "slug": "edit-image",
+      "name": "Edit Image",
+      "keywords": [
+        "edit",
+        "image",
+        "photo"
+      ],
+      "source": "flat-color-icons:edit-image"
+    },
+    {
+      "slug": "folder",
+      "name": "Folder",
+      "keywords": [
+        "folder",
+        "files",
+        "documents"
+      ],
+      "source": "flat-color-icons:opened-folder"
+    },
+    {
+      "slug": "savings",
+      "name": "Savings",
+      "keywords": [
+        "savings",
+        "save",
+        "goal",
+        "piggy"
+      ],
+      "source": "fluent-color:savings-24"
+    },
+    {
+      "slug": "premium",
+      "name": "Premium / Subscription",
+      "keywords": [
+        "premium",
+        "pro",
+        "subscription",
+        "tier"
+      ],
+      "source": "fluent-color:premium-24"
+    },
+    {
+      "slug": "rewards",
+      "name": "Rewards / Cashback",
+      "keywords": [
+        "rewards",
+        "cashback",
+        "points",
+        "loyalty"
+      ],
+      "source": "fluent-color:reward-24"
+    },
+    {
+      "slug": "toolbox",
+      "name": "Toolbox",
+      "keywords": [
+        "toolbox",
+        "tools",
+        "repair",
+        "home improvement"
+      ],
+      "source": "fluent-color:toolbox-24"
+    },
+    {
+      "slug": "laptop",
+      "name": "Laptop",
+      "keywords": [
+        "laptop",
+        "computer",
+        "electronics",
+        "tech"
+      ],
+      "source": "fluent-color:laptop-24"
+    },
+    {
+      "slug": "library",
+      "name": "Library",
+      "keywords": [
+        "library",
+        "books",
+        "reading"
+      ],
+      "source": "fluent-color:library-24"
+    },
+    {
+      "slug": "patient",
+      "name": "Patient / Healthcare",
+      "keywords": [
+        "patient",
+        "healthcare",
+        "hospital",
+        "medical"
+      ],
+      "source": "fluent-color:patient-24"
+    },
+    {
+      "slug": "paw",
+      "name": "Paw",
+      "keywords": [
+        "pet",
+        "paw",
+        "animal",
+        "vet"
+      ],
+      "source": "fluent-color:paw-24"
+    },
+    {
+      "slug": "globe",
+      "name": "Globe / International",
+      "keywords": [
+        "globe",
+        "world",
+        "international",
+        "travel"
+      ],
+      "source": "fluent-color:globe-24"
+    },
+    {
+      "slug": "globe-secure",
+      "name": "Secure Web",
+      "keywords": [
+        "globe",
+        "shield",
+        "secure",
+        "vpn"
+      ],
+      "source": "fluent-color:globe-shield-24"
+    },
+    {
+      "slug": "diversity",
+      "name": "Diversity / Community",
+      "keywords": [
+        "diversity",
+        "community",
+        "people"
+      ],
+      "source": "fluent-color:diversity-24"
+    },
+    {
+      "slug": "news",
+      "name": "News Subscription",
+      "keywords": [
+        "news",
+        "newspaper",
+        "subscription",
+        "media"
+      ],
+      "source": "fluent-color:news-24"
+    },
+    {
+      "slug": "loved-one",
+      "name": "Loved One",
+      "keywords": [
+        "person",
+        "heart",
+        "love",
+        "family",
+        "partner"
+      ],
+      "source": "fluent-color:person-heart-24"
+    },
+    {
+      "slug": "weather-snowflake",
+      "name": "Winter / Cold",
+      "keywords": [
+        "winter",
+        "cold",
+        "snow",
+        "heating"
+      ],
+      "source": "fluent-color:weather-snowflake-24"
+    },
+    {
+      "slug": "alarm",
+      "name": "Alarm / Reminder",
+      "keywords": [
+        "alarm",
+        "reminder",
+        "clock",
+        "alert"
+      ],
+      "source": "fluent-color:clock-alarm-24"
+    },
+    {
+      "slug": "clock",
+      "name": "Clock",
+      "keywords": [
+        "clock",
+        "time"
+      ],
+      "source": "fluent-color:clock-24"
+    },
+    {
+      "slug": "person",
+      "name": "Person",
+      "keywords": [
+        "person",
+        "individual",
+        "member"
+      ],
+      "source": "fluent-color:person-24"
+    },
+    {
+      "slug": "people-add",
+      "name": "Add Member",
+      "keywords": [
+        "add",
+        "people",
+        "member",
+        "family"
+      ],
+      "source": "fluent-color:people-add-24"
+    },
+    {
+      "slug": "video",
+      "name": "Video / Streaming",
+      "keywords": [
+        "video",
+        "streaming",
+        "film",
+        "cam"
+      ],
+      "source": "fluent-color:video-24"
+    },
+    {
+      "slug": "gauge",
+      "name": "Gauge / Meter",
+      "keywords": [
+        "gauge",
+        "meter",
+        "usage",
+        "utility"
+      ],
+      "source": "fluent-color:gauge-24"
+    },
+    {
+      "slug": "flag",
+      "name": "Flag",
+      "keywords": [
+        "flag",
+        "important",
+        "milestone"
+      ],
+      "source": "fluent-color:flag-24"
+    },
+    {
+      "slug": "history",
+      "name": "History",
+      "keywords": [
+        "history",
+        "past",
+        "timeline"
+      ],
+      "source": "fluent-color:history-24"
+    },
+    {
+      "slug": "chat",
+      "name": "Chat",
+      "keywords": [
+        "chat",
+        "messaging",
+        "conversation"
+      ],
+      "source": "fluent-color:chat-multiple-24"
+    },
+    {
+      "slug": "comment",
+      "name": "Comment / Review",
+      "keywords": [
+        "comment",
+        "review",
+        "feedback"
+      ],
+      "source": "fluent-color:comment-24"
+    },
+    {
+      "slug": "mailbox",
+      "name": "Mailbox",
+      "keywords": [
+        "mailbox",
+        "inbox",
+        "mail"
+      ],
+      "source": "fluent-color:mail-multiple-24"
+    },
+    {
+      "slug": "data-area",
+      "name": "Area Chart",
+      "keywords": [
+        "chart",
+        "area",
+        "analytics"
+      ],
+      "source": "fluent-color:data-area-24"
+    },
+    {
+      "slug": "data-line",
+      "name": "Line Chart (variant)",
+      "keywords": [
+        "chart",
+        "line",
+        "data"
+      ],
+      "source": "fluent-color:data-line-24"
+    },
+    {
+      "slug": "form",
+      "name": "Form",
+      "keywords": [
+        "form",
+        "survey",
+        "application"
+      ],
+      "source": "fluent-color:form-24"
+    },
+    {
+      "slug": "table",
+      "name": "Table / Spreadsheet",
+      "keywords": [
+        "table",
+        "spreadsheet",
+        "data",
+        "budget"
+      ],
+      "source": "fluent-color:table-24"
+    },
+    {
+      "slug": "lock-shield",
+      "name": "Locked Secure",
+      "keywords": [
+        "lock",
+        "shield",
+        "secure",
+        "protection"
+      ],
+      "source": "fluent-color:lock-shield-24"
+    },
+    {
+      "slug": "database",
+      "name": "Database / Records",
+      "keywords": [
+        "database",
+        "records",
+        "archive"
+      ],
+      "source": "fluent-color:database-24"
+    },
+    {
+      "slug": "cloud",
+      "name": "Cloud / Online",
+      "keywords": [
+        "cloud",
+        "online",
+        "storage",
+        "saas"
+      ],
+      "source": "fluent-color:cloud-24"
+    },
+    {
+      "slug": "headset",
+      "name": "Headset",
+      "keywords": [
+        "headset",
+        "audio",
+        "gaming",
+        "streaming"
+      ],
+      "source": "fluent-color:headset-24"
+    },
+    {
+      "slug": "microphone",
+      "name": "Microphone",
+      "keywords": [
+        "microphone",
+        "podcast",
+        "audio",
+        "recording"
+      ],
+      "source": "fluent-color:mic-24"
+    },
+    {
+      "slug": "approve",
+      "name": "Approve",
+      "keywords": [
+        "approve",
+        "thumbs up",
+        "verified",
+        "accepted"
+      ],
+      "source": "flat-color-icons:approve"
+    },
+    {
+      "slug": "info",
+      "name": "Info / About",
+      "keywords": [
+        "info",
+        "about",
+        "help"
+      ],
+      "source": "flat-color-icons:about"
+    },
+    {
+      "slug": "binoculars",
+      "name": "Research",
+      "keywords": [
+        "research",
+        "search",
+        "scout",
+        "lookup"
+      ],
+      "source": "flat-color-icons:binoculars"
+    },
+    {
+      "slug": "globe-flat",
+      "name": "Globe",
+      "keywords": [
+        "globe",
+        "world",
+        "international"
+      ],
+      "source": "flat-color-icons:globe"
+    },
+    {
+      "slug": "address-book",
+      "name": "Address Book",
+      "keywords": [
+        "contacts",
+        "address",
+        "directory"
+      ],
+      "source": "flat-color-icons:address-book"
+    },
+    {
+      "slug": "inspection",
+      "name": "Inspection / Audit",
+      "keywords": [
+        "inspection",
+        "audit",
+        "check"
+      ],
+      "source": "flat-color-icons:inspection"
+    },
+    {
+      "slug": "planner",
+      "name": "Planner",
+      "keywords": [
+        "planner",
+        "organize",
+        "calendar"
+      ],
+      "source": "flat-color-icons:planner"
+    },
+    {
+      "slug": "todo-list",
+      "name": "Todo List",
+      "keywords": [
+        "todo",
+        "list",
+        "tasks"
+      ],
+      "source": "flat-color-icons:todo-list"
+    },
+    {
+      "slug": "support-flat",
+      "name": "Support",
+      "keywords": [
+        "support",
+        "help",
+        "service"
+      ],
+      "source": "flat-color-icons:support"
+    },
+    {
+      "slug": "online-support",
+      "name": "Online Support",
+      "keywords": [
+        "online",
+        "support",
+        "help",
+        "chat"
+      ],
+      "source": "flat-color-icons:online-support"
+    },
+    {
+      "slug": "calendar",
+      "name": "Calendar",
+      "keywords": [
+        "calendar",
+        "date",
+        "schedule"
+      ],
+      "source": "flat-color-icons:calendar"
+    },
+    {
+      "slug": "trend-positive",
+      "name": "Positive Trend",
+      "keywords": [
+        "positive",
+        "trend",
+        "rising",
+        "gain"
+      ],
+      "source": "flat-color-icons:positive-dynamic"
+    },
+    {
+      "slug": "trend-negative",
+      "name": "Negative Trend",
+      "keywords": [
+        "negative",
+        "trend",
+        "falling",
+        "loss"
+      ],
+      "source": "flat-color-icons:negative-dynamic"
+    },
+    {
+      "slug": "collaboration",
+      "name": "Collaboration",
+      "keywords": [
+        "collaboration",
+        "team",
+        "work"
+      ],
+      "source": "flat-color-icons:collaboration"
+    },
+    {
+      "slug": "department",
+      "name": "Department",
+      "keywords": [
+        "department",
+        "org",
+        "division"
+      ],
+      "source": "flat-color-icons:department"
+    },
+    {
+      "slug": "feedback",
+      "name": "Feedback",
+      "keywords": [
+        "feedback",
+        "review",
+        "comment"
+      ],
+      "source": "flat-color-icons:feedback"
+    },
+    {
+      "slug": "priority-high",
+      "name": "High Priority",
+      "keywords": [
+        "priority",
+        "important",
+        "urgent"
+      ],
+      "source": "flat-color-icons:high-priority"
+    },
+    {
+      "slug": "priority-low",
+      "name": "Low Priority",
+      "keywords": [
+        "priority",
+        "low"
+      ],
+      "source": "flat-color-icons:low-priority"
+    },
+    {
+      "slug": "package",
+      "name": "Package / Shipping",
+      "keywords": [
+        "package",
+        "shipping",
+        "box",
+        "delivery"
+      ],
+      "source": "flat-color-icons:package"
+    },
+    {
+      "slug": "rating",
+      "name": "Rating",
+      "keywords": [
+        "rating",
+        "star",
+        "review"
+      ],
+      "source": "flat-color-icons:rating"
+    },
+    {
+      "slug": "reading",
+      "name": "Reading",
+      "keywords": [
+        "reading",
+        "book",
+        "study"
+      ],
+      "source": "flat-color-icons:reading"
+    },
+    {
+      "slug": "ebook",
+      "name": "Ebook",
+      "keywords": [
+        "ebook",
+        "reading",
+        "digital book"
+      ],
+      "source": "flat-color-icons:reading-ebook"
+    },
+    {
+      "slug": "survey",
+      "name": "Survey",
+      "keywords": [
+        "survey",
+        "form",
+        "questionnaire"
+      ],
+      "source": "flat-color-icons:survey"
+    },
+    {
+      "slug": "tree-structure",
+      "name": "Tree / Hierarchy",
+      "keywords": [
+        "hierarchy",
+        "tree",
+        "structure",
+        "org"
+      ],
+      "source": "flat-color-icons:tree-structure"
+    },
+    {
+      "slug": "good-decision",
+      "name": "Good Decision",
+      "keywords": [
+        "good",
+        "decision",
+        "right",
+        "choose"
+      ],
+      "source": "flat-color-icons:good-decision"
+    },
+    {
+      "slug": "bad-decision",
+      "name": "Bad Decision",
+      "keywords": [
+        "bad",
+        "decision",
+        "wrong",
+        "mistake"
+      ],
+      "source": "flat-color-icons:bad-decision"
+    },
+    {
+      "slug": "data-backup",
+      "name": "Backup",
+      "keywords": [
+        "backup",
+        "data",
+        "archive"
+      ],
+      "source": "flat-color-icons:data-backup"
+    },
+    {
+      "slug": "data-protection",
+      "name": "Data Protection",
+      "keywords": [
+        "protection",
+        "data",
+        "security"
+      ],
+      "source": "flat-color-icons:data-protection"
+    },
+    {
+      "slug": "data-encryption",
+      "name": "Encryption",
+      "keywords": [
+        "encryption",
+        "data",
+        "security"
+      ],
+      "source": "flat-color-icons:data-encryption"
+    },
+    {
+      "slug": "data-sheet",
+      "name": "Spreadsheet",
+      "keywords": [
+        "spreadsheet",
+        "data",
+        "budget"
+      ],
+      "source": "flat-color-icons:data-sheet"
+    }
+  ],
+  "generatedAt": "2026-05-26T01:17:56.767Z"
+}

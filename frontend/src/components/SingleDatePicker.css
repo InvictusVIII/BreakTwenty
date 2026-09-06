@@ -1,0 +1,90 @@
+.single-date-picker {
+  --single-date-compact-width: fit-content;
+  --single-date-field-width: 100%;
+  width: var(--single-date-field-width);
+}
+
+.single-date-picker--compact {
+  --single-date-field-width: fit-content;
+  flex: 0 0 auto;
+  max-width: 100%;
+}
+
+.single-date-trigger {
+  display: inline-flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: var(--control-gap);
+  width: 100%;
+  min-height: var(--control-height);
+  box-sizing: border-box;
+  background: var(--surface-button-bg);
+  border: var(--surface-button-border-width) solid var(--surface-button-border-color);
+  border-radius: var(--control-radius);
+  padding: var(--control-padding-block) var(--control-compact-padding-inline);
+  font-family: var(--type-button-label-family);
+  font-size: var(--control-label-size);
+  font-weight: var(--control-label-weight);
+  line-height: var(--control-label-line-height);
+  letter-spacing: var(--control-label-letter-spacing);
+  color: var(--surface-button-color);
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+  box-shadow: var(--surface-button-shadow);
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s, color 0.15s;
+}
+
+.single-date-picker--compact .single-date-trigger {
+  --control-height: var(--top-control-trigger-height);
+  --control-padding-block: var(--top-control-padding-block);
+  --control-compact-padding-inline: var(--top-control-compact-padding-inline);
+  --control-radius: var(--radius-md);
+  width: fit-content;
+  justify-content: center;
+  --control-gap: 6px;
+  min-width: 0;
+  padding: var(--control-padding-block) var(--control-compact-padding-inline);
+}
+
+.single-date-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.single-date-picker--compact .single-date-value {
+  flex: 0 1 auto;
+  min-width: max-content;
+  text-align: center;
+}
+/* Match the canonical input placeholder (e.g. .amount-input) — a muted primary, NOT the
+   warm --color-text-secondary — so an empty date field reads gray like every other field. */
+.single-date-value.is-placeholder {
+  color: var(--color-text-primary);
+  opacity: 0.45;
+}
+.single-date-icon {
+  flex-shrink: 0;
+  color: currentColor;
+}
+
+.single-date-trigger.is-open .single-date-icon,
+.single-date-trigger:focus-visible .single-date-icon {
+  color: var(--button-icon-selected-color);
+}
+
+/* Anchored popover shell hosting the calendar — mirrors `.timeline-range-picker-popover`
+   chrome (AnchoredPopover owns the fixed positioning + portal, so no positioning here). */
+.single-date-popover {
+  box-sizing: border-box;
+  max-height: calc(100vh - 1rem);
+  overflow-y: auto;
+  padding: 1rem;
+  border-radius: var(--radius-lg);
+  border: var(--open-button-border-width) solid var(--open-button-border-color);
+  background: var(--surface-floating-bg);
+  box-shadow: var(--app-menu-shadow);
+  z-index: var(--app-modal-elevated-layer);
+}

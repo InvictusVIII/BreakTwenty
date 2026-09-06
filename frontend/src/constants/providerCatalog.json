@@ -1,0 +1,1488 @@
+{
+  "ibkr": {
+    "displayName": "Interactive Brokers",
+    "institutionType": "api",
+    "category": "bank_brokerage",
+    "availableInAddList": true,
+    "implemented": true,
+    "logo": {
+      "asset": "ibkr.png",
+      "aliases": [
+        "interactive brokers",
+        "ibkr"
+      ]
+    },
+    "frontend": {
+      "addAuthModal": "api",
+      "backgroundSyncEndpoint": "/sync/flex",
+      "userInitiatedSyncEndpoint": "/sync/ibkr/scrape",
+      "scraperEndpoints": {
+        "login": "/sync/ibkr/login",
+        "twofa": "/sync/ibkr/2fa"
+      },
+      "scraperFieldLabels": {
+        "username": "Username",
+        "password": "Password"
+      },
+      "scraperAuth": {
+        "clearCredentialsBeforeNewLogin": true,
+        "flow": "desktop_visible_auth",
+        "desktopVisibleAuth": {
+          "enabled": true,
+          "addFlow": false,
+          "manualFlow": true,
+          "recordHar": true,
+          "stageArtifacts": true,
+          "displayName": "Interactive Brokers",
+          "localeEnvMode": "inherit",
+          "requireCredentialsBeforeLaunch": false,
+          "waitStep": "desktop_visible_auth_wait",
+          "timeoutSeconds": 0,
+          "statusPollMs": 2000,
+          "syncRetryMs": 2000,
+          "syncRetryAttempts": 30,
+          "runnerCommand": [
+            "breaktwenty-visible-auth-python",
+            "scripts/ibkr_visible_auth.py"
+          ]
+        }
+      },
+      "apiConfig": {
+        "fields": [
+          {
+            "key": "ibkr_flex_query_id",
+            "label": "Query ID",
+            "type": "text"
+          },
+          {
+            "key": "ibkr_flex_token",
+            "label": "Flex Query Token",
+            "type": "password"
+          }
+        ],
+        "description": "Connect your IBKR account using Flex Queries to automatically pull account data daily. Data is end-of-day (delayed a few hours).",
+        "instructionsTitle": "How to get your Flex Query credentials:",
+        "instructionsSteps": [
+          {
+            "text": "Log into ",
+            "link": "https://www.interactivebrokers.com/portal",
+            "linkText": "IBKR Account Management"
+          },
+          {
+            "text": "Go to **Performance & Reports → Flex Queries**"
+          },
+          {
+            "text": "Create an **Activity Flex Query** and add these sections: **Account Information**, **Net Asset Value (NAV) in Base**, **Open Positions**, **Cash Report**, **Cash Transactions**, and **Trades** — click **Select All** for each"
+          },
+          {
+            "text": "Note the **Query ID** shown next to your query"
+          },
+          {
+            "text": "Under **Flex Web Service**, generate or copy your **Token**"
+          }
+        ]
+      },
+      "dashboardAuth": {
+        "authRequired": {
+          "modal": "scraper",
+          "skipAutoLogin": false
+        },
+        "credentialErrorByStatus": {
+          "error_flex": {
+            "modal": "api"
+          }
+        },
+        "credentialErrorDefault": {
+          "modal": "scraper",
+          "skipAutoLogin": false
+        }
+      },
+      "syncDisplay": {
+        "messageAppends": [
+          {
+            "messageIncludes": "token has expired",
+            "append": "Update your IBKR Flex token in Settings."
+          }
+        ]
+      }
+    },
+    "backend": {
+      "networkPreflight": {
+        "host": "portal.interactivebrokers.com"
+      },
+      "connector": {
+        "modulePath": "app.connectors.ibkr_scraper",
+        "className": "IBKRScraperConnector",
+        "providerType": "scraper",
+        "errorStatus": "error_scraper"
+      },
+      "route": {
+        "syncPath": "/sync/ibkr/scrape",
+        "loginPath": "/sync/ibkr/login",
+        "twofaPath": "/sync/ibkr/2fa",
+        "authHandler": "standard_scraper",
+        "missingCredentialsMessage": "Username and password required",
+        "errorStatus": "error_scraper"
+      },
+      "runtimeState": {
+        "artifactKinds": [
+          "storage_state",
+          "session"
+        ],
+        "browserEngine": "httpx",
+        "silentReuseEngine": "httpx",
+        "manualAuthEngine": "desktop_patchright",
+        "manualAuthMode": "desktop_visible_auth",
+        "authMode": "scraper_api",
+        "reuseMode": "storage_state_session",
+        "credentialChangeQuarantine": true,
+        "desktopAuthRuntimeDir": true,
+        "pendingRuntimeNamespaces": [
+          "ibkr"
+        ]
+      }
+    }
+  },
+  "ibkr_flex": {
+    "displayName": "Interactive Brokers",
+    "institutionType": "api",
+    "availableInAddList": false,
+    "implemented": true,
+    "logo": {
+      "asset": "ibkr.png",
+      "aliases": [
+        "interactive brokers",
+        "ibkr"
+      ]
+    },
+    "backend": {
+      "networkPreflight": {
+        "host": "ndcdyn.interactivebrokers.com"
+      },
+      "connector": {
+        "modulePath": "app.connectors.ibkr_flex",
+        "className": "IBKRFlexConnector",
+        "providerType": "api",
+        "persistedProvider": "ibkr",
+        "syncStatusProvider": "ibkr",
+        "errorStatus": "error_flex"
+      },
+      "route": {
+        "syncPath": "/sync/flex",
+        "lockProvider": "ibkr",
+        "statusProvider": "ibkr",
+        "errorStatus": "error_flex"
+      },
+      "runtimeState": {
+        "artifactKinds": [],
+        "browserEngine": "none",
+        "authMode": "api",
+        "reuseMode": "api_credentials"
+      },
+      "nightly": {
+        "enabled": true,
+        "phase": "api",
+        "order": 10
+      },
+      "transactionImport": {
+        "enabled": true,
+        "dailyDedupe": true
+      },
+      "settingInvalidationKeys": [
+        "ibkr_flex_token",
+        "ibkr_flex_query_id"
+      ],
+      "configuredSettingsAllOf": [
+        "ibkr_flex_token",
+        "ibkr_flex_query_id"
+      ]
+    }
+  },
+  "questrade": {
+    "displayName": "Questrade",
+    "institutionType": "api",
+    "category": "bank_brokerage",
+    "availableInAddList": true,
+    "implemented": true,
+    "logo": {
+      "asset": "questrade.png"
+    },
+    "frontend": {
+      "addAuthModal": "api",
+      "backgroundSyncEndpoint": "/sync/questrade",
+      "apiConfig": {
+        "fields": [
+          {
+            "key": "questrade_refresh_token",
+            "label": "Refresh Token",
+            "type": "password"
+          }
+        ],
+        "description": "Connect your Questrade accounts to sync positions and balances automatically. You only need to paste a refresh token once — BreakTwenty rotates it automatically on every sync.",
+        "instructionsTitle": "How to get your refresh token:",
+        "instructionsSteps": [
+          {
+            "text": "Log into ",
+            "link": "https://www.questrade.com/api/documentation/getting-started",
+            "linkText": "Questrade API Hub"
+          },
+          {
+            "text": "Go to **App Hub** and register a new personal app (or use an existing one)"
+          },
+          {
+            "text": "Under your app, click **Generate new token**"
+          },
+          {
+            "text": "Copy the **Refresh Token** and paste it below"
+          },
+          {
+            "text": "Tokens expire in 3 days if unused — daily auto-sync keeps it alive"
+          }
+        ]
+      }
+    },
+    "backend": {
+      "networkPreflight": {
+        "host": "login.questrade.com"
+      },
+      "connector": {
+        "modulePath": "app.connectors.questrade",
+        "className": "QuestradeConnector",
+        "providerType": "api"
+      },
+      "route": {
+        "syncPath": "/sync/questrade"
+      },
+      "runtimeState": {
+        "artifactKinds": [],
+        "browserEngine": "none",
+        "authMode": "api",
+        "reuseMode": "oauth_settings"
+      },
+      "nightly": {
+        "enabled": true,
+        "phase": "api",
+        "order": 20
+      },
+      "transactionImport": {
+        "enabled": true
+      },
+      "settingInvalidationKeys": [
+        "questrade_refresh_token"
+      ],
+      "transientSettingKeys": [
+        "questrade_access_token",
+        "questrade_api_server"
+      ],
+      "configuredSettingsAllOf": [
+        "questrade_refresh_token"
+      ]
+    }
+  },
+  "coinbase": {
+    "displayName": "Coinbase",
+    "institutionType": "api",
+    "category": "crypto_wallet",
+    "availableInAddList": true,
+    "implemented": true,
+    "logo": {
+      "asset": "coinbase.png"
+    },
+    "frontend": {
+      "addAuthModal": "api",
+      "backgroundSyncEndpoint": "/sync/coinbase",
+      "apiConfig": {
+        "fields": [
+          {
+            "key": "coinbase_api_key",
+            "label": "API Key Name",
+            "type": "text"
+          },
+          {
+            "key": "coinbase_api_secret",
+            "label": "API Secret (Private Key)",
+            "type": "password",
+            "multiline": true
+          }
+        ],
+        "description": "Connect your Coinbase account to sync crypto holdings and balances automatically. Uses a read-only Coinbase Advanced API key from your regular Coinbase account.",
+        "instructionsTitle": "How to get your API credentials:",
+        "instructionsSteps": [
+          {
+            "text": "Sign in to your regular Coinbase account and open **Advanced API** from the left menu"
+          },
+          {
+            "text": "Click **Create API key**"
+          },
+          {
+            "text": "Keep the default read-only **View** permission and **Signature algorithm** selected"
+          },
+          {
+            "text": "Choose the Coinbase **portfolio** you want BreakTwenty to sync"
+          },
+          {
+            "text": "Click **Create & download**, then copy the **API Key Name** and **Private Key** into BreakTwenty"
+          },
+          {
+            "text": "The downloaded private key is only available once — save it securely"
+          }
+        ]
+      }
+    },
+    "backend": {
+      "networkPreflight": {
+        "host": "api.coinbase.com"
+      },
+      "connector": {
+        "modulePath": "app.connectors.coinbase",
+        "className": "CoinbaseConnector",
+        "providerType": "api"
+      },
+      "route": {
+        "syncPath": "/sync/coinbase"
+      },
+      "runtimeState": {
+        "artifactKinds": [],
+        "browserEngine": "none",
+        "authMode": "api",
+        "reuseMode": "api_credentials"
+      },
+      "nightly": {
+        "enabled": true,
+        "phase": "api",
+        "order": 30
+      },
+      "transactionImport": {
+        "enabled": true
+      },
+      "settingInvalidationKeys": [
+        "coinbase_api_key",
+        "coinbase_api_secret"
+      ],
+      "configuredSettingsAllOf": [
+        "coinbase_api_key",
+        "coinbase_api_secret"
+      ]
+    }
+  },
+  "wealthsimple": {
+    "displayName": "Wealthsimple",
+    "institutionType": "api",
+    "category": "bank_brokerage",
+    "availableInAddList": true,
+    "implemented": true,
+    "logo": {
+      "asset": "wealthsimple.png"
+    },
+    "frontend": {
+      "addAuthModal": "scraper",
+      "backgroundSyncEndpoint": "/sync/wealthsimple",
+      "scraperEndpoints": {
+        "login": "/sync/wealthsimple/login",
+        "twofa": "/sync/wealthsimple/2fa"
+      },
+      "scraperFieldLabels": {
+        "username": "Email",
+        "password": "Password"
+      },
+      "scraperAuth": {
+        "flow": "api_session_otp",
+        "autoLoginBlockKey": "breaktwenty_ws_disable_autologin_until_submit",
+        "skipPersistOnLogin2fa": true,
+        "smsPayload": "credentials_and_code",
+        "persistCredentialsOnSmsOk": true,
+        "closeOnSmsFailureStatuses": [
+          "error",
+          "auth_required"
+        ]
+      }
+    },
+    "backend": {
+      "networkPreflight": {
+        "host": "my.wealthsimple.com"
+      },
+      "connector": {
+        "modulePath": "app.connectors.wealthsimple",
+        "className": "WealthsimpleConnector",
+        "providerType": "api"
+      },
+      "route": {
+        "syncPath": "/sync/wealthsimple",
+        "loginPath": "/sync/wealthsimple/login",
+        "twofaPath": "/sync/wealthsimple/2fa",
+        "authHandler": "api_session_otp",
+        "missingCredentialsMessage": "Email and password required"
+      },
+      "apiSessionAuth": {
+        "modulePath": "app.services.wealthsimple",
+        "className": "WealthsimpleApiSessionOtpAuth"
+      },
+      "runtimeState": {
+        "artifactKinds": [
+          "session"
+        ],
+        "browserEngine": "none",
+        "authMode": "api_session",
+        "reuseMode": "session",
+        "pendingRuntimeNamespaces": [
+          "wealthsimple_pending_credentials"
+        ]
+      },
+      "nightly": {
+        "enabled": true,
+        "phase": "api",
+        "order": 40
+      },
+      "transactionImport": {
+        "enabled": true
+      }
+    }
+  },
+  "wise": {
+    "displayName": "Wise",
+    "institutionType": "api",
+    "category": "bank_brokerage",
+    "availableInAddList": true,
+    "implemented": true,
+    "logo": {
+      "asset": "wise.png"
+    },
+    "frontend": {
+      "addAuthModal": "api",
+      "backgroundSyncEndpoint": "/sync/wise",
+      "apiConfig": {
+        "fields": [
+          {
+            "key": "wise_api_token",
+            "label": "API Token",
+            "type": "password"
+          }
+        ],
+        "description": "Connect your Wise multi-currency account to sync all currency balances automatically.",
+        "instructionsTitle": "How to get your API token:",
+        "instructionsSteps": [
+          {
+            "text": "Go to Wise Settings → Connect and manage apps → API tokens"
+          },
+          {
+            "text": "Enable 2-step verification if not already enabled"
+          },
+          {
+            "text": "Click \"Add new token\""
+          },
+          {
+            "text": "Select **Read only** access"
+          },
+          {
+            "text": "Click \"Reveal key\", copy the generated token, and paste it below"
+          }
+        ]
+      }
+    },
+    "backend": {
+      "networkPreflight": {
+        "host": "api.wise.com"
+      },
+      "connector": {
+        "modulePath": "app.connectors.wise",
+        "className": "WiseConnector",
+        "providerType": "api"
+      },
+      "route": {
+        "syncPath": "/sync/wise"
+      },
+      "runtimeState": {
+        "artifactKinds": [],
+        "browserEngine": "none",
+        "authMode": "api",
+        "reuseMode": "api_token"
+      },
+      "nightly": {
+        "enabled": true,
+        "phase": "api",
+        "order": 50
+      },
+      "transactionImport": {
+        "enabled": true
+      },
+      "settingInvalidationKeys": [
+        "wise_api_token"
+      ],
+      "configuredSettingsAllOf": [
+        "wise_api_token"
+      ]
+    }
+  },
+  "rbc": {
+    "displayName": "RBC",
+    "institutionType": "scraper",
+    "category": "bank_brokerage",
+    "availableInAddList": true,
+    "implemented": true,
+    "logo": {
+      "asset": "rbc.png",
+      "aliases": [
+        "rbc royal bank",
+        "royal bank"
+      ],
+      "wide": true
+    },
+    "frontend": {
+      "addAuthModal": "scraper",
+      "backgroundSyncEndpoint": "/sync/rbc",
+      "scraperEndpoints": {
+        "login": "/sync/rbc/login",
+        "twofa": "/sync/rbc/2fa"
+      },
+      "scraperFieldLabels": {
+        "username": "Client Card or Username",
+        "password": "Password"
+      },
+      "scraperAuth": {
+        "clearCredentialsBeforeNewLogin": true,
+        "flow": "desktop_visible_auth",
+        "desktopVisibleAuth": {
+          "enabled": true,
+          "addFlow": true,
+          "manualFlow": true,
+          "recordHar": true,
+          "stageArtifacts": true,
+          "displayName": "RBC",
+          "localeEnvMode": "inherit",
+          "requireCredentialsBeforeLaunch": false,
+          "waitStep": "desktop_visible_auth_wait",
+          "timeoutSeconds": 0,
+          "statusPollMs": 2000,
+          "syncRetryMs": 2000,
+          "syncRetryAttempts": 30,
+          "runnerCommand": [
+            "breaktwenty-visible-auth-python",
+            "scripts/rbc_visible_auth.py"
+          ]
+        }
+      },
+      "dashboardAuth": {
+        "credentialErrorDefault": {
+          "modal": "scraper",
+          "skipAutoLogin": false
+        }
+      }
+    },
+    "backend": {
+      "networkPreflight": {
+        "host": "www1.royalbank.com"
+      },
+      "connector": {
+        "modulePath": "app.connectors.rbc",
+        "className": "RBCConnector",
+        "providerType": "scraper"
+      },
+      "route": {
+        "syncPath": "/sync/rbc",
+        "loginPath": "/sync/rbc/login",
+        "twofaPath": "/sync/rbc/2fa",
+        "authHandler": "standard_scraper",
+        "missingCredentialsMessage": "Username and password required"
+      },
+      "transactionImport": {
+        "enabled": true
+      },
+      "runtimeState": {
+        "artifactKinds": [
+          "storage_state",
+          "session"
+        ],
+        "browserEngine": "patchright",
+        "silentReuseEngine": "patchright",
+        "manualAuthEngine": "desktop_patchright",
+        "manualAuthMode": "desktop_visible_auth",
+        "authMode": "scraper_api",
+        "reuseMode": "storage_state_session",
+        "credentialChangeQuarantine": true,
+        "desktopAuthRuntimeDir": true,
+        "pendingRuntimeNamespaces": [
+          "rbc"
+        ]
+      },
+      "nightly": {
+        "enabled": true,
+        "phase": "scraper",
+        "order": 10
+      }
+    }
+  },
+  "tangerine": {
+    "displayName": "Tangerine",
+    "institutionType": "scraper",
+    "category": "bank_brokerage",
+    "availableInAddList": true,
+    "implemented": true,
+    "logo": {
+      "asset": "tangerine.png"
+    },
+    "frontend": {
+      "addAuthModal": "scraper",
+      "backgroundSyncEndpoint": "/sync/tangerine",
+      "userInitiatedSyncEndpoint": "/sync/tangerine",
+      "scraperEndpoints": {
+        "login": "/sync/tangerine/login",
+        "twofa": "/sync/tangerine/2fa"
+      },
+      "scraperFieldLabels": {
+        "username": "Login ID",
+        "password": "Password"
+      },
+      "scraperAuth": {
+        "clearCredentialsBeforeNewLogin": true,
+        "flow": "desktop_visible_auth",
+        "desktopVisibleAuth": {
+          "enabled": true,
+          "addFlow": true,
+          "manualFlow": true,
+          "recordHar": true,
+          "stageArtifacts": true,
+          "displayName": "Tangerine",
+          "localeEnvMode": "inherit",
+          "requireCredentialsBeforeLaunch": false,
+          "waitStep": "desktop_visible_auth_wait",
+          "timeoutSeconds": 0,
+          "statusPollMs": 2000,
+          "syncRetryMs": 2000,
+          "syncRetryAttempts": 30,
+          "runnerCommand": [
+            "breaktwenty-visible-auth-python",
+            "scripts/tangerine_visible_auth.py"
+          ]
+        }
+      },
+      "dashboardAuth": {
+        "credentialErrorDefault": {
+          "modal": "scraper",
+          "skipAutoLogin": false
+        }
+      }
+    },
+    "backend": {
+      "networkPreflight": {
+        "host": "secure.tangerine.ca"
+      },
+      "connector": {
+        "modulePath": "app.connectors.tangerine",
+        "className": "TangerineConnector",
+        "providerType": "scraper"
+      },
+      "route": {
+        "syncPath": "/sync/tangerine",
+        "loginPath": "/sync/tangerine/login",
+        "twofaPath": "/sync/tangerine/2fa",
+        "authHandler": "standard_scraper",
+        "missingCredentialsMessage": "Login ID and password required"
+      },
+      "transactionImport": {
+        "enabled": true
+      },
+      "runtimeState": {
+        "artifactKinds": [
+          "storage_state",
+          "session"
+        ],
+        "browserEngine": "patchright",
+        "silentReuseEngine": "patchright",
+        "manualAuthEngine": "desktop_patchright",
+        "manualAuthMode": "desktop_visible_auth",
+        "authMode": "scraper_api",
+        "reuseMode": "storage_state_session",
+        "credentialChangeQuarantine": true,
+        "desktopAuthRuntimeDir": true,
+        "pendingRuntimeNamespaces": [
+          "tangerine"
+        ]
+      },
+      "nightly": {
+        "enabled": true,
+        "phase": "scraper",
+        "order": 20
+      }
+    }
+  },
+  "scotiabank": {
+    "displayName": "Scotiabank",
+    "institutionType": "scraper",
+    "category": "bank_brokerage",
+    "availableInAddList": true,
+    "implemented": true,
+    "logo": {
+      "asset": "scotiabank.png"
+    },
+    "frontend": {
+      "addAuthModal": "scraper",
+      "backgroundSyncEndpoint": "/sync/scotiabank",
+      "scraperEndpoints": {
+        "login": "/sync/scotiabank/login",
+        "twofa": "/sync/scotiabank/2fa"
+      },
+      "scraperFieldLabels": {
+        "username": "Username or Card Number",
+        "password": "Password"
+      },
+      "scraperAuth": {
+        "clearCredentialsBeforeNewLogin": true,
+        "flow": "desktop_visible_auth",
+        "desktopVisibleAuth": {
+          "enabled": true,
+          "addFlow": true,
+          "manualFlow": true,
+          "recordHar": true,
+          "stageArtifacts": true,
+          "displayName": "Scotiabank",
+          "localeEnvMode": "inherit",
+          "requireCredentialsBeforeLaunch": false,
+          "waitStep": "desktop_visible_auth_wait",
+          "timeoutSeconds": 0,
+          "statusPollMs": 2000,
+          "syncRetryMs": 2000,
+          "syncRetryAttempts": 30,
+          "runnerCommand": [
+            "breaktwenty-visible-auth-python",
+            "scripts/scotiabank_visible_auth.py"
+          ]
+        }
+      },
+      "dashboardAuth": {
+        "credentialErrorDefault": {
+          "modal": "scraper",
+          "skipAutoLogin": false
+        }
+      }
+    },
+    "backend": {
+      "networkPreflight": {
+        "host": "secure.scotiabank.com"
+      },
+      "connector": {
+        "modulePath": "app.connectors.scotiabank",
+        "className": "ScotiabankConnector",
+        "providerType": "scraper"
+      },
+      "route": {
+        "syncPath": "/sync/scotiabank",
+        "loginPath": "/sync/scotiabank/login",
+        "twofaPath": "/sync/scotiabank/2fa",
+        "authHandler": "standard_scraper",
+        "missingCredentialsMessage": "Username and password required"
+      },
+      "transactionImport": {
+        "enabled": true
+      },
+      "runtimeState": {
+        "artifactKinds": [
+          "storage_state",
+          "session"
+        ],
+        "browserEngine": "patchright",
+        "silentReuseEngine": "patchright",
+        "manualAuthEngine": "desktop_patchright",
+        "manualAuthMode": "desktop_visible_auth",
+        "authMode": "scraper_api",
+        "reuseMode": "storage_state_session",
+        "credentialChangeQuarantine": true,
+        "desktopAuthRuntimeDir": true,
+        "pendingRuntimeNamespaces": [
+          "scotiabank"
+        ]
+      },
+      "nightly": {
+        "enabled": true,
+        "phase": "scraper",
+        "order": 30
+      }
+    }
+  },
+  "amex": {
+    "displayName": "American Express",
+    "institutionType": "scraper",
+    "category": "bank_brokerage",
+    "availableInAddList": true,
+    "implemented": true,
+    "logo": {
+      "asset": "amex.png",
+      "aliases": [
+        "amex"
+      ]
+    },
+    "frontend": {
+      "addAuthModal": "scraper",
+      "backgroundSyncEndpoint": "/sync/amex",
+      "scraperEndpoints": {
+        "login": "/sync/amex/login",
+        "twofa": "/sync/amex/2fa"
+      },
+      "scraperFieldLabels": {
+        "username": "User ID",
+        "password": "Password"
+      },
+      "scraperAuth": {
+        "clearCredentialsBeforeNewLogin": true,
+        "flow": "desktop_visible_auth",
+        "desktopVisibleAuth": {
+          "enabled": true,
+          "addFlow": true,
+          "manualFlow": true,
+          "recordHar": true,
+          "stageArtifacts": true,
+          "displayName": "American Express",
+          "localeEnvMode": "inherit",
+          "requireCredentialsBeforeLaunch": false,
+          "waitStep": "desktop_visible_auth_wait",
+          "timeoutSeconds": 0,
+          "statusPollMs": 2000,
+          "syncRetryMs": 2000,
+          "syncRetryAttempts": 30,
+          "runnerCommand": [
+            "breaktwenty-visible-auth-python",
+            "scripts/amex_visible_auth.py"
+          ]
+        }
+      },
+      "dashboardAuth": {
+        "credentialErrorDefault": {
+          "modal": "scraper",
+          "skipAutoLogin": false
+        }
+      }
+    },
+    "backend": {
+      "networkPreflight": {
+        "host": "global.americanexpress.com"
+      },
+      "connector": {
+        "modulePath": "app.connectors.amex",
+        "className": "AmexConnector",
+        "providerType": "scraper"
+      },
+      "route": {
+        "syncPath": "/sync/amex",
+        "loginPath": "/sync/amex/login",
+        "twofaPath": "/sync/amex/2fa",
+        "authHandler": "standard_scraper",
+        "missingCredentialsMessage": "Username and password required"
+      },
+      "transactionImport": {
+        "enabled": true
+      },
+      "runtimeState": {
+        "artifactKinds": [
+          "storage_state",
+          "session"
+        ],
+        "browserEngine": "patchright",
+        "silentReuseEngine": "patchright",
+        "manualAuthEngine": "desktop_patchright",
+        "manualAuthMode": "desktop_visible_auth",
+        "authMode": "scraper_api",
+        "reuseMode": "storage_state_session",
+        "credentialChangeQuarantine": true,
+        "desktopAuthRuntimeDir": true,
+        "pendingRuntimeNamespaces": [
+          "amex"
+        ]
+      },
+      "nightly": {
+        "enabled": true,
+        "phase": "scraper",
+        "order": 40
+      }
+    }
+  },
+  "td": {
+    "displayName": "TD",
+    "institutionType": "scraper",
+    "category": "bank_brokerage",
+    "availableInAddList": true,
+    "implemented": true,
+    "logo": {
+      "asset": "td.png",
+      "aliases": [
+        "td canada trust"
+      ]
+    },
+    "frontend": {
+      "addAuthModal": "scraper",
+      "backgroundSyncEndpoint": "/sync/td",
+      "scraperEndpoints": {
+        "login": "/sync/td/login",
+        "twofa": "/sync/td/2fa"
+      },
+      "scraperFieldLabels": {
+        "username": "Access Card or Username",
+        "password": "Password"
+      },
+      "scraperAuth": {
+        "clearCredentialsBeforeNewLogin": true,
+        "flow": "desktop_visible_auth",
+        "desktopVisibleAuth": {
+          "enabled": true,
+          "addFlow": true,
+          "manualFlow": true,
+          "recordHar": true,
+          "stageArtifacts": true,
+          "displayName": "TD",
+          "localeEnvMode": "inherit",
+          "requireCredentialsBeforeLaunch": false,
+          "waitStep": "desktop_visible_auth_wait",
+          "timeoutSeconds": 0,
+          "statusPollMs": 2000,
+          "syncRetryMs": 2000,
+          "syncRetryAttempts": 30,
+          "runnerCommand": [
+            "breaktwenty-visible-auth-python",
+            "scripts/td_visible_auth.py"
+          ]
+        }
+      },
+      "dashboardAuth": {
+        "credentialErrorDefault": {
+          "modal": "scraper",
+          "skipAutoLogin": false
+        }
+      }
+    },
+    "backend": {
+      "networkPreflight": {
+        "host": "easyweb.td.com"
+      },
+      "connector": {
+        "modulePath": "app.connectors.td",
+        "className": "TDConnector",
+        "providerType": "scraper"
+      },
+      "route": {
+        "syncPath": "/sync/td",
+        "loginPath": "/sync/td/login",
+        "twofaPath": "/sync/td/2fa",
+        "authHandler": "standard_scraper",
+        "missingCredentialsMessage": "Access card / username and password required"
+      },
+      "transactionImport": {
+        "enabled": true
+      },
+      "runtimeState": {
+        "artifactKinds": [
+          "storage_state",
+          "session"
+        ],
+        "browserEngine": "patchright",
+        "silentReuseEngine": "patchright",
+        "manualAuthEngine": "desktop_patchright",
+        "manualAuthMode": "desktop_visible_auth",
+        "authMode": "scraper_api",
+        "reuseMode": "storage_state_session",
+        "credentialChangeQuarantine": true,
+        "desktopAuthRuntimeDir": true,
+        "pendingRuntimeNamespaces": [
+          "td"
+        ]
+      },
+      "nightly": {
+        "enabled": true,
+        "phase": "scraper",
+        "order": 50
+      }
+    }
+  },
+  "eqbank": {
+    "displayName": "EQ Bank",
+    "institutionType": "scraper",
+    "category": "bank_brokerage",
+    "availableInAddList": true,
+    "implemented": true,
+    "logo": {
+      "asset": "eqbank.png"
+    },
+    "frontend": {
+      "addAuthModal": "scraper",
+      "backgroundSyncEndpoint": "/sync/eqbank",
+      "scraperEndpoints": {
+        "login": "/sync/eqbank/login",
+        "twofa": "/sync/eqbank/2fa"
+      },
+      "scraperFieldLabels": {
+        "username": "Email",
+        "password": "Password"
+      },
+      "scraperAuth": {
+        "clearCredentialsBeforeNewLogin": true,
+        "flow": "desktop_visible_auth",
+        "desktopVisibleAuth": {
+          "enabled": true,
+          "addFlow": true,
+          "manualFlow": true,
+          "recordHar": true,
+          "stageArtifacts": true,
+          "displayName": "EQ Bank",
+          "localeEnvMode": "inherit",
+          "requireCredentialsBeforeLaunch": false,
+          "waitStep": "desktop_visible_auth_wait",
+          "timeoutSeconds": 0,
+          "statusPollMs": 2000,
+          "syncRetryMs": 2000,
+          "syncRetryAttempts": 30,
+          "runnerCommand": [
+            "breaktwenty-visible-auth-python",
+            "scripts/eqbank_visible_auth.py"
+          ]
+        }
+      },
+      "dashboardAuth": {
+        "credentialErrorDefault": {
+          "modal": "scraper",
+          "skipAutoLogin": false
+        }
+      }
+    },
+    "backend": {
+      "networkPreflight": {
+        "host": "api.eqbank.ca"
+      },
+      "connector": {
+        "modulePath": "app.connectors.eqbank",
+        "className": "EQBankConnector",
+        "providerType": "scraper"
+      },
+      "route": {
+        "syncPath": "/sync/eqbank",
+        "loginPath": "/sync/eqbank/login",
+        "twofaPath": "/sync/eqbank/2fa",
+        "authHandler": "standard_scraper",
+        "missingCredentialsMessage": "Email and password required"
+      },
+      "transactionImport": {
+        "enabled": true
+      },
+      "runtimeState": {
+        "artifactKinds": [
+          "storage_state",
+          "session"
+        ],
+        "browserEngine": "patchright",
+        "silentReuseEngine": "patchright",
+        "manualAuthEngine": "desktop_patchright",
+        "manualAuthMode": "desktop_visible_auth",
+        "authMode": "scraper_api",
+        "reuseMode": "storage_state_session",
+        "credentialChangeQuarantine": true,
+        "desktopAuthRuntimeDir": true,
+        "pendingRuntimeNamespaces": [
+          "eqbank"
+        ]
+      },
+      "nightly": {
+        "enabled": true,
+        "phase": "scraper",
+        "order": 60
+      }
+    }
+  },
+  "bmo": {
+    "displayName": "BMO",
+    "institutionType": "scraper",
+    "category": "bank_brokerage",
+    "availableInAddList": true,
+    "implemented": true,
+    "logo": {
+      "asset": "bmo.png",
+      "aliases": [
+        "bank of montreal"
+      ]
+    },
+    "frontend": {
+      "addAuthModal": "scraper",
+      "backgroundSyncEndpoint": "/sync/bmo",
+      "scraperEndpoints": {
+        "login": "/sync/bmo/login",
+        "twofa": "/sync/bmo/2fa"
+      },
+      "scraperFieldLabels": {
+        "username": "Card number / Login ID",
+        "password": "Password"
+      },
+      "scraperAuth": {
+        "clearCredentialsBeforeNewLogin": true,
+        "flow": "desktop_visible_auth",
+        "desktopVisibleAuth": {
+          "enabled": true,
+          "addFlow": true,
+          "manualFlow": true,
+          "recordHar": true,
+          "stageArtifacts": true,
+          "displayName": "BMO",
+          "localeEnvMode": "inherit",
+          "requireCredentialsBeforeLaunch": false,
+          "waitStep": "desktop_visible_auth_wait",
+          "timeoutSeconds": 0,
+          "statusPollMs": 2000,
+          "syncRetryMs": 2000,
+          "syncRetryAttempts": 30,
+          "runnerCommand": [
+            "breaktwenty-visible-auth-python",
+            "scripts/bmo_visible_auth.py"
+          ]
+        }
+      }
+    },
+    "backend": {
+      "networkPreflight": {
+        "host": "www1.bmo.com"
+      },
+      "connector": {
+        "modulePath": "app.connectors.bmo",
+        "className": "BMOConnector",
+        "providerType": "scraper"
+      },
+      "route": {
+        "syncPath": "/sync/bmo",
+        "loginPath": "/sync/bmo/login",
+        "twofaPath": "/sync/bmo/2fa",
+        "authHandler": "standard_scraper",
+        "missingCredentialsMessage": "Card number / login ID and password required"
+      },
+      "transactionImport": {
+        "enabled": true
+      },
+      "runtimeState": {
+        "artifactKinds": [
+          "storage_state",
+          "session"
+        ],
+        "browserEngine": "patchright",
+        "silentReuseEngine": "patchright",
+        "manualAuthEngine": "desktop_patchright",
+        "manualAuthMode": "desktop_visible_auth",
+        "authMode": "scraper_api",
+        "reuseMode": "storage_state_session",
+        "credentialChangeQuarantine": true,
+        "desktopAuthRuntimeDir": true,
+        "pendingRuntimeNamespaces": [
+          "bmo"
+        ]
+      },
+      "nightly": {
+        "enabled": true,
+        "phase": "scraper",
+        "order": 70
+      }
+    }
+  },
+  "cibc": {
+    "displayName": "CIBC",
+    "institutionType": "scraper",
+    "category": "bank_brokerage",
+    "availableInAddList": true,
+    "implemented": true,
+    "logo": {
+      "asset": "cibc.png"
+    },
+    "frontend": {
+      "addAuthModal": "scraper",
+      "backgroundSyncEndpoint": "/sync/cibc",
+      "scraperEndpoints": {
+        "login": "/sync/cibc/login",
+        "twofa": "/sync/cibc/2fa"
+      },
+      "scraperFieldLabels": {
+        "username": "Card number",
+        "password": "Password"
+      },
+      "scraperAuth": {
+        "clearCredentialsBeforeNewLogin": true,
+        "flow": "desktop_visible_auth",
+        "desktopVisibleAuth": {
+          "enabled": true,
+          "addFlow": true,
+          "manualFlow": true,
+          "recordHar": true,
+          "stageArtifacts": true,
+          "displayName": "CIBC",
+          "localeEnvMode": "inherit",
+          "requireCredentialsBeforeLaunch": false,
+          "waitStep": "desktop_visible_auth_wait",
+          "timeoutSeconds": 0,
+          "statusPollMs": 2000,
+          "syncRetryMs": 2000,
+          "syncRetryAttempts": 30,
+          "runnerCommand": [
+            "breaktwenty-visible-auth-python",
+            "scripts/cibc_visible_auth.py"
+          ]
+        }
+      },
+      "dashboardAuth": {
+        "credentialErrorDefault": {
+          "modal": "scraper",
+          "skipAutoLogin": false
+        }
+      }
+    },
+    "backend": {
+      "networkPreflight": {
+        "host": "www.cibconline.cibc.com"
+      },
+      "connector": {
+        "modulePath": "app.connectors.cibc",
+        "className": "CIBCConnector",
+        "providerType": "scraper"
+      },
+      "route": {
+        "syncPath": "/sync/cibc",
+        "loginPath": "/sync/cibc/login",
+        "twofaPath": "/sync/cibc/2fa",
+        "authHandler": "standard_scraper",
+        "missingCredentialsMessage": "Card number and password required"
+      },
+      "transactionImport": {
+        "enabled": true
+      },
+      "runtimeState": {
+        "artifactKinds": [
+          "storage_state",
+          "session"
+        ],
+        "browserEngine": "patchright",
+        "silentReuseEngine": "patchright",
+        "manualAuthEngine": "desktop_patchright",
+        "manualAuthMode": "desktop_visible_auth",
+        "authMode": "scraper_api",
+        "reuseMode": "storage_state_session",
+        "credentialChangeQuarantine": true,
+        "desktopAuthRuntimeDir": true,
+        "pendingRuntimeNamespaces": [
+          "cibc"
+        ]
+      },
+      "nightly": {
+        "enabled": true,
+        "phase": "scraper",
+        "order": 80
+      }
+    }
+  },
+  "national": {
+    "displayName": "National Bank",
+    "institutionType": "scraper",
+    "category": "bank_brokerage",
+    "availableInAddList": true,
+    "implemented": true,
+    "logo": {
+      "asset": "national.png",
+      "aliases": [
+        "national bank of canada"
+      ]
+    },
+    "frontend": {
+      "addAuthModal": "scraper",
+      "backgroundSyncEndpoint": "/sync/national",
+      "scraperEndpoints": {
+        "login": "/sync/national/login",
+        "twofa": "/sync/national/2fa"
+      },
+      "scraperFieldLabels": {
+        "username": "Email ID",
+        "password": "Password"
+      },
+      "scraperAuth": {
+        "clearCredentialsBeforeNewLogin": true,
+        "flow": "desktop_visible_auth",
+        "desktopVisibleAuth": {
+          "enabled": true,
+          "addFlow": true,
+          "manualFlow": true,
+          "recordHar": true,
+          "stageArtifacts": true,
+          "displayName": "National Bank",
+          "localeEnvMode": "inherit",
+          "requireCredentialsBeforeLaunch": false,
+          "waitStep": "desktop_visible_auth_wait",
+          "timeoutSeconds": 0,
+          "statusPollMs": 2000,
+          "syncRetryMs": 2000,
+          "syncRetryAttempts": 30,
+          "runnerCommand": [
+            "breaktwenty-visible-auth-python",
+            "scripts/national_visible_auth.py"
+          ]
+        }
+      }
+    },
+    "backend": {
+      "networkPreflight": {
+        "host": "digitalretail.apis.bnc.ca"
+      },
+      "connector": {
+        "modulePath": "app.connectors.national",
+        "className": "NationalBankConnector",
+        "providerType": "scraper"
+      },
+      "route": {
+        "syncPath": "/sync/national",
+        "loginPath": "/sync/national/login",
+        "twofaPath": "/sync/national/2fa",
+        "authHandler": "standard_scraper",
+        "missingCredentialsMessage": "Email ID and password required"
+      },
+      "transactionImport": {
+        "enabled": true
+      },
+      "runtimeState": {
+        "artifactKinds": [
+          "storage_state",
+          "session"
+        ],
+        "browserEngine": "patchright",
+        "silentReuseEngine": "direct",
+        "manualAuthEngine": "desktop_patchright",
+        "manualAuthMode": "desktop_visible_auth",
+        "authMode": "scraper_api",
+        "reuseMode": "storage_state_session",
+        "credentialChangeQuarantine": true,
+        "desktopAuthRuntimeDir": true,
+        "pendingRuntimeNamespaces": [
+          "national"
+        ]
+      },
+      "nightly": {
+        "enabled": true,
+        "phase": "scraper",
+        "order": 90
+      }
+    }
+  },
+  "moomoo": {
+    "displayName": "Moomoo",
+    "institutionType": "api",
+    "category": "bank_brokerage",
+    "availableInAddList": true,
+    "implemented": true,
+    "logo": {
+      "asset": "moomoo.png"
+    },
+    "frontend": {
+      "addAuthModal": "api",
+      "backgroundSyncEndpoint": "/sync/moomoo",
+      "scraperAuth": {
+        "flow": "desktop_visible_auth",
+        "desktopVisibleAuth": {
+          "enabled": true,
+          "addFlow": true,
+          "manualFlow": true,
+          "recordHar": true,
+          "stageArtifacts": false,
+          "displayName": "Moomoo",
+          "localeEnvMode": "inherit",
+          "requireCredentialsBeforeLaunch": false,
+          "timeoutSeconds": 600,
+          "statusPollMs": 500,
+          "runnerCommand": [
+            "breaktwenty-visible-auth-python",
+            "scripts/moomoo_oauth_visible_auth.py"
+          ]
+        }
+      },
+      "apiConfig": {
+        "fields": [],
+        "description": "Connect through Moomoo's secure authorization page to sync read-only balances, positions, orders, and fills."
+      }
+    },
+    "backend": {
+      "connector": {
+        "modulePath": "app.connectors.moomoo",
+        "className": "MoomooConnector",
+        "providerType": "api"
+      },
+      "route": {
+        "syncPath": "/sync/moomoo"
+      },
+      "runtimeState": {
+        "artifactKinds": [
+          "session"
+        ],
+        "browserEngine": "none",
+        "authMode": "cloud_oauth",
+        "reuseMode": "encrypted_oauth"
+      },
+      "nightly": {
+        "enabled": false,
+        "phase": "api",
+        "order": 60
+      },
+      "transactionImport": {
+        "enabled": true
+      },
+      "settingInvalidationKeys": [],
+      "configuredSettingsAllOf": []
+    }
+  },
+  "manual": {
+    "displayName": "Cash",
+    "availableInAddList": false,
+    "implemented": false,
+    "logo": {
+      "asset": "cash.png"
+    }
+  },
+  "manual_custom": {
+    "displayName": "Manual Institution",
+    "availableInAddList": false,
+    "implemented": false,
+    "logo": {
+      "asset": "manual-institution.png"
+    }
+  },
+  "real_estate": {
+    "displayName": "Real Estate",
+    "availableInAddList": false,
+    "implemented": false,
+    "logo": {
+      "asset": "real-estate.png"
+    }
+  },
+  "vehicles": {
+    "displayName": "Vehicles",
+    "availableInAddList": false,
+    "implemented": false,
+    "logo": {
+      "asset": "vehicles.png"
+    }
+  },
+  "valuables": {
+    "displayName": "Valuables",
+    "availableInAddList": false,
+    "implemented": false,
+    "logo": {
+      "asset": "valuables.png"
+    }
+  },
+  "private_investments": {
+    "displayName": "Private Investments",
+    "availableInAddList": false,
+    "implemented": false,
+    "logo": {
+      "asset": "private-investments.png"
+    }
+  },
+  "other_assets": {
+    "displayName": "Other Assets",
+    "availableInAddList": false,
+    "implemented": false,
+    "logo": {
+      "asset": "other-assets.png"
+    }
+  },
+  "debt": {
+    "displayName": "Debt",
+    "availableInAddList": false,
+    "implemented": false,
+    "logo": {
+      "asset": "debt.png"
+    }
+  }
+}

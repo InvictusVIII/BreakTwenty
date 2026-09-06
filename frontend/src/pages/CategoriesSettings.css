@@ -1,0 +1,387 @@
+.categories-settings {
+  color: var(--color-text-primary);
+}
+
+.cs-header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.cs-add-group-button {
+  gap: 0.35rem;
+  padding: 0.5rem 0.85rem;
+  border-radius: var(--radius-sm);
+}
+
+.cs-header-actions {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.cs-loading,
+.cs-error {
+  padding: 2rem;
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+.cs-error {
+  color: var(--color-negative);
+}
+
+.cs-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.cs-group {
+  overflow: hidden;
+}
+
+.cs-group-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  background: var(--surface-nested-bg);
+  border-left: 4px solid var(--cat-color);
+}
+
+.cs-group-header-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cs-group-header-name {
+  font-size: var(--type-institution-name-size);
+  font-weight: var(--type-institution-name-weight);
+}
+
+.cs-group-header-classification {
+  font-size: var(--type-stat-label-size);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  font-weight: var(--type-stat-label-weight);
+  color: var(--type-stat-label-color);
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background: rgba(var(--rgb-white), 0.04);
+}
+
+.cs-group-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.cs-add-sub-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--surface-button-bg);
+  border: var(--surface-button-border-width) solid var(--surface-button-border-color);
+  color: var(--surface-button-color);
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--surface-button-shadow);
+  cursor: pointer;
+  font-size: var(--type-button-label-size);
+  font-weight: var(--type-button-label-weight);
+}
+
+.cs-leaves {
+  display: flex;
+  flex-direction: column;
+}
+
+.cs-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 1rem 0.55rem 1.25rem;
+  border-top: 1px solid rgba(var(--rgb-white), 0.04);
+  border-left: 3px solid transparent;
+}
+
+.cs-row-preview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.cs-form-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  margin-bottom: 0.8rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px dashed rgba(var(--rgb-white), 0.1);
+  border-radius: var(--radius-sm);
+}
+
+.cs-form-preview-label {
+  font-size: var(--type-badge-size);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.cs-form-button-reset {
+  margin-right: auto;
+}
+
+.cs-form-color-row {
+  margin-top: 0.75rem;
+}
+
+.cs-form-color-row .chart-color-row {
+  width: 100%;
+}
+
+.cs-row-classification {
+  font-size: var(--type-stat-label-size);
+  font-weight: var(--type-stat-label-weight);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--type-stat-label-color);
+}
+
+.cs-row.is-leaf {
+  padding-left: 2.5rem;
+  border-left-color: var(--cat-color);
+}
+
+.cs-row-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+}
+
+.cs-row-name {
+  font-size: var(--type-body-size);
+}
+
+.cs-row-actions {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.cs-row-action {
+  --button-state-shell-bg: transparent;
+  --button-state-shell-border-color: transparent;
+  --button-state-shell-border-width: 0;
+  --button-state-shell-outset: 0;
+  --button-state-shell-assist-shadow: 0 0 0 0 transparent;
+  --button-state-shell-shadow: 0 0 0 0 transparent;
+  --button-state-shell-opacity: 0;
+
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  padding: 0.3rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-xs);
+}
+
+button.cs-row-action::after {
+  content: none;
+}
+
+button.cs-row-action:is(:hover, :focus-visible) {
+  --button-state-shell-bg: transparent;
+  --button-state-shell-border-color: transparent;
+  --button-state-shell-border-width: 0;
+  --button-state-shell-outset: 0;
+  --button-state-shell-assist-shadow: 0 0 0 0 transparent;
+  --button-state-shell-shadow: 0 0 0 0 transparent;
+  --button-state-shell-opacity: 0;
+
+  color: var(--color-text-primary);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+button.cs-row-action.is-danger:is(:hover, :focus-visible) {
+  color: var(--color-negative);
+  background: transparent;
+}
+
+.cs-edit-panel {
+  padding: 1rem 1.25rem 1.25rem;
+  background: var(--surface-nested-bg);
+  border: var(--surface-nested-border-width) solid var(--surface-nested-border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--surface-nested-shadow);
+}
+
+.cs-edit-panel h3 {
+  margin: 0 0 0.75rem;
+  font-size: var(--type-body-large-size);
+  font-weight: var(--font-weight-semibold);
+}
+
+.cs-edit-panel-inset {
+  margin-left: 2.5rem;
+}
+
+.cs-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.cs-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
+.cs-form-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1;
+  min-width: 140px;
+  font-family: var(--type-subsection-title-family);
+  font-size: var(--type-subsection-title-size);
+  font-weight: var(--type-subsection-title-weight);
+  color: var(--type-subsection-title-color);
+  letter-spacing: var(--type-subsection-title-letter-spacing);
+}
+
+.cs-form-name,
+.cs-form-icon {
+  align-items: center;
+  text-align: center;
+}
+
+.cs-form-name input[type="text"] {
+  text-align: left;
+}
+
+.cs-form-row input[type="text"] {
+  height: var(--panel-control-min-height);
+  box-sizing: border-box;
+  background: var(--surface-text-field-bg);
+  border: var(--surface-text-field-border-width) solid var(--surface-text-field-border-color);
+  border-radius: var(--surface-text-field-radius);
+  box-shadow: var(--surface-text-field-shadow);
+  padding: var(--space-0) 0.875rem;
+  font-size: var(--type-input-size);
+  font-weight: var(--type-input-weight);
+  color: var(--surface-text-field-color);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.cs-form-row input[type="text"]:focus {
+  border-color: var(--surface-text-field-focus-border-color);
+}
+
+.cs-form-row .app-dropdown,
+.cs-form-row .app-dropdown-trigger {
+  --control-label-size: var(--type-input-compact-size);
+  --control-label-weight: var(--type-input-weight);
+  --control-label-letter-spacing: 0;
+  width: 100%;
+}
+
+.cs-form-icon {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: none;
+}
+
+.cs-form-icon-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.cs-form-icon-current {
+  --button-state-shell-bg: transparent;
+  --button-state-shell-border-color: transparent;
+  --button-state-shell-border-width: 0;
+  --button-state-shell-outset: 0;
+  --button-state-shell-assist-shadow: 0 0 0 0 transparent;
+  --button-state-shell-shadow: 0 0 0 0 transparent;
+  --button-state-shell-opacity: 0;
+
+  width: 2.6rem;
+  height: 2.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-text-field-bg);
+  color: var(--surface-text-field-color);
+  padding: 0;
+  border-radius: 999px;
+  border: var(--surface-text-field-border-width) solid var(--surface-text-field-border-color);
+  box-shadow: var(--surface-text-field-shadow);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+button.cs-form-icon-current::after {
+  content: none;
+}
+
+button.cs-form-icon-current:is(:hover, :focus-visible) {
+  --button-state-shell-bg: transparent;
+  --button-state-shell-border-color: transparent;
+  --button-state-shell-border-width: 0;
+  --button-state-shell-outset: 0;
+  --button-state-shell-assist-shadow: 0 0 0 0 transparent;
+  --button-state-shell-shadow: 0 0 0 0 transparent;
+  --button-state-shell-opacity: 0;
+
+  background: var(--surface-text-field-bg);
+  border-color: var(--surface-text-field-focus-border-color);
+  box-shadow: var(--surface-text-field-shadow);
+}
+
+.cs-form-error {
+  font-size: var(--type-inline-error-size);
+  font-weight: var(--type-inline-error-weight);
+  color: var(--type-inline-error-color);
+}
+
+.cs-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.cs-form-button {
+  padding: 0.45rem 1rem;
+  border-radius: var(--radius-sm);
+  border: none;
+  font-size: var(--type-body-size);
+  font-weight: var(--type-button-label-weight);
+  cursor: pointer;
+}
+
+.cs-form-button.is-secondary {
+  background: var(--surface-button-bg);
+  color: var(--color-text-primary);
+  border: var(--surface-button-border-width) solid var(--surface-button-border-color);
+  box-shadow: var(--surface-button-shadow);
+}

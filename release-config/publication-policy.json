@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 3,
+  "historyMode": "single-independent-public-root",
+  "requiredPublicFiles": [
+    ".github/SECURITY.md",
+    ".github/workflows/desktop-release.yml",
+    ".github/workflows/release-health.yml",
+    "CONTRIBUTING.md",
+    "LICENSE.md",
+    "README.md",
+    "desktop/package.json",
+    "desktop/THIRD_PARTY_NOTICES.md",
+    "desktop/NODE_RUNTIME_NOTICES.md",
+    "desktop/licenses/Apache-2.0.txt",
+    "desktop/licenses/SQLCipher.txt",
+    "desktop/licenses/sqlcipher3.txt",
+    "frontend/public/emoji/THIRD-PARTY-LICENSES.md",
+    "frontend/public/emoji/finance/CREDITS.md",
+    "frontend/public/THIRD_PARTY_SOFTWARE_NOTICES.md",
+    "backend/scripts/openssl-4.0.1-LICENSE.txt"
+  ],
+  "legalPackageFiles": [
+    "LICENSE.md",
+    "README.md",
+    "CONTRIBUTING.md",
+    ".github/SECURITY.md",
+    "desktop/package.json",
+    "desktop/THIRD_PARTY_NOTICES.md"
+  ],
+  "forbiddenContentMarkers": [],
+  "expectedLicenseSha256": "c915d0a7716b357bdb1625ce8a8ed1cb08f50df7c5e8b22147857cfc1cddcf86",
+  "securityEmail": "security@breaktwenty.com",
+  "requireGitHubPrivateVulnerabilityReporting": true
+}

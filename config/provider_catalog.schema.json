@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://breaktwenty.local/schemas/provider_catalog.schema.json",
+  "title": "BreakTwenty Provider Catalog",
+  "description": "Schema for config/provider_catalog.json. Mirrors the runtime validators in backend/app/provider_catalog.py. Provider keys must be lowercase identifiers. The schema is intentionally permissive on unknown nested fields (additionalProperties: true) so it matches the Python validator's level of strictness — tighten in a separate task if needed.",
+  "type": "object",
+  "propertyNames": {
+    "type": "string",
+    "pattern": "^(\\$[a-zA-Z][a-zA-Z0-9]*|[a-z][a-z0-9_]*)$",
+    "description": "Lowercase provider id (matches provider.strip().lower() in the runtime validator), or a JSON Schema metadata key like $schema/$id."
+  },
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional JSON Schema reference for editor autocomplete. Stripped at runtime by provider_catalog.py before validation."
+    }
+  },
+  "additionalProperties": {
+    "$ref": "#/$defs/ProviderEntry"
+  },
+  "$defs": {
+    "ProviderEntry": {
+      "type": "object",
+      "required": ["displayName"],
+      "additionalProperties": true,
+      "properties": {
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable provider name. Required and non-empty."
+        },
+        "institutionType": {
+          "type": "string",
+          "enum": ["api", "scraper"],
+          "description": "How BreakTwenty connects to this provider."
+        },
+        "category": {
+          "type": "string",
+          "enum": ["bank_brokerage", "crypto_wallet"],
+          "description": "Which Add to Net Worth launcher tile a syncable provider appears under."
+        },
+        "availableInAddList": {
+          "type": "boolean",
+          "description": "Whether the provider appears in the Add to Net Worth launcher."
+        },
+        "implemented": {
+          "type": "boolean",
+          "description": "Whether the connector is functional. Providers in the add-list must also be implemented to surface."
+        },
+        "logo": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "asset": { "type": "string", "minLength": 1 },
+            "aliases": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "frontend": { "$ref": "#/$defs/FrontendMetadata" },
+        "backend": { "$ref": "#/$defs/BackendMetadata" }
+      }
+    },
+    "FrontendMetadata": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "addAuthModal": {
+          "type": "string",
+          "enum": ["api", "scraper"],
+          "description": "Which auth modal the Add Institution flow opens for this provider."
+        },
+        "backgroundSyncEndpoint": { "type": "string", "minLength": 1 },
+        "userInitiatedSyncEndpoint": { "type": "string", "minLength": 1 },
+        "scraperEndpoints": { "type": "object", "additionalProperties": true },
+        "scraperFieldLabels": { "type": "object", "additionalProperties": true },
+        "apiConfig": { "type": "object", "additionalProperties": true },
+        "scraperAuth": { "type": "object", "additionalProperties": true },
+        "dashboardAuth": { "type": "object", "additionalProperties": true },
+        "syncDisplay": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "BackendMetadata": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "connector": { "$ref": "#/$defs/Connector" },
+        "route": { "$ref": "#/$defs/Route" },
+        "runtimeState": { "$ref": "#/$defs/RuntimeState" },
+        "nightly": { "$ref": "#/$defs/Nightly" },
+        "settingInvalidationKeys": { "$ref": "#/$defs/NonEmptyStringList" },
+        "configuredSettingsAllOf": { "$ref": "#/$defs/NonEmptyStringList" },
+        "transientSettingKeys": { "$ref": "#/$defs/NonEmptyStringList" },
+        "apiSessionAuth": { "type": "object", "additionalProperties": true },
+        "networkPreflight": { "$ref": "#/$defs/NetworkPreflight" },
+        "transactionImport": { "$ref": "#/$defs/TransactionImport" }
+      }
+    },
+    "Connector": {
+      "type": "object",
+      "required": ["modulePath", "className"],
+      "additionalProperties": true,
+      "properties": {
+        "modulePath": { "type": "string", "minLength": 1 },
+        "className": { "type": "string", "minLength": 1 },
+        "providerType": { "type": "string", "enum": ["api", "scraper"] },
+        "persistedProvider": { "type": "string", "minLength": 1 },
+        "syncStatusProvider": { "type": "string", "minLength": 1 },
+        "errorStatus": { "type": "string", "minLength": 1 }
+      }
+    },
+    "Route": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "syncPath": { "type": "string", "minLength": 1 },
+        "loginPath": { "type": "string", "minLength": 1 },
+        "twofaPath": { "type": "string", "minLength": 1 },
+        "authHandler": { "type": "string", "minLength": 1 },
+        "missingCredentialsMessage": { "type": "string", "minLength": 1 },
+        "errorStatus": { "type": "string", "minLength": 1 },
+        "statusProvider": { "type": "string", "minLength": 1 },
+        "lockProvider": { "type": "string", "minLength": 1 }
+      }
+    },
+    "RuntimeState": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "artifactKinds": { "$ref": "#/$defs/NonEmptyStringList" },
+        "pendingRuntimeNamespaces": { "$ref": "#/$defs/NonEmptyStringList" },
+        "extraRuntimeProviders": { "$ref": "#/$defs/NonEmptyStringList" },
+        "browserEngine": { "type": "string", "minLength": 1 },
+        "silentReuseEngine": { "type": "string", "minLength": 1 },
+        "manualAuthEngine": { "type": "string", "minLength": 1 },
+        "manualAuthMode": { "type": "string", "minLength": 1 },
+        "authMode": { "type": "string", "minLength": 1 },
+        "reuseMode": { "type": "string", "minLength": 1 },
+        "credentialChangeQuarantine": { "type": "boolean" },
+        "desktopAuthRuntimeDir": { "type": "boolean" }
+      }
+    },
+    "Nightly": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "phase": { "type": "string", "minLength": 1 },
+        "order": { "type": "integer" }
+      }
+    },
+    "TransactionImport": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "dailyDedupe": { "type": "boolean" }
+      }
+    },
+    "NetworkPreflight": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "host": { "type": "string", "minLength": 1 }
+      }
+    },
+    "NonEmptyStringList": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

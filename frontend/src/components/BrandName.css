@@ -1,0 +1,17 @@
+.brand-name {
+  color: var(--color-brand-wordmark-break);
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  white-space: nowrap;
+}
+
+.brand-name-break {
+  color: var(--color-brand-wordmark-break);
+}
+
+.brand-name-twenty {
+  color: var(--color-brand-wordmark-twenty);
+}

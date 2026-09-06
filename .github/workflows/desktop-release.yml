@@ -1,0 +1,219 @@
+name: BreakTwenty Public Prerelease Build
+
+on:
+  push:
+    branches:
+      - 'release-candidate/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare public release metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      candidate_sha: ${{ steps.version.outputs.candidate_sha }}
+      notes_path: ${{ steps.release_notes.outputs.notes_path }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Verify package-independent desktop contracts
+        shell: bash
+        run: python3 scripts/verify_desktop_linux_icon_contract.py --source-only
+
+      - name: Validate public candidate identity
+        id: version
+        shell: bash
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+          REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+        run: |
+          set -euo pipefail
+          if [ "$REPOSITORY" != "InvictusVIII/BreakTwenty" ] || [ "$REPOSITORY_PRIVATE" = "true" ]; then
+            echo "::error title=Unsafe release repository::This workflow may build only in the public BreakTwenty repository."
+            exit 1
+          fi
+          VERSION="$(node -p "require('./desktop/package.json').version")"
+          if [[ ! "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error title=Invalid public version::Public candidates must use stable x.y.z semver."
+            exit 1
+          fi
+          CANDIDATE_SHA="$(git rev-parse HEAD^{commit})"
+          EXPECTED_REF="release-candidate/v${VERSION}-${CANDIDATE_SHA:0:12}"
+          if [ "$REF_NAME" != "$EXPECTED_REF" ]; then
+            echo "::error title=Invalid candidate ref::Expected ${EXPECTED_REF}, got ${REF_NAME}."
+            exit 1
+          fi
+          echo "candidate_sha=${CANDIDATE_SHA}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify public source and independent history
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ steps.version.outputs.candidate_sha }}
+        run: python scripts/check_public_tree.py --candidate "$CANDIDATE_SHA"
+
+      - name: Check release notes
+        id: release_notes
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          NOTES_PATH="release-notes/v${VERSION}.md"
+          test -s "$NOTES_PATH" || {
+            echo "::error title=Release notes missing::Create ${NOTES_PATH} before releasing."
+            exit 1
+          }
+          echo "notes_path=${NOTES_PATH}" >> "$GITHUB_OUTPUT"
+
+  build_frontend:
+    name: Build shared frontend
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out candidate frontend
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.prepare.outputs.candidate_sha }}
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22.23.2"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        shell: bash
+        run: npm --prefix frontend ci
+      - name: Build frontend
+        shell: bash
+        run: npm --prefix frontend run build
+      - name: Verify frontend artifact
+        shell: bash
+        run: test -s frontend/build/index.html
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          if-no-files-found: error
+          retention-days: 1
+          path: frontend/build
+
+  build_linux:
+    name: Build Linux AppImage/deb
+    needs: [prepare, build_frontend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.prepare.outputs.candidate_sha }}
+      - name: Build, verify, and upload Linux package
+        uses: ./.github/actions/desktop-package
+        with:
+          artifact: linux
+          frontend-build-artifact: frontend-build
+          script: dist:linux:prebuilt-frontend
+          updater-owner: InvictusVIII
+          updater-private: 'false'
+          updater-repo: BreakTwenty
+
+  build_windows:
+    name: Build signed Windows NSIS
+    needs: [prepare, build_frontend]
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.prepare.outputs.candidate_sha }}
+      - name: Build, sign, verify, and upload Windows package
+        uses: ./.github/actions/desktop-package
+        env:
+          AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT }}
+          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+          AZURE_ARTIFACT_SIGNING_PROFILE: ${{ vars.AZURE_ARTIFACT_SIGNING_PROFILE }}
+          AZURE_ARTIFACT_SIGNING_PUBLISHER: ${{ vars.AZURE_ARTIFACT_SIGNING_PUBLISHER }}
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+        with:
+          artifact: windows
+          frontend-build-artifact: frontend-build
+          script: dist:win:prebuilt-frontend
+          signing-platform: win
+          updater-owner: InvictusVIII
+          updater-private: 'false'
+          updater-repo: BreakTwenty
+
+  build_macos:
+    name: Build signed/notarized macOS DMG
+    needs: [prepare, build_frontend]
+    runs-on: macos-14
+    timeout-minutes: 40
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.prepare.outputs.candidate_sha }}
+      - name: Build, sign, notarize, verify, and upload macOS package
+        uses: ./.github/actions/desktop-package
+        env:
+          APPLE_API_ISSUER: ${{ vars.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ vars.APPLE_API_KEY_ID }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          BREAKTWENTY_NOTARY_POLL_TIMEOUT_SECONDS: "1200"
+          BREAKTWENTY_NOTARY_SUBMIT_TIMEOUT_SECONDS: "600"
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+        with:
+          artifact: macos-arm64
+          extra-args: --arm64
+          frontend-build-artifact: frontend-build
+          script: dist:mac:prebuilt-frontend
+          signing-platform: mac
+          updater-owner: InvictusVIII
+          updater-private: 'false'
+          updater-repo: BreakTwenty
+
+  signed_builds_complete:
+    name: Require every public native build
+    needs: [prepare, build_linux, build_windows, build_macos]
+    if: ${{ always() && needs.prepare.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Enforce fail-closed native build graph
+        shell: bash
+        env:
+          LINUX_RESULT: ${{ needs.build_linux.result }}
+          MACOS_RESULT: ${{ needs.build_macos.result }}
+          WINDOWS_RESULT: ${{ needs.build_windows.result }}
+        run: |
+          set -euo pipefail
+          for result in "$LINUX_RESULT" "$WINDOWS_RESULT" "$MACOS_RESULT"; do
+            if [ "$result" != "success" ]; then
+              echo "::error title=Required desktop build failed::Native build result was ${result}."
+              exit 1
+            fi
+          done

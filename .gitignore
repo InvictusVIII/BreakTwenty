@@ -1,0 +1,93 @@
+RULES.md
+AGENTS.md
+ARCHITECTURE.md
+PROJECT_STATE.md
+
+# Local assistant/editor state
+.claude/
+.codex
+.codex/
+rollout-*.jsonl
+.vscode/
+.desktop-auth/
+
+node_modules/
+frontend/node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.bak
+*.old
+*.tmp
+*.swp
+*.orig
+*~
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+dist/
+build/
+!desktop/build/
+!desktop/build/entitlements.mac.plist
+!desktop/build/entitlements.mac.inherit.plist
+coverage/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+/data/
+data/users/**/providers/**/cookies.json
+data/users/**/providers/**/storage_state.json
+data/users/**/providers/**/session.json
+
+backend/data/
+
+# Sensitive
+.env
+.env.*
+.env.save
+!.env.example
+*.sql
+credentials_login_providers_backup.sql
+*.har
+*.HAR
+*.trace
+*.trace.zip
+*.webm
+*.log
+*.db
+*.sqlite
+*.pem
+*.key
+*.p12
+*.crt
+repo-tree.txt
+CLAUDE.md
+
+# Canonical checkout private/local-only material
+/index.html
+/package-lock.json
+/release-config/private-test-release.json
+/release-notes/public/
+
+# Local Playwright test venv
+.venv-playwright/
+
+# Forbidden legacy source-tree helper venv; the active development environment is private.
+.venv-desktop-auth/
+# Forbidden legacy provider-specific helper venv artifact.
+.venv-tangerine-helper/
+
+# Local troubleshooting artifacts
+Diagnostic/
+
+# Local visual-material tuning scripts; generated app assets are kept separately.
+scripts/generate_*material*.py
+scripts/generate_charcoal_graphite_*.py
+scripts/generate_panel_shell_lighting_overlays.py
+frontend/src/assets/textures/charcoal_graphite_*_tile_*.png
+frontend/src/assets/textures/charcoal_graphite_*_seam_test_*.png
+frontend/public/assets/textures/charcoal_graphite_*_tile_*.png
+frontend/public/assets/textures/charcoal_graphite_*_seam_test_*.png

@@ -1,0 +1,2966 @@
+/* Holdings page styles.
+ * Extracted from App.css in Stage 3 of the CSS split. Every block here has
+ * selectors that reference classes exclusively used by pages/Holdings.js
+ * (verified against className occurrences in all pages and components). Imported
+ * from pages/Holdings.js. Vite bundles all imported CSS so rules remain global.
+ */
+
+.investments-toolbar-nav-slot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.investments-toolbar-nav-slot:empty {
+  display: none;
+}
+
+.investments-toolbar-filters-slot {
+  position: relative;
+  z-index: var(--app-toolbar-layer);
+  align-self: center;
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.investments-toolbar-filters-slot .investments-page-controls {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.page-shell-toolbar.is-toolbar-wrapped .investments-toolbar-nav-slot,
+.page-shell-toolbar.is-toolbar-wrapped .investments-subnav {
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.page-shell-toolbar.is-toolbar-wrapped .investments-toolbar-filters-slot .investments-page-controls,
+.page-shell-toolbar.is-toolbar-wrapped .investments-toolbar-controls {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.investments-toolbar-filters-slot:empty {
+  display: none;
+}
+
+.holdings-pie-tooltip-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 2px;
+}
+
+.holdings-pie-tooltip-breakdown-label {
+  color: var(--color-text-primary);
+  font-size: var(--tooltip-sub-font-size);
+  font-weight: var(--font-weight-semibold);
+}
+
+.holdings-pie-tooltip-breakdown-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--tooltip-name-color);
+  font-size: var(--tooltip-sub-font-size);
+  line-height: 1.4;
+}
+
+.holdings-pie-tooltip-breakdown-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.holdings-pie-tooltip-nested-accounts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding-left: 0.5rem;
+}
+
+.holdings-pie-tooltip-breakdown-name {
+  min-width: 0;
+  color: var(--color-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.holdings-pie-tooltip-breakdown-share {
+  flex-shrink: 0;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.sortable-table-header-cell.is-right {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.income-table-section {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.income-chart-section {
+  margin-top: 0;
+}
+
+.income-chart-section + .income-chart-section {
+  margin-top: 0;
+}
+
+/* Right-tray width reservation is owned by the app shell (see App.css
+   .right-tray-* classes). The hub no longer adds its own padding-right when a
+   tray opens; .app-main's right reservation does the push for us. */
+
+/* .income-detail-tray and .position-detail-tray widths are App.css knobs:
+   --income-detail-tray-width and --position-detail-tray-width. */
+
+.income-history-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.income-history-filter-chip {
+  min-height: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--rgb-accent-primary), 0.3);
+  background: rgba(var(--rgb-accent-primary), 0.12);
+  color: var(--color-text-primary);
+  font-size: var(--type-badge-size);
+  font-weight: var(--type-badge-weight);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.income-history-chart,
+.income-by-position-chart {
+  width: 100%;
+}
+
+.income-history-chart{
+  overflow: visible;
+}
+
+.income-mode-toggle {
+  height: var(--top-control-trigger-height);
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  border: 0;
+  border-radius: var(--top-control-radius);
+  background: transparent;
+  box-shadow: none;
+}
+
+.income-mode-option {
+  --button-state-shell-border-width: 0px;
+  --button-state-shell-opacity: 0;
+  height: 100%;
+  min-height: 100%;
+  min-width: max-content;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding:
+    var(--top-control-padding-block-start)
+    var(--top-control-compact-padding-inline)
+    var(--top-control-padding-block-end);
+  border: var(--surface-button-app-border-width) solid var(--surface-button-app-border-color);
+  border-radius: var(--top-control-radius);
+  background: var(--surface-button-app-bg);
+  color: var(--surface-button-app-color);
+  font-family: var(--type-button-label-family);
+  font-size: var(--type-topbar-trigger-label-size);
+  font-weight: var(--type-topbar-trigger-label-weight);
+  line-height: var(--line-height-none);
+  letter-spacing: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: var(--surface-button-app-shadow);
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.income-mode-option-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: max-content;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.income-mode-option:not(.is-active) {
+  border-color: var(--surface-button-app-border-color);
+}
+
+.investments-subnav-child-nav {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-width: 0;
+  gap: var(--space-1);
+  margin-left: calc(-1 * var(--space-2));
+  margin-right: var(--space-2);
+}
+
+.investments-subnav-child-nav::before {
+  content: '>';
+  color: var(--color-text-faint);
+  font-size: var(--type-body-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-none);
+}
+
+.investments-subnav-child-nav .income-mode-toggle {
+  height: calc(var(--top-control-trigger-height) - 0.25rem);
+  flex: 0 0 auto;
+  gap: var(--space-1);
+  padding: 0;
+  border: 0;
+  border-radius: var(--top-control-radius);
+  background: transparent;
+  box-shadow: none;
+}
+
+.investments-subnav-child-nav .income-mode-option {
+  position: relative;
+  min-height: calc(var(--top-control-trigger-height) - 0.25rem);
+}
+
+.investments-subnav-child-nav .income-mode-option:not(.is-active):hover,
+.investments-subnav-child-nav .income-mode-option:not(.is-active):focus-visible {
+  --button-state-shell-border-width: 0px;
+  --button-state-shell-opacity: 0;
+  border-color: var(--surface-button-hover-border-color);
+  background: var(--surface-button-hover-bg);
+  color: var(--surface-button-hover-color);
+  outline: none;
+}
+
+.investments-subnav-child-nav .income-mode-option.is-active {
+  --button-state-shell-border-width: 0px;
+  --button-state-shell-opacity: 0;
+  border-color: var(--surface-button-selected-border-color);
+  background: var(--surface-button-selected-bg);
+  color: var(--surface-button-selected-color);
+}
+
+.page-shell-toolbar.is-toolbar-wrapped .investments-subnav-child-nav {
+  gap: 0.125rem;
+  margin-left: calc(-1 * var(--space-1));
+  margin-right: 0;
+}
+
+.page-shell-toolbar.is-toolbar-wrapped .investments-subnav-child-nav .income-mode-toggle {
+  gap: var(--space-1);
+}
+
+.page-shell-toolbar.is-toolbar-wrapped .investments-subnav-child-nav .income-mode-option {
+  padding-inline: var(--top-control-compact-padding-inline);
+}
+
+.income-mode-option:not(.is-active):hover,
+.income-mode-option:not(.is-active):focus-visible {
+  --button-state-shell-border-width: 0px;
+  --button-state-shell-opacity: 0;
+  background: var(--surface-button-hover-bg);
+  border-color: var(--surface-button-hover-border-color);
+  color: var(--surface-button-hover-color);
+  outline: none;
+}
+
+.income-mode-option.is-active {
+  --button-state-shell-border-width: 0px;
+  --button-state-shell-opacity: 0;
+  background: var(--surface-button-selected-bg);
+  border-color: var(--surface-button-selected-border-color);
+  color: var(--surface-button-selected-color);
+}
+
+.income-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 60px 0;
+  font-size: var(--type-empty-state-size);
+  font-weight: var(--type-empty-state-weight);
+  color: var(--type-empty-state-color);
+}
+
+.income-loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(var(--rgb-white), 0.08);
+  border-top-color: var(--color-accent-primary);
+  border-radius: 50%;
+  animation: income-spin 0.8s linear infinite;
+}
+
+.income-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 60px 0;
+  text-align: center;
+}
+
+.income-empty-text {
+  font-size: var(--type-empty-state-title-size);
+  font-weight: var(--type-empty-state-title-weight);
+  color: var(--type-empty-state-title-color);
+}
+
+.income-empty-hint {
+  font-size: var(--type-empty-state-size);
+  font-weight: var(--type-empty-state-weight);
+  color: var(--type-empty-state-color);
+}
+
+.holdings-table-wrap.income-activity-table-wrap {
+  --income-activity-table-min-width: 66rem;
+  width: calc(100% + (2 * var(--space-5)));
+  max-width: none;
+  box-sizing: border-box;
+  margin-inline: calc(-1 * var(--space-5));
+  display: grid;
+  grid-template-columns: minmax(var(--income-activity-table-min-width), 1fr);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-gutter: auto;
+}
+
+.income-activity-scroll-surface {
+  grid-column: 1;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.income-activity-top-scrollbar {
+  --income-activity-horizontal-scroll-content-width: 100%;
+  --app-scrollbar-thumb-horizontal-bottom-inset: max(0px, calc(var(--app-horizontal-scrollbar-tray-height) - var(--app-scrollbar-thumb-cross-offset) - var(--app-scrollbar-thumb-cross-size)));
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  width: 100%;
+  height: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: transparent;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.income-activity-top-scrollbar.is-visible {
+  --app-scrollbar-thumb-horizontal-bottom-inset: 0px;
+  width: var(--income-activity-horizontal-scroll-viewport-width, 100%);
+  max-width: var(--income-activity-horizontal-scroll-viewport-width, 100%);
+  height: var(--app-horizontal-scrollbar-tray-height);
+  margin-top: calc(var(--app-scrollbar-size) * -0.5);
+  background-color: transparent;
+  scrollbar-color: var(--app-scrollbar-thumb) var(--app-scrollbar-track);
+  font-size: 0;
+  line-height: 0;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.income-activity-top-scrollbar::-webkit-scrollbar {
+  height: var(--app-horizontal-scrollbar-tray-height);
+}
+
+.income-activity-top-scrollbar::-webkit-scrollbar-track,
+.income-activity-top-scrollbar::-webkit-scrollbar-track-piece,
+.income-activity-top-scrollbar::-webkit-scrollbar-corner {
+  background: var(--app-scrollbar-track-bg);
+}
+
+.income-activity-top-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--app-scrollbar-thumb);
+  border-top: var(--app-scrollbar-thumb-cross-offset) solid transparent;
+  border-right: 0 solid transparent;
+  border-bottom: var(--app-scrollbar-thumb-horizontal-bottom-inset) solid transparent;
+  border-left: 0 solid transparent;
+  border-radius: var(--app-scrollbar-thumb-radius);
+  background-clip: content-box;
+}
+
+.income-activity-top-scrollbar-inner {
+  width: var(--income-activity-horizontal-scroll-content-width);
+  height: 1px;
+  min-width: 0;
+}
+
+.income-dividends-table {
+  --income-activity-edge-padding-inline: 0.75rem;
+  --income-activity-amount-padding-right: 2.5rem;
+  --income-activity-currency-padding-left: 0.75rem;
+  --income-activity-currency-padding-right: 2.5rem;
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.72fr) minmax(11rem, 1fr) minmax(18rem, 2.35fr) minmax(6.25rem, 0.52fr) minmax(4.25rem, 0.5fr);
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--type-body-xl-size);
+}
+
+.income-dividends-table thead,
+.income-dividends-table tbody,
+.income-dividends-table tr {
+  display: contents;
+}
+
+.income-dividends-header-table {
+  background: var(--table-header-bg);
+  box-shadow: var(--table-header-shadow);
+}
+
+.income-dividends-table th {
+  padding: var(--table-header-padding);
+  text-align: center;
+  white-space: nowrap;
+  background: var(--table-header-bg);
+  border-top: var(--table-header-border-top);
+  border-bottom: var(--table-header-border-bottom);
+  font-family: var(--type-large-table-header-family);
+  color: var(--type-large-table-header-color);
+  font-size: var(--type-large-table-header-size);
+  font-weight: var(--type-large-table-header-weight);
+  letter-spacing: var(--type-large-table-header-letter-spacing);
+  line-height: var(--type-large-table-header-line-height);
+  text-transform: uppercase;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.income-dividends-table thead tr {
+  background: var(--table-header-bg);
+}
+
+.income-dividends-table td {
+  padding: clamp(0.65rem, 0.9vw, 0.95rem) 12px;
+  vertical-align: middle;
+  border-top: var(--surface-panel-long-row-divider);
+  color: var(--color-text-primary);
+  font-size: var(--type-body-xl-size);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.income-dividends-table tbody tr:first-child td {
+  border-top: 0;
+}
+
+.income-dividends-table th:nth-child(1),
+.income-dividends-table td:nth-child(1) {
+  text-align: center;
+  padding-left: var(--income-activity-edge-padding-inline);
+  padding-right: var(--income-activity-edge-padding-inline);
+}
+
+.income-dividends-table th:nth-child(2),
+.income-dividends-table td:nth-child(2) { text-align: left; }
+
+.income-dividends-table th:nth-child(3),
+.income-dividends-table td:nth-child(3) { text-align: left; }
+
+.income-dividends-table th:nth-child(4),
+.income-dividends-table td:nth-child(4) {
+  text-align: center;
+  padding-right: var(--income-activity-amount-padding-right);
+}
+
+.income-dividends-table th:nth-child(5),
+.income-dividends-table td:nth-child(5) {
+  text-align: center;
+  padding-left: var(--income-activity-currency-padding-left);
+  padding-right: var(--income-activity-currency-padding-right);
+}
+
+.income-dividends-body-table td:nth-child(1),
+.income-dividends-body-table td:nth-child(2),
+.income-dividends-body-table td:nth-child(4),
+.income-dividends-body-table td:nth-child(5) {
+  font-weight: var(--font-weight-semibold);
+}
+
+.income-dividends-table td.is-withholding {
+  color: var(--color-negative);
+}
+
+.income-table-symbol {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary) !important;
+}
+
+.income-table-account {
+  color: var(--color-text-primary) !important;
+}
+
+.income-table-account-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.income-table-account-cell > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.income-table-section {
+  margin-top: 0;
+}
+
+.income-toolbar-timeline-popover {
+  width: max-content;
+  max-width: none;
+  margin-inline: 0;
+}
+
+.income-timeline-trigger {
+  width: max-content;
+  max-width: none;
+}
+
+.income-timeline-panel {
+  width: min(var(--top-control-compact-panel-width), calc(100vw - 2rem));
+}
+
+.income-timeline-checkbox svg {
+  display: none;
+}
+
+.income-chart-tooltip {
+  min-width: 220px;
+  max-width: min(17rem, calc(100vw - 4rem));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.income-chart-tooltip-label {
+  font-size: var(--tooltip-row-font-size);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.income-chart-tooltip-months {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.income-chart-tooltip-month {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.income-chart-tooltip-month + .income-chart-tooltip-month {
+  padding-top: 10px;
+  border-top: 1px solid rgba(var(--rgb-white), 0.08);
+}
+
+.income-chart-tooltip-month-label {
+  font-size: var(--tooltip-sub-font-size);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.income-chart-tooltip-row,
+.income-chart-tooltip-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.income-chart-tooltip-name {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-primary);
+  font-size: var(--tooltip-row-font-size);
+}
+
+.income-chart-tooltip-swatch {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 999px;
+}
+
+.income-chart-tooltip-value {
+  color: var(--color-text-primary);
+  font-size: var(--tooltip-row-font-size);
+  font-weight: var(--font-weight-semibold);
+}
+
+.income-chart-tooltip-total {
+  color: var(--color-text-primary);
+  font-size: var(--tooltip-row-font-size);
+  font-weight: var(--font-weight-bold);
+  padding-top: 2px;
+  border-top: 1px solid rgba(var(--rgb-white), 0.08);
+}
+
+.position-detail-panel {
+  position: static;
+  top: auto;
+  max-height: var(--position-detail-tray-max-height, calc(100vh - var(--app-table-tray-top) - 1rem));
+}
+
+/* Match the tooltip type hierarchy in the position tray (Holdings/Options/Crypto):
+   ticker white, company name accented, sized via the shared --tooltip-* tokens.
+   Scoped to this tray so the other SideDetailDrawer trays (cashflow/transaction)
+   keep their own header styling. */
+.position-detail-panel .app-detail-drawer-title {
+  color: var(--color-text-primary);
+  font-size: var(--tooltip-row-font-size);
+  font-weight: var(--font-weight-bold);
+}
+
+.position-detail-panel .app-detail-drawer-subtitle {
+  color: var(--color-text-tertiary);
+  font-size: var(--tooltip-sub-font-size);
+  font-weight: var(--font-weight-semibold);
+}
+
+.position-detail-drawer-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.position-detail-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.position-detail-summary-item {
+  min-width: 0;
+  padding: 0.75rem;
+  text-align: center;
+  border: var(--surface-tray-box-border-width) solid var(--surface-tray-box-border-color);
+  border-radius: var(--surface-tray-box-radius);
+  background: var(--surface-tray-box-bg);
+  background-origin: border-box;
+  background-clip: border-box;
+  box-shadow: var(--surface-tray-box-shadow);
+}
+
+/* Tray labels + values consume the standard role bundles (subsection-title /
+   body-large) — tooltip tokens belong to tooltips only. Labels are CLASS-targeted,
+   never structural (`span span`): FitMoney wraps values in nested spans, which a
+   structural selector would swallow (the 2026-06-11 amber-values regression). */
+.position-detail-summary-label,
+.position-detail-metric-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-family: var(--type-subsection-title-family);
+  font-size: var(--type-subsection-title-size);
+  font-weight: var(--type-subsection-title-weight);
+  color: var(--type-subsection-title-color);
+  line-height: var(--type-subsection-title-line-height);
+  letter-spacing: var(--type-subsection-title-letter-spacing);
+  text-transform: uppercase;
+}
+
+.position-detail-summary-value {
+  display: block;
+  color: var(--color-text-primary);
+  font-size: var(--type-body-large-size);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.position-detail-summary-value.is-gain,
+.position-detail-account-metrics strong.is-gain {
+  color: var(--color-positive);
+}
+
+.position-detail-summary-value.is-loss,
+.position-detail-account-metrics strong.is-loss {
+  color: var(--color-negative);
+}
+
+.position-detail-section-title {
+  margin: 0 0 0.65rem;
+  font-family: var(--type-panel-title-family);
+  font-size: var(--type-panel-title-size);
+  font-weight: var(--type-panel-title-weight);
+  color: var(--type-panel-title-color);
+  line-height: var(--type-panel-title-line-height);
+  letter-spacing: var(--type-panel-title-letter-spacing);
+  text-transform: uppercase;
+}
+
+.position-detail-account-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.position-detail-account-row {
+  min-width: 0;
+  padding: 0.8rem 0;
+  border-top: 1px solid rgba(var(--rgb-white), 0.08);
+}
+
+.position-detail-account-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.position-detail-account-name {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-text-primary);
+  font-size: var(--type-body-large-size);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+}
+
+.position-detail-account-name span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.position-detail-account-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem 0.8rem;
+}
+
+.position-detail-account-metrics > span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  text-align: center;
+}
+
+.position-detail-account-metrics .position-detail-metric-label {
+  margin-bottom: 0;
+}
+
+.position-detail-account-metrics strong {
+  color: var(--color-text-primary);
+  font-size: var(--type-body-large-size);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.income-detail-drawer-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.income-detail-panel {
+  position: relative;
+  top: auto;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  max-height: var(--income-detail-tray-max-height, min(88vh, calc(100vh - var(--app-tray-anchored-top, var(--app-table-tray-top)) - var(--space-4))));
+  border: var(--surface-tray-border-width) solid var(--surface-tray-border-color);
+  border-radius: var(--surface-tray-radius);
+  box-shadow: var(--surface-tray-shadow);
+}
+
+.income-detail-panel .app-detail-drawer-header {
+  justify-content: space-between;
+  padding: 0.875rem 0.875rem 0.625rem;
+}
+
+.income-detail-panel .app-detail-drawer-heading {
+  gap: 0;
+}
+
+.income-detail-panel .app-detail-drawer-title {
+  font-size: var(--type-panel-title-size);
+  letter-spacing: var(--type-panel-title-letter-spacing);
+}
+
+.income-detail-drawer-content {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.income-detail-summary-stack {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.125rem 0 0.25rem;
+}
+
+.income-detail-summary-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.income-detail-summary-text {
+  font-size: var(--type-body-large-size);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.income-detail-summary-inline-value {
+  display: flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  font-size: var(--type-body-large-size);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-text-primary);
+}
+
+.income-detail-summary-divider {
+  height: 1px;
+  margin: 0.125rem 0 0.25rem;
+  background: rgba(var(--rgb-border), 0.58);
+}
+
+.income-detail-section {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow: hidden;
+}
+
+.income-detail-list,
+.income-detail-group-list {
+  min-height: 0;
+  flex: 1 1 auto;
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable both-edges;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.income-detail-row {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.8125rem;
+  border: var(--surface-tray-ticker-border-width) solid var(--surface-tray-ticker-border-color);
+  border-radius: var(--surface-tray-ticker-radius);
+  background: var(--surface-tray-ticker-bg);
+  box-shadow: var(--surface-tray-ticker-shadow);
+}
+
+.income-detail-row-copy,
+.income-detail-group-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.income-detail-group-label {
+  font-size: var(--type-panel-title-size);
+  font-weight: var(--type-panel-title-weight);
+  line-height: var(--line-height-snug);
+  letter-spacing: var(--type-panel-title-letter-spacing);
+  color: var(--color-text-primary);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.income-detail-row-label {
+  font-size: var(--type-body-size);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.income-detail-row-label-meta {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.income-detail-row-label-account {
+  color: var(--color-text-tertiary);
+}
+
+.income-detail-row-account-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 100%;
+  min-width: 0;
+  vertical-align: middle;
+}
+
+.income-detail-row-institution-logo {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.income-detail-row-institution-logo img {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.income-detail-row-label-meta.is-secondary {
+  display: block;
+  font-size: var(--type-body-size);
+  color: var(--color-text-secondary);
+}
+
+.income-detail-row-value,
+.income-detail-group-total {
+  display: flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  font-size: var(--type-body-size);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.income-detail-row-value.is-withholding {
+  color: var(--color-negative);
+}
+
+.income-detail-group {
+  flex-shrink: 0;
+  border-radius: var(--surface-tray-box-radius);
+  border: var(--surface-tray-box-border-width) solid var(--surface-tray-box-border-color);
+  background: var(--surface-tray-box-bg);
+  background-origin: border-box;
+  background-clip: border-box;
+  box-shadow: var(--surface-tray-box-shadow);
+  overflow: hidden;
+  transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.income-detail-group:not(.is-open):hover,
+.income-detail-group:not(.is-open):focus-within {
+  border-color: var(--surface-row-hover-border-color);
+  background: var(--surface-row-hover-bg);
+  box-shadow: var(--surface-row-hover-shadow);
+}
+
+.income-detail-group.is-open {
+  border-color: var(--surface-tray-box-border-color);
+  background: var(--surface-tray-box-bg);
+  box-shadow: var(--surface-tray-box-shadow);
+}
+
+.income-detail-group-toggle {
+  --button-shell-opt-out-bg: transparent;
+  --button-state-shell-bg: transparent;
+  --button-state-shell-border-color: transparent;
+  --button-state-shell-border-width: 0;
+  --button-state-shell-assist-shadow: 0 0 0 0 transparent;
+  --button-state-shell-shadow: 0 0 0 0 transparent;
+  --button-state-shell-opacity: 0;
+  width: 100%;
+  height: 3.25rem;
+  min-height: 3.25rem;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.8125rem 0.875rem;
+  border: 0;
+  border-radius: calc(var(--surface-tray-box-radius) - var(--surface-tray-box-border-width));
+  background: transparent;
+  color: var(--color-text-primary);
+  box-shadow: none;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+button.income-detail-group-toggle.income-detail-group-toggle::before,
+button.income-detail-group-toggle.income-detail-group-toggle::after {
+  content: none;
+  display: none;
+}
+
+.income-detail-group-toggle.is-open {
+  --button-shell-opt-out-bg: transparent;
+  --button-state-shell-bg: transparent;
+  --button-state-shell-border-color: transparent;
+  --button-state-shell-border-width: 0;
+  --button-state-shell-assist-shadow: 0 0 0 0 transparent;
+  --button-state-shell-shadow: 0 0 0 0 transparent;
+  --button-state-shell-opacity: 0;
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  box-shadow: none;
+}
+
+.income-detail-group-toggle:hover:not(.is-open),
+.income-detail-group-toggle:focus-visible:not(.is-open) {
+  --button-shell-opt-out-bg: var(--surface-row-hover-bg);
+  --button-state-shell-bg: var(--surface-row-hover-bg);
+  --button-state-shell-border-color: var(--surface-row-hover-border-color);
+  --button-state-shell-border-width: var(--surface-row-hover-border-width);
+  --button-state-shell-assist-shadow: inset 0 0 0 var(--button-state-shell-assist-border-width) var(--button-state-shell-border-color);
+  --button-state-shell-shadow: var(--surface-row-hover-shadow);
+  --button-state-shell-opacity: 1;
+  background: var(--button-shell-opt-out-bg);
+  color: var(--surface-row-hover-color);
+  box-shadow: none;
+}
+
+.income-detail-group-toggle.is-open:hover,
+.income-detail-group-toggle.is-open:focus-visible {
+  --button-shell-opt-out-bg: transparent;
+  --button-state-shell-bg: transparent;
+  --button-state-shell-border-color: transparent;
+  --button-state-shell-border-width: 0;
+  --button-state-shell-assist-shadow: 0 0 0 0 transparent;
+  --button-state-shell-shadow: 0 0 0 0 transparent;
+  --button-state-shell-opacity: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+}
+
+.income-detail-summary-money,
+.income-detail-group-money {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.income-detail-group-side {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding-left: 0.5rem;
+}
+
+.income-detail-group-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+}
+
+.income-detail-group-chevron .app-triangle-icon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.income-detail-group-body {
+  padding: 12px;
+  background: transparent;
+}
+
+.income-detail-group-body .income-detail-list {
+  gap: 6px;
+  background: transparent;
+}
+
+.income-detail-empty {
+  margin: 0;
+  padding: 16px;
+}
+
+.options-calendar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.options-calendar-section-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.options-calendar-section-toggle {
+  flex: 1 1 14rem;
+  max-width: 100%;
+}
+
+.options-calendar-legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  min-width: max-content;
+  font-size: var(--type-chart-toggle-size);
+  font-weight: var(--type-chart-toggle-weight);
+  color: var(--type-chart-toggle-color);
+}
+
+.options-calendar-section-header .options-calendar-legend {
+  flex: 1 1 14rem;
+  justify-content: flex-end;
+}
+
+.options-calendar-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.options-calendar-legend-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.options-calendar-legend-dot.is-long {
+  background: var(--color-positive);
+}
+
+.options-calendar-legend-dot.is-short {
+  background: var(--color-negative);
+}
+
+.options-calendar-period-control {
+  flex: 0 0 auto;
+}
+
+.options-calendar-section {
+  container-type: inline-size;
+  container-name: options-calendar-section;
+}
+
+@container options-calendar-section (max-width: 44rem) {
+  .options-calendar-section-toggle,
+  .options-calendar-section-header .options-calendar-legend {
+    flex-basis: 100%;
+    justify-content: center;
+  }
+
+  .options-calendar-legend {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+}
+
+.options-calendar-period-label {
+  min-width: 0;
+  width: fit-content;
+  padding-inline: var(--panel-control-compact-padding-inline);
+}
+
+.options-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+
+.options-calendar-weekday {
+  padding: 0.25rem 0.375rem;
+  color: var(--color-text-secondary);
+  font-size: var(--type-table-header-size);
+  font-weight: var(--type-table-header-weight);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  text-align: left;
+}
+
+.options-calendar-day {
+  min-width: 0;
+  padding: 0.375rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  overflow: hidden;
+  border: var(--surface-panel-border-width) solid var(--surface-panel-border-color);
+  border-radius: var(--radius-sm);
+  background: rgba(var(--rgb-border), 0.12);
+}
+
+.options-calendar-day.has-entries {
+  background: rgba(var(--rgb-border), 0.28);
+}
+
+.options-calendar-day.is-today {
+  border: var(--surface-button-selected-border-width) solid var(--surface-button-selected-border-color);
+  background: var(--surface-button-selected-bg);
+  box-shadow: var(--surface-button-selected-shadow);
+}
+
+.options-calendar-day-number {
+  color: var(--color-text-primary);
+  font-size: var(--type-secondary-size);
+  font-weight: var(--font-weight-semibold);
+}
+
+.options-calendar-pills {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.options-calendar-pill {
+  max-width: 100%;
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  padding: 0.15rem 0.4rem;
+  overflow: hidden;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: var(--type-meta-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.options-calendar-pill-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.options-calendar-pill.is-long {
+  background: rgba(var(--rgb-positive), 0.16);
+  border-color: rgba(var(--rgb-positive), 0.35);
+  color: var(--color-positive);
+}
+
+.options-calendar-pill.is-short {
+  background: rgba(var(--rgb-negative), 0.16);
+  border-color: rgba(var(--rgb-negative), 0.35);
+  color: var(--color-negative);
+}
+
+/* Holdings page styles.
+ * Extracted from App.css in Stage 3 of the CSS split. These rules are globally scoped
+ * (Vite bundles all imported CSS together), but file-organized so the Holdings page
+ * styling lives next to Holdings.js. Imported from pages/Holdings.js.
+ */
+
+/* Holdings page */
+.investments-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4) var(--space-5);
+  flex-wrap: wrap;
+}
+
+.investments-page-header-main {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+  flex: 1 1 13.75rem;
+}
+
+.investments-page-title {
+  margin: 0;
+}
+
+.investments-page-controls {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.investments-toolbar-controls {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.investments-navigation-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.625rem;
+}
+
+.investments-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.investments-subnav-tab {
+  height: var(--top-control-trigger-height);
+  min-height: var(--top-control-trigger-height);
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--type-subpage-tab-color);
+  font: inherit;
+  font-family: var(--type-subpage-tab-family);
+  font-size: var(--type-subpage-tab-size);
+  font-weight: var(--type-subpage-tab-weight);
+  letter-spacing: var(--type-subpage-tab-letter-spacing);
+  cursor: default;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  box-shadow: none;
+  line-height: var(--type-subpage-tab-line-height);
+  transition: color 0.18s ease, opacity 0.18s ease;
+}
+
+.page-shell-toolbar .investments-subnav-tab {
+  padding-inline: 0;
+}
+
+.investments-subnav-tab-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: var(--line-height-none);
+}
+
+.page-shell-toolbar .investments-subnav-tab::after {
+  bottom: 0.25rem;
+}
+
+.investments-subnav-tab::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.25rem;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0;
+  transform: scaleX(0.7);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.investments-subnav-tab.is-interactive {
+  cursor: pointer;
+}
+
+.investments-subnav-tab.is-placeholder {
+  opacity: 0.82;
+}
+
+.page-shell-toolbar .investments-subnav-tab.is-interactive:not(.is-active):hover,
+.page-shell-toolbar .investments-subnav-tab.is-interactive:not(.is-active):focus-visible {
+  border: 0;
+  background: transparent;
+  color: var(--color-data-highlight-text);
+  box-shadow: none;
+  outline: none;
+}
+
+.page-shell-toolbar .investments-subnav-tab.is-active {
+  border: 0;
+  background: transparent;
+  color: var(--textual-tab-active-color);
+  box-shadow: none;
+}
+
+.page-shell-toolbar .investments-subnav-tab.is-active:hover,
+.page-shell-toolbar .investments-subnav-tab.is-active:focus-visible {
+  border: 0;
+  background: transparent;
+  color: var(--textual-tab-active-color);
+  box-shadow: none;
+  outline: none;
+}
+
+.investments-subnav-tab.is-active {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.page-shell-toolbar .investments-subnav-tab.is-interactive:is(:hover, :focus-visible):not(.is-active)::after,
+.page-shell-toolbar .investments-subnav-tab.is-active::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.page-shell-toolbar .investments-subnav {
+  gap: var(--space-3);
+}
+
+.investments-hub-content {
+  /* Tray width/reservation is owned by App.css per-tray knobs; the hub keeps
+     only page-local layout. */
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.investments-hub-shell {
+  padding-top: 0;
+}
+
+.holdings-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11.25rem, 1fr));
+  gap: var(--space-3);
+}
+
+.holdings-summary-grid.investments-top-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  justify-content: flex-start;
+  align-items: stretch;
+}
+
+.holdings-summary-grid.investments-top-metrics.has-4-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.holdings-summary-grid.investments-top-metrics.has-3-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.holdings-summary-grid.investments-top-metrics.has-2-metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  justify-content: center;
+}
+
+.holdings-summary-grid.investments-top-metrics.has-1-metrics {
+  grid-template-columns: minmax(0, min(100%, 32rem));
+  justify-content: center;
+}
+
+.holdings-summary-card {
+  box-sizing: border-box;
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.investments-top-metrics .holdings-summary-card {
+  inline-size: auto;
+  min-inline-size: 0;
+  max-inline-size: none;
+  background: var(--surface-panel-small-bg);
+}
+
+@container app-page (max-width: 70rem) {
+  .holdings-summary-grid.investments-top-metrics,
+  .holdings-summary-grid.investments-top-metrics.has-4-metrics,
+  .holdings-summary-grid.investments-top-metrics.has-3-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .holdings-summary-grid.investments-top-metrics.has-3-metrics .holdings-summary-card:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+    width: min(100%, calc((100% - var(--space-3)) / 2));
+    justify-self: center;
+  }
+}
+
+@container app-page (max-width: 38rem) {
+  .holdings-summary-grid.investments-top-metrics,
+  .holdings-summary-grid.investments-top-metrics.has-4-metrics,
+  .holdings-summary-grid.investments-top-metrics.has-3-metrics,
+  .holdings-summary-grid.investments-top-metrics.has-2-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .holdings-summary-grid.investments-top-metrics.has-3-metrics .holdings-summary-card:last-child:nth-child(odd) {
+    grid-column: auto;
+    width: 100%;
+  }
+}
+
+.investments-top-metrics.is-performance-summary .holdings-summary-card {
+  min-inline-size: min(12.25rem, 100%);
+}
+
+.holdings-summary-label {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--type-stat-label-family);
+  font-size: var(--type-stat-label-size);
+  font-weight: var(--type-stat-label-weight);
+  color: var(--type-stat-label-color);
+  line-height: var(--type-stat-label-line-height);
+  letter-spacing: var(--type-stat-label-letter-spacing);
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.holdings-summary-value {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  font-family: var(--type-metric-display-family);
+  font-size: var(--type-metric-display-size);
+  font-weight: var(--type-metric-display-weight);
+  color: var(--type-metric-display-color);
+  line-height: var(--type-metric-display-line-height);
+  letter-spacing: var(--type-metric-display-letter-spacing);
+}
+/* flex:1 1 0 (not 0 1 auto) so the FitMoney box tracks the card's available width and
+   re-expands as the window/box grows — same mechanism as the dashboard metric number. */
+.holdings-summary-money {
+  width: 100%;
+  flex: 1 1 0;
+  min-width: 0;
+}
+.holdings-cell-money {
+  width: 100%;
+  min-width: 0;
+}
+
+.holdings-summary-value.is-withholding {
+  color: var(--color-negative);
+}
+
+.holdings-table-section {
+  --holdings-security-column-min: 16.72rem;
+  --holdings-security-column-track: max(22%, var(--holdings-security-column-min));
+  --holdings-table-section-bg: var(--holdings-table-panel-bg);
+  padding: var(--space-5);
+  background: var(--holdings-table-section-bg);
+}
+
+.holdings-chart-section {
+  padding: 18px;
+  overflow: visible;
+}
+
+.income-chart-section {
+  background: var(--surface-panel-bg);
+}
+
+.income-position-chart-section {
+  background: var(--surface-panel-long-bg);
+}
+
+.holdings-table-section.holdings-cash-section,
+.holdings-table-section.options-calendar-section {
+  background: var(--surface-panel-bg);
+}
+
+.holdings-table-section.holdings-combined-table-section {
+  padding-bottom: 0.5rem;
+}
+
+.holdings-table-section,
+.holdings-chart-section + .holdings-chart-section {
+  margin-top: 0;
+}
+
+.holdings-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.holdings-section-title {
+  margin: 0;
+  color: var(--type-panel-title-color);
+  font-family: var(--type-panel-title-family);
+  font-size: var(--type-panel-title-size);
+  font-weight: var(--type-panel-title-weight);
+  letter-spacing: var(--type-panel-title-letter-spacing);
+  line-height: var(--type-panel-title-line-height);
+}
+
+.holdings-section-meta {
+  color: var(--type-section-count-color);
+  font-family: var(--type-meta-family);
+  font-size: var(--type-section-count-size);
+  font-weight: var(--type-meta-weight);
+  letter-spacing: var(--type-meta-letter-spacing);
+  line-height: var(--type-meta-line-height);
+}
+
+.holdings-section-toggle {
+  --button-state-shell-bg: transparent;
+  --button-state-shell-border-color: transparent;
+  --button-state-shell-border-width: 0px;
+  --button-state-shell-assist-shadow: 0 0 0 0 transparent;
+  --button-state-shell-shadow: 0 0 0 0 transparent;
+  --button-state-shell-opacity: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.54rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.holdings-section-toggle::after {
+  display: none;
+}
+
+.holdings-section-toggle:is(:hover, :focus-visible, :active) {
+  --button-state-shell-bg: transparent;
+  --button-state-shell-border-color: transparent;
+  --button-state-shell-border-width: 0px;
+  --button-state-shell-assist-shadow: 0 0 0 0 transparent;
+  --button-state-shell-shadow: 0 0 0 0 transparent;
+  --button-state-shell-opacity: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+}
+
+.holdings-section-toggle:hover .holdings-section-title,
+.holdings-section-toggle:hover .holdings-section-toggle-chevron {
+  color: var(--color-text-primary);
+}
+
+.holdings-section-toggle-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+.holdings-section-toggle-chevron {
+  width: 1.44rem;
+  height: 1.44rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.holdings-section-toggle-chevron svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.holdings-chart-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  overflow: visible;
+}
+
+.holdings-chart-divider {
+  height: 1px;
+  background: linear-gradient(90deg, rgba(var(--rgb-white), 0.03), rgba(var(--rgb-white), 0.08), rgba(var(--rgb-white), 0.03));
+}
+
+.holdings-pnl-toolbar {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.holdings-pnl-toggle {
+  min-height: var(--panel-control-min-height);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: var(--panel-control-padding-block) var(--panel-control-compact-padding-inline);
+  border: var(--surface-button-border-width) solid var(--surface-button-border-color);
+  border-radius: var(--panel-control-radius);
+  background: var(--surface-button-bg);
+  font-family: var(--type-button-label-family);
+  font-size: var(--type-button-label-size);
+  font-weight: var(--type-button-label-weight);
+  line-height: var(--type-button-label-line-height);
+  letter-spacing: var(--type-button-label-letter-spacing);
+  color: var(--surface-button-color);
+  box-shadow: var(--surface-button-shadow);
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.holdings-pnl-toggle:hover,
+.holdings-pnl-toggle:focus-visible {
+  background: var(--surface-button-hover-bg);
+  border-color: var(--surface-button-hover-border-color);
+  color: var(--surface-button-hover-color);
+  outline: none;
+}
+
+.holdings-pnl-toggle-switch {
+  width: 2.35rem;
+  height: 1.32rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem;
+  border-radius: 999px;
+  background: var(--surface-button-bg);
+  border: var(--surface-button-border-width) solid var(--surface-button-border-color);
+  box-shadow: var(--surface-button-shadow);
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.holdings-pnl-toggle:hover .holdings-pnl-toggle-switch,
+.holdings-pnl-toggle:focus-visible .holdings-pnl-toggle-switch {
+  --button-state-shell-border-width: var(--button-state-shell-hover-border-width);
+  --button-state-shell-border-color: var(--surface-button-hover-border-color);
+  --button-state-shell-assist-shadow: inset 0 0 0 var(--button-state-shell-assist-border-width) var(--button-state-shell-border-color);
+  --button-state-shell-shadow: var(--surface-button-hover-shadow);
+  background: var(--surface-button-hover-bg);
+  border-color: var(--surface-button-hover-border-color);
+}
+
+.holdings-pnl-toggle-switch span {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 999px;
+  background: var(--control-switch-thumb);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.38);
+  transform: translateX(0);
+  transition: transform 0.18s ease, background 0.18s ease;
+}
+
+.holdings-pnl-chart-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.holdings-pnl-chart-panel {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.holdings-pnl-chart-heading {
+  display: flex;
+  justify-content: center;
+  text-align: center;
+}
+
+.holdings-pnl-chart-title {
+  margin: 0;
+  color: var(--type-panel-title-color);
+  font-family: var(--type-panel-title-family);
+  font-size: var(--type-panel-title-size);
+  font-weight: var(--type-panel-title-weight);
+  letter-spacing: var(--type-panel-title-letter-spacing);
+  line-height: var(--type-panel-title-line-height);
+}
+
+.holdings-pnl-chart {
+  height: 320px;
+  min-height: 20rem;
+}
+
+.holdings-pnl-chart.is-loss-chart {
+  height: 360px;
+  min-height: 22.5rem;
+}
+
+.holdings-pnl-empty {
+  min-height: 13rem;
+}
+
+.holdings-pnl-tooltip {
+  min-width: 13rem;
+  max-width: min(22rem, calc(100vw - 2rem));
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.75rem 0.875rem;
+}
+
+.holdings-pnl-tooltip-label {
+  color: var(--color-text-primary);
+  font-size: var(--tooltip-row-font-size);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.35;
+}
+
+.holdings-pnl-tooltip-subtitle {
+  max-width: 100%;
+  color: var(--color-text-tertiary);
+  font-size: var(--tooltip-sub-font-size);
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.holdings-pnl-tooltip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  color: var(--tooltip-name-color);
+  font-size: var(--tooltip-row-font-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.35;
+}
+
+.holdings-pnl-tooltip-row span:last-child {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-bold);
+}
+
+.holdings-pnl-tooltip-divider {
+  height: 1px;
+  margin-top: 0.25rem;
+  background: rgba(var(--rgb-white), 0.1);
+}
+
+.holdings-pnl-tooltip-account-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.holdings-pnl-tooltip-account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  color: var(--tooltip-name-color);
+  font-size: var(--tooltip-sub-font-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.35;
+}
+
+.holdings-pnl-tooltip-account-row span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.holdings-pnl-tooltip-account-row span:last-child {
+  flex-shrink: 0;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-bold);
+}
+
+.holdings-analysis-empty {
+  min-height: 172px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  text-align: center;
+  border-radius: var(--surface-panel-radius);
+  border: 1px dashed rgba(var(--rgb-white), 0.08);
+  background: rgba(var(--rgb-surface), 0.72);
+  font-size: var(--type-empty-state-size);
+  font-weight: var(--type-empty-state-weight);
+  color: var(--type-empty-state-color);
+  line-height: var(--line-height-normal);
+}
+
+.performance-section-header {
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.performance-benchmark-toggles {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.performance-benchmark-toggle {
+  min-width: 0;
+  max-width: min(100%, 17rem);
+  min-height: var(--panel-control-min-height);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: var(--panel-control-padding-block) var(--panel-control-compact-padding-inline);
+  border: var(--surface-button-border-width) solid var(--surface-button-border-color);
+  border-radius: var(--panel-control-radius);
+  background: var(--surface-button-bg);
+  font-family: var(--type-button-label-family);
+  font-size: var(--type-button-label-size);
+  font-weight: var(--type-button-label-weight);
+  color: var(--surface-button-color);
+  line-height: var(--type-button-label-line-height);
+  letter-spacing: var(--type-button-label-letter-spacing);
+  box-shadow: var(--surface-button-shadow);
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.performance-benchmark-toggle:has(input:focus-visible) {
+  background: var(--surface-button-hover-bg);
+  border-color: var(--surface-button-hover-border-color);
+  color: var(--surface-button-hover-color);
+  box-shadow: var(--surface-button-hover-shadow);
+}
+
+.performance-benchmark-toggle:hover:not(:has(input:checked)):not(:has(input:focus-visible)) {
+  --button-state-shell-bg: transparent;
+  --button-state-shell-border-color: transparent;
+  --button-state-shell-border-width: 0px;
+  --button-state-shell-assist-shadow: 0 0 0 0 transparent;
+  --button-state-shell-shadow: 0 0 0 0 transparent;
+  --button-state-shell-opacity: 0;
+  background: var(--surface-button-bg);
+  border-color: var(--surface-button-border-color);
+  color: var(--surface-button-color);
+  box-shadow: var(--surface-button-shadow);
+}
+
+.performance-benchmark-toggle:has(input:checked) {
+  background: var(--surface-button-selected-bg);
+  border-color: var(--surface-button-selected-border-color);
+  color: var(--surface-button-selected-color);
+  box-shadow: var(--surface-button-selected-shadow);
+}
+
+.performance-benchmark-toggle input {
+  flex: 0 0 auto;
+}
+
+.performance-benchmark-swatch {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px rgba(var(--rgb-white), 0.06);
+}
+
+.performance-benchmark-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.performance-benchmark-return {
+  color: var(--color-text-primary);
+}
+
+.performance-line-chart {
+  width: 100%;
+  height: 420px;
+  min-height: 22rem;
+}
+
+.performance-benchmark-data-note {
+  margin-top: 0.7rem;
+  font-size: var(--type-field-hint-size);
+  font-weight: var(--type-field-hint-weight);
+  color: var(--type-field-hint-color);
+  line-height: 1.35;
+}
+
+.performance-tooltip {
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+}
+
+.performance-tooltip-label {
+  color: var(--color-text-primary);
+  font-size: var(--tooltip-row-font-size);
+  font-weight: var(--font-weight-bold);
+}
+
+.performance-tooltip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: var(--tooltip-row-font-size);
+}
+
+.performance-tooltip-name {
+  font-weight: var(--font-weight-semibold);
+}
+
+.performance-tooltip-value {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-bold);
+}
+
+.holdings-allocation-pie-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 420px;
+}
+
+.holdings-allocation-pie {
+  width: 100%;
+  max-width: 860px;
+  height: 420px;
+}
+
+.holdings-pie-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.holdings-pie-panel {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.holdings-pie-panel-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.holdings-pie-panel-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.holdings-pie-title {
+  color: var(--type-panel-title-color);
+  font-family: var(--type-panel-title-family);
+  font-size: var(--type-panel-title-size);
+  font-weight: var(--type-panel-title-weight);
+  letter-spacing: var(--type-panel-title-letter-spacing);
+  line-height: var(--type-panel-title-line-height);
+}
+
+.holdings-composition-controls {
+  display: flex;
+  justify-content: center;
+  margin-top: auto;
+  padding-top: 0;
+}
+
+.holdings-composition-stepper {
+  justify-content: center;
+}
+
+.holdings-pie-tooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  min-width: 188px;
+}
+
+.holdings-pie-tooltip-label {
+  color: var(--color-text-primary);
+  font-size: var(--tooltip-row-font-size);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.35;
+}
+
+.holdings-pie-tooltip-meta {
+  color: var(--color-text-tertiary);
+  font-size: var(--tooltip-sub-font-size);
+  line-height: 1.35;
+}
+
+.holdings-pie-tooltip-tickers {
+  color: var(--color-text-primary);
+  font-size: var(--tooltip-sub-font-size);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.holdings-pie-tooltip-tickers-label {
+  color: var(--tooltip-name-color);
+  font-size: var(--tooltip-row-font-size);
+  font-weight: var(--font-weight-semibold);
+}
+
+.holdings-top-chart {
+  height: 360px;
+}
+
+.holdings-table-section {
+  padding-bottom: 0.5rem;
+}
+
+.holdings-table-section:has(> .holdings-section-toggle[aria-expanded="false"]),
+.options-calendar-section:has(.holdings-section-toggle[aria-expanded="false"]) {
+  display: flex;
+  align-items: center;
+  padding-block: var(--space-5);
+}
+
+.holdings-chart-section:has(> .holdings-section-toggle[aria-expanded="false"]) {
+  display: flex;
+  align-items: center;
+}
+
+.options-calendar-section:has(.holdings-section-toggle[aria-expanded="false"]) .options-calendar-section-header {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.holdings-combined-table-frame {
+  --holdings-row-highlight-stroke-width: calc(var(--data-hover-stroke-width) + 1.5px);
+  --holdings-row-highlight-stroke-color: var(--data-hover-stroke-color);
+  --holdings-row-highlight-inset-top: 0px;
+  --holdings-row-highlight-inset-right: -2px;
+  --holdings-row-highlight-inset-bottom: -2px;
+  --holdings-row-highlight-inset-left: 0px;
+  --holdings-row-hover-highlight-stroke-width: var(--holdings-row-highlight-stroke-width);
+  --holdings-row-hover-highlight-stroke-color: var(--holdings-row-highlight-stroke-color);
+  --holdings-row-selected-highlight-stroke-width: var(--holdings-row-highlight-stroke-width);
+  --holdings-row-selected-highlight-stroke-color: var(--data-highlight-stroke-color);
+}
+
+.holdings-table-wrap {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-gutter: stable;
+}
+
+.holdings-combined-table-frame {
+  --holdings-table-min-width: 76rem;
+  --holdings-metrics-min-width: calc(var(--holdings-table-min-width) - var(--holdings-security-column-min));
+  --holdings-metrics-scroll-left: 0px;
+  --holdings-combined-header-height: calc(1.1rem + var(--type-large-table-header-size) + 0.25rem + 2px);
+  position: relative;
+  z-index: 0;
+  width: calc(100% + (2 * var(--space-5)));
+  max-width: none;
+  box-sizing: border-box;
+  margin-inline: calc(-1 * var(--space-5));
+  isolation: isolate;
+  overflow: visible;
+}
+
+.holdings-combined-table-frame::before,
+.holdings-combined-table-frame::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 0;
+  left: 0;
+  z-index: 7;
+  box-sizing: border-box;
+  border: 0 solid rgba(var(--rgb-white), 0);
+  opacity: 0;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+.holdings-combined-table-frame::after {
+  z-index: 8;
+}
+
+.holdings-combined-table-frame[data-holdings-selected-row-highlight]::before,
+.holdings-combined-table-frame[data-holdings-hover-row-highlight]::after {
+  right: var(--holdings-row-highlight-inset-right);
+  left: var(--holdings-row-highlight-inset-left);
+  opacity: 1;
+}
+
+.holdings-combined-table-frame[data-holdings-selected-row-highlight]::before {
+  top: calc(var(--holdings-selected-row-highlight-top) + var(--holdings-row-highlight-inset-top));
+  height: calc(
+    var(--holdings-selected-row-highlight-height)
+    - var(--holdings-row-highlight-inset-top)
+    - var(--holdings-row-highlight-inset-bottom)
+  );
+  border-width: var(--holdings-row-selected-highlight-stroke-width);
+  border-color: var(--holdings-row-selected-highlight-stroke-color);
+}
+
+.holdings-combined-table-frame[data-holdings-hover-row-highlight]::after {
+  top: calc(var(--holdings-hover-row-highlight-top) + var(--holdings-row-highlight-inset-top));
+  height: calc(
+    var(--holdings-hover-row-highlight-height)
+    - var(--holdings-row-highlight-inset-top)
+    - var(--holdings-row-highlight-inset-bottom)
+  );
+  border-width: var(--holdings-row-hover-highlight-stroke-width);
+  border-color: var(--holdings-row-hover-highlight-stroke-color);
+}
+
+.holdings-cash-section {
+  width: fit-content;
+  min-width: min(100%, 36rem);
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 20px auto 0;
+  padding-bottom: 0.5rem;
+}
+
+.holdings-cash-panel {
+  --holdings-cash-header-height: calc((0.55rem * 2) + (var(--type-large-table-header-size) * 1.25) + 2px);
+  position: relative;
+  width: calc(100% + (2 * var(--space-5)));
+  max-width: none;
+  margin: 12px calc(-1 * var(--space-5)) 0;
+  box-sizing: border-box;
+  background:
+    linear-gradient(
+      to bottom,
+      var(--table-header-solid-bg) 0,
+      var(--table-header-solid-bg) var(--holdings-cash-header-height),
+      transparent var(--holdings-cash-header-height)
+    );
+  scrollbar-gutter: auto;
+}
+
+.holdings-cash-scroll-surface {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-gutter: auto;
+}
+
+.holdings-cash-compact-table {
+  width: max-content;
+  margin-inline: auto;
+  table-layout: auto;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--type-body-xl-size);
+}
+
+.holdings-cash-top-scrollbar {
+  --holdings-cash-scroll-content-width: 100%;
+  --app-scrollbar-thumb-horizontal-bottom-inset: max(0px, calc(var(--app-horizontal-scrollbar-tray-height) - var(--app-scrollbar-thumb-cross-offset) - var(--app-scrollbar-thumb-cross-size)));
+  box-sizing: border-box;
+  position: absolute;
+  top: calc(var(--holdings-cash-header-height) - (var(--app-scrollbar-size) * 0.5));
+  right: 0;
+  left: 0;
+  z-index: 6;
+  width: 100%;
+  height: 0;
+  max-width: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: transparent;
+  opacity: 0;
+  pointer-events: none;
+  scrollbar-color: var(--app-scrollbar-thumb) var(--app-scrollbar-track);
+}
+
+.holdings-cash-top-scrollbar.is-visible {
+  height: var(--app-horizontal-scrollbar-tray-height);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.holdings-cash-top-scrollbar::-webkit-scrollbar {
+  height: var(--app-horizontal-scrollbar-tray-height);
+}
+
+.holdings-cash-top-scrollbar::-webkit-scrollbar-track,
+.holdings-cash-top-scrollbar::-webkit-scrollbar-track-piece,
+.holdings-cash-top-scrollbar::-webkit-scrollbar-corner {
+  background: var(--app-scrollbar-track-bg);
+}
+
+.holdings-cash-top-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--app-scrollbar-thumb);
+  border-top: var(--app-scrollbar-thumb-cross-offset) solid transparent;
+  border-right: 0 solid transparent;
+  border-bottom: var(--app-scrollbar-thumb-horizontal-bottom-inset) solid transparent;
+  border-left: 0 solid transparent;
+  border-radius: var(--app-scrollbar-thumb-radius);
+  background-clip: content-box;
+}
+
+.holdings-cash-top-scrollbar-inner {
+  width: var(--holdings-cash-scroll-content-width);
+  height: 1px;
+  min-width: 0;
+}
+
+.holdings-cash-compact-table thead th {
+  background: var(--table-header-bg);
+  border-top: var(--table-header-border-top);
+  border-bottom: var(--table-header-border-bottom);
+}
+
+.holdings-cash-compact-table th {
+  padding: var(--table-header-padding);
+  font-family: var(--type-large-table-header-family);
+  color: var(--type-large-table-header-color);
+  font-size: var(--type-large-table-header-size);
+  font-weight: var(--type-large-table-header-weight);
+  letter-spacing: var(--type-large-table-header-letter-spacing);
+  line-height: var(--type-large-table-header-line-height);
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.holdings-cash-compact-table td {
+  padding: 10px 12px;
+  border-top: var(--holdings-table-row-divider);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.holdings-cash-compact-table tbody tr:first-child td {
+  border-top: var(--holdings-table-row-divider);
+}
+
+.holdings-cash-compact-table th:nth-child(1),
+.holdings-cash-compact-table td:nth-child(1) {
+  min-width: 16rem;
+}
+
+.holdings-cash-compact-table th:nth-child(2),
+.holdings-cash-compact-table td:nth-child(2) {
+  min-width: 11rem;
+}
+
+.holdings-cash-compact-table th:nth-child(3),
+.holdings-cash-compact-table td:nth-child(3) {
+  min-width: 11rem;
+}
+
+.holdings-cash-compact-table th:nth-child(4),
+.holdings-cash-compact-table td:nth-child(4) {
+  min-width: 5.5rem;
+}
+
+.holdings-cash-compact-table .is-right {
+  text-align: right;
+}
+
+/* Center the Account and Account Type headers, and the entire Currency column
+   (header, body codes, and total) so each sits centered above/within its column. */
+.holdings-cash-compact-table th:nth-child(1),
+.holdings-cash-compact-table th:nth-child(2),
+.holdings-cash-compact-table th:nth-child(4),
+.holdings-cash-compact-table td:nth-child(4) {
+  text-align: center;
+}
+
+.holdings-cash-compact-table .holdings-cash-account-cell {
+  justify-content: center;
+}
+
+.holdings-cash-compact-table .holdings-account-primary {
+  font-weight: var(--font-weight-semibold);
+}
+
+.holdings-cash-compact-table .holdings-account-type-cell {
+  justify-content: center;
+}
+
+.holdings-cash-compact-table .holdings-cash-currency-stack {
+  align-items: center;
+}
+
+.holdings-cash-compact-table .holdings-cash-currency-code {
+  text-align: center;
+}
+
+/* The total-row label spans two columns, so the currency code is the last cell
+   rather than nth-child(4) — center it too so it lines up with the body codes. */
+.holdings-cash-compact-table tfoot td:last-child {
+  text-align: center;
+}
+
+.holdings-cash-account-cell {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.holdings-cash-balance-stack {
+  min-width: 0;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+.holdings-cash-currency-stack {
+  min-width: 0;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.holdings-cash-value-line,
+.holdings-cash-currency-line {
+  min-height: calc(var(--type-body-xl-size) * 1.25);
+  display: flex;
+  align-items: baseline;
+}
+
+.holdings-cash-currency-code {
+  color: var(--color-text-primary);
+  font-size: 1em;
+  font-weight: var(--type-money-weight);
+  letter-spacing: var(--tracking-snug);
+  line-height: var(--line-height-tight);
+  text-align: left;
+}
+
+.holdings-cash-value,
+.holdings-cash-total-value {
+  color: var(--color-text-primary);
+  font-size: 1em;
+  font-weight: var(--type-money-weight);
+  line-height: var(--line-height-tight);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.holdings-cash-compact-table tfoot td {
+  padding-top: 14px;
+  border-top: var(--holdings-table-footer-divider);
+}
+
+.holdings-cash-total-label {
+  color: var(--color-text-primary);
+  font-size: 1em;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  line-height: var(--line-height-tight);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.holdings-cash-total-value {
+  font-size: 1em;
+}
+
+.holdings-cash-compact-table tfoot .holdings-cash-currency-code {
+  color: var(--color-text-secondary);
+  font-weight: var(--type-money-weight);
+  letter-spacing: var(--tracking-wide);
+}
+
+@container app-page (max-width: 48rem) {
+  .holdings-cash-section {
+    width: 100%;
+  }
+
+  .holdings-cash-compact-table {
+    min-width: 34rem;
+  }
+}
+
+.holdings-table.is-combined {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-width: 0;
+  font-size: var(--type-body-xl-size);
+}
+
+.holdings-table-grid-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: var(--holdings-security-column-track) minmax(0, 1fr);
+}
+
+.holdings-metrics-clip {
+  min-width: 0;
+  display: grid;
+  overflow: hidden;
+}
+
+.holdings-metrics-track {
+  grid-area: 1 / 1;
+  width: max(100%, var(--holdings-metrics-min-width));
+  min-width: var(--holdings-metrics-min-width);
+  display: grid;
+  grid-template-columns: 10fr 11fr 11fr 13fr 14fr 10fr 9fr;
+  align-items: stretch;
+  transform: translate3d(calc(-1 * var(--holdings-metrics-scroll-left)), 0, 0);
+}
+
+.holdings-table-header-row {
+  height: var(--holdings-combined-header-height);
+  box-sizing: border-box;
+  background: var(--table-header-bg);
+  border-top: var(--table-header-border-top);
+  border-bottom: var(--table-header-border-bottom);
+  box-shadow: var(--table-header-shadow);
+}
+
+.holdings-table-header-cell {
+  position: relative;
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--table-header-padding);
+  text-align: center;
+  white-space: nowrap;
+  font-family: var(--type-large-table-header-family);
+  color: var(--type-large-table-header-color);
+  font-size: var(--type-large-table-header-size);
+  font-weight: var(--type-large-table-header-weight);
+  letter-spacing: var(--type-large-table-header-letter-spacing);
+  line-height: var(--type-large-table-header-line-height);
+  text-transform: uppercase;
+}
+
+.holdings-table-header-row > .holdings-table-security-cell {
+  padding-left: 40px;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.holdings-table-header-metrics > .holdings-table-header-cell:last-child {
+  padding-right: 18px;
+}
+
+.holdings-table.is-combined .sortable-table-header-cell {
+  width: 100%;
+  justify-content: center;
+  text-align: center;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  user-select: none;
+}
+
+.holdings-table-header-row > .holdings-table-security-cell .sortable-table-header-cell {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.holdings-table-header-metrics .sortable-table-header-cell {
+  justify-content: center;
+  text-align: center;
+}
+
+.holdings-table.is-combined .sortable-table-header-button {
+  white-space: nowrap;
+}
+
+.holdings-table.is-combined .sortable-table-header-label {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+  line-height: inherit;
+}
+
+.holdings-table-body .holdings-table-grid-row {
+  position: relative;
+  min-width: 0;
+  border-top: var(--holdings-table-row-divider);
+  cursor: pointer;
+  transition: background 0.16s ease;
+}
+
+.holdings-table-body-cell {
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1rem, 1.15vw, 1.35rem) 12px;
+  color: var(--color-text-primary);
+  font-size: var(--type-body-xl-size);
+  font-weight: var(--font-weight-semibold);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.holdings-table-body-cell.holdings-table-security-cell {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.holdings-metrics-scroll-controller {
+  --holdings-metrics-scroll-content-width: 100%;
+  --app-scrollbar-thumb-horizontal-top-inset: var(--app-scrollbar-thumb-cross-offset);
+  --app-scrollbar-thumb-horizontal-bottom-inset: max(0px, calc(var(--app-horizontal-scrollbar-tray-height) - var(--app-scrollbar-thumb-cross-offset) - var(--app-scrollbar-thumb-cross-size)));
+  box-sizing: border-box;
+  position: relative;
+  right: 0;
+  left: 0;
+  z-index: 6;
+  width: 100%;
+  height: 0;
+  max-width: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-top: 0 solid transparent;
+  border-bottom: 0 solid transparent;
+  background: transparent;
+  opacity: 0;
+  pointer-events: none;
+  scrollbar-color: var(--app-scrollbar-thumb) var(--app-scrollbar-track);
+}
+
+.holdings-metrics-scroll-controller.is-top {
+  --app-scrollbar-thumb-horizontal-top-inset: 0px;
+  --app-scrollbar-thumb-horizontal-bottom-inset: max(0px, calc(var(--app-horizontal-scrollbar-tray-height) - var(--app-scrollbar-thumb-cross-size)));
+}
+
+.holdings-metrics-scroll-controller.is-top.is-visible {
+  margin-top: calc(var(--app-scrollbar-size) * -0.5);
+}
+
+.holdings-metrics-scroll-controller.is-visible {
+  width: 100%;
+  height: var(--app-horizontal-scrollbar-tray-height);
+  max-width: none;
+  background-color: transparent;
+  background-image: none;
+  border-top: 0;
+  border-bottom: 0;
+  box-shadow: none;
+  font-size: 0;
+  line-height: 0;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.holdings-metrics-scroll-controller::-webkit-scrollbar {
+  height: var(--app-horizontal-scrollbar-tray-height);
+}
+
+.holdings-metrics-scroll-controller::-webkit-scrollbar-track,
+.holdings-metrics-scroll-controller::-webkit-scrollbar-track-piece,
+.holdings-metrics-scroll-controller::-webkit-scrollbar-corner {
+  background: var(--app-scrollbar-track-bg);
+}
+
+.holdings-metrics-scroll-controller::-webkit-scrollbar-thumb {
+  background: var(--app-scrollbar-thumb);
+  border-top: var(--app-scrollbar-thumb-horizontal-top-inset) solid transparent;
+  border-right: 0 solid transparent;
+  border-bottom: var(--app-scrollbar-thumb-horizontal-bottom-inset) solid transparent;
+  border-left: 0 solid transparent;
+  border-radius: var(--app-scrollbar-thumb-radius);
+  background-clip: content-box;
+}
+
+.holdings-metrics-scroll-controller-inner {
+  width: var(--holdings-metrics-scroll-content-width);
+  height: 1px;
+  min-width: 0;
+}
+
+.holdings-table.is-combined .holdings-summary-row:focus-visible {
+  outline: none;
+}
+
+.holdings-table.is-combined .holdings-summary-row.is-selected,
+.holdings-table.is-combined .holdings-summary-row:focus-visible {
+  box-shadow: none;
+}
+
+.holdings-table-footer-row {
+  border-top: var(--holdings-table-footer-divider);
+}
+
+.holdings-table-footer-cell {
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 12px 0.5rem;
+}
+
+.holdings-table-total-label-cell {
+  grid-column: 3 / 5;
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.holdings-table-total-value-cell {
+  grid-column: 5;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.holdings-table-total-currency-cell {
+  grid-column: 7;
+  text-align: center;
+}
+
+.holdings-table.is-combined .holdings-name-primary,
+.holdings-table.is-combined .holdings-name-cell.is-child .holdings-name-primary {
+  font-size: var(--type-body-xl-size);
+}
+
+.holdings-static-header {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+.holdings-static-header.is-left {
+  justify-content: flex-start;
+}
+
+.holdings-static-header.is-right {
+  justify-content: flex-end;
+}
+
+.holdings-static-header.is-center {
+  justify-content: center;
+}
+
+.holdings-security-cell {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.holdings-summary-row .holdings-security-cell {
+  justify-content: flex-start;
+}
+
+.holdings-security-cell.is-child {
+  padding-left: 18px;
+}
+
+.holdings-table-total-label {
+  display: inline-block;
+  color: var(--color-text-primary);
+  font-size: 1em;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-caps);
+  line-height: var(--line-height-tight);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.holdings-table-total-value {
+  color: var(--color-text-primary);
+  font-size: 1em;
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.holdings-table-total-currency {
+  color: var(--color-text-secondary);
+  font-size: 1em;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-wide);
+}
+
+.holdings-return-pill {
+  min-width: 5.6rem;
+  min-height: 1.8rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  color: var(--color-text-primary);
+  background: rgba(var(--rgb-white), 0.055);
+  font-size: var(--type-secondary-size);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.holdings-return-pill-arrow {
+  flex-shrink: 0;
+}
+
+.holdings-return-pill.is-gain {
+  color: var(--color-positive);
+  background: rgba(var(--rgb-positive), 0.13);
+}
+
+.holdings-return-pill.is-loss {
+  color: var(--color-negative);
+  background: rgba(var(--rgb-negative), 0.13);
+}
+
+.holdings-name-cell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.holdings-inst-logo-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.holdings-account-logo-wrap {
+  flex-shrink: 0;
+}
+
+.holdings-name-primary {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+  font-size: 1em;
+  line-height: var(--line-height-tight);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.holdings-name-secondary {
+  color: var(--color-text-tertiary);
+  font-weight: var(--font-weight-regular);
+  font-size: var(--type-body-size);
+  line-height: var(--line-height-tight);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.holdings-account-cell {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  text-align: left;
+  gap: 7px;
+}
+
+.holdings-account-type-cell {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.holdings-account-primary {
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-regular);
+  font-size: 1em;
+  line-height: var(--line-height-tight);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.holdings-account-type-badge {
+  width: fit-content;
+  max-width: 100%;
+  flex-shrink: 0;
+}
+
+.holdings-name-cell.is-child .holdings-name-primary,
+.holdings-account-cell.is-child .holdings-account-primary {
+  font-size: var(--type-meta-size);
+}

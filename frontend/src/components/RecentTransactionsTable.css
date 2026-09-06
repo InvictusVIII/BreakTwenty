@@ -1,0 +1,238 @@
+.recent-transactions-table {
+  --recent-transactions-inline-padding: var(--dashboard-panel-padding-inline, 1.1rem);
+  /* Column-width knobs. Override any track on a specific table when its content
+     needs a different balance; Category intentionally gets more room by default. */
+  --recent-transactions-date-column: 5.25rem;
+  --recent-transactions-logo-column: 1.75rem;
+  --recent-transactions-account-column: minmax(6.5rem, 0.9fr);
+  --recent-transactions-description-column: minmax(7.7rem, 1.45fr);
+  --recent-transactions-category-column: minmax(8rem, 1.25fr);
+  --recent-transactions-amount-column: minmax(7.25rem, 1fr);
+  --recent-transactions-column-gap: 0.55rem;
+  --recent-transactions-table-min-width: 41.5rem;
+  --recent-transactions-category-omitted-description-column: minmax(7.7rem, 2.7fr);
+  --recent-transactions-category-omitted-table-min-width: 32rem;
+  width: calc(100% + (2 * var(--recent-transactions-inline-padding)));
+  min-width: 0;
+  margin-inline: calc(-1 * var(--recent-transactions-inline-padding));
+  display: block;
+  overflow-x: auto;
+  scrollbar-gutter: auto;
+}
+
+.recent-transactions-scroll-surface {
+  width: 100%;
+  min-width: var(--recent-transactions-table-min-width);
+  display: flex;
+  flex-direction: column;
+}
+
+.recent-transactions-table.is-category-omitted .recent-transactions-scroll-surface {
+  min-width: var(--recent-transactions-category-omitted-table-min-width);
+}
+
+.recent-transactions-head,
+.recent-transactions-row {
+  display: grid;
+  grid-template-columns:
+    var(--recent-transactions-date-column)
+    var(--recent-transactions-logo-column)
+    var(--recent-transactions-account-column)
+    var(--recent-transactions-description-column)
+    var(--recent-transactions-category-column)
+    var(--recent-transactions-amount-column);
+  align-items: center;
+  gap: 0 var(--recent-transactions-column-gap);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.recent-transactions-table.is-category-omitted :is(.recent-transactions-head, .recent-transactions-row) {
+  grid-template-columns:
+    var(--recent-transactions-date-column)
+    var(--recent-transactions-logo-column)
+    var(--recent-transactions-account-column)
+    var(--recent-transactions-category-omitted-description-column)
+    var(--recent-transactions-amount-column);
+}
+
+.recent-transaction-category {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.recent-transactions-head {
+  padding: var(--table-header-padding-block) var(--recent-transactions-inline-padding);
+  border-top: var(--table-header-border-top);
+  border-bottom: var(--table-header-border-bottom);
+  border-radius: 0;
+  background: var(--table-header-bg);
+  box-shadow: var(--table-header-shadow);
+  color: var(--type-large-table-header-color);
+  font-family: var(--type-large-table-header-family);
+  font-size: var(--type-large-table-header-size);
+  font-weight: var(--type-large-table-header-weight);
+  letter-spacing: var(--type-large-table-header-letter-spacing);
+  line-height: var(--type-large-table-header-line-height);
+  text-transform: uppercase;
+}
+
+.recent-transactions-head span:first-child {
+  text-align: center;
+}
+
+/* Center Account, Description, and Category (when present) above their cells. */
+.recent-transactions-head span:nth-child(3),
+.recent-transactions-head span:nth-child(4),
+.recent-transactions-table:not(.is-category-omitted) .recent-transactions-head span:nth-child(5) {
+  text-align: center;
+}
+
+.recent-transactions-head span:last-child {
+  padding-right: 1rem;
+  text-align: right;
+}
+
+.recent-transactions-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.recent-transactions-row {
+  position: relative;
+  z-index: 0;
+  min-height: 3.7rem;
+  padding: 0.62rem var(--recent-transactions-inline-padding);
+  border-bottom: 1px solid rgba(var(--rgb-border), 0.34);
+}
+
+.recent-transactions-row:last-child {
+  border-bottom: 0;
+}
+
+.recent-transactions-row:not(.is-clickable):hover {
+  background: linear-gradient(90deg, rgba(var(--rgb-surface-hover), 0.18), transparent);
+}
+
+.recent-transactions-row.is-clickable {
+  cursor: pointer;
+}
+
+.recent-transactions-row.is-clickable::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  box-sizing: border-box;
+  border: 0 solid rgba(var(--rgb-white), 0);
+  border-radius: 0;
+  box-shadow: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.recent-transactions-row.is-clickable:is(:hover, :focus-visible, .is-active)::after {
+  border-width: calc(var(--data-hover-stroke-width) + 1.5px);
+  border-color: var(--data-hover-stroke-color);
+  box-shadow: var(--data-hover-glow-shadow);
+  opacity: 1;
+}
+
+.recent-transactions-row.is-clickable:last-child::after {
+  border-radius: 0 0 var(--table-header-radius) var(--table-header-radius);
+}
+
+.recent-transactions-row.is-clickable:focus-visible {
+  outline: none;
+}
+
+.recent-transaction-date,
+.recent-transaction-account,
+.recent-transaction-amount {
+  min-width: 0;
+  font-size: var(--type-secondary-size);
+  line-height: var(--line-height-tight);
+}
+
+.recent-transaction-date {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.recent-transaction-main {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.recent-transaction-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.recent-transaction-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.recent-transaction-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--type-row-description-color);
+  font-size: var(--type-body-size);
+  font-weight: var(--type-row-description-weight);
+  line-height: var(--line-height-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-transaction-account {
+  overflow: hidden;
+  font-size: var(--type-body-size);
+  color: var(--type-account-name-color);
+  font-family: var(--type-account-name-family);
+  font-weight: var(--type-account-name-weight);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-transaction-amount {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  color: var(--type-money-color);
+  font-size: var(--type-body-large-size);
+  font-weight: var(--type-money-weight);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.recent-transaction-currency {
+  color: inherit;
+  font-size: var(--type-badge-size);
+  font-weight: inherit;
+}
+
+.recent-transactions-state {
+  min-height: 12.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  font-size: var(--type-empty-state-size);
+  font-weight: var(--type-empty-state-weight);
+  color: var(--type-empty-state-color);
+  text-align: center;
+}

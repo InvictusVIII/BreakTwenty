@@ -1,0 +1,18 @@
+.investments-currency-trigger.is-busy {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.currency-picker-spinner {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-accent-primary);
+  border-radius: 50%;
+  animation: currency-picker-spin 0.7s linear infinite;
+}
+
+@keyframes currency-picker-spin {
+  to { transform: rotate(360deg); }
+}

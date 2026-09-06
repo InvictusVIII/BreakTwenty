@@ -1,0 +1,183 @@
+.app-dropdown {
+  position: relative;
+  width: 100%;
+}
+
+.app-dropdown-trigger {
+  display: inline-flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: var(--control-gap);
+  width: 100%;
+  min-height: var(--control-height);
+  box-sizing: border-box;
+  background: var(--surface-button-bg);
+  border: var(--surface-button-border-width) solid var(--surface-button-border-color);
+  border-radius: var(--control-radius);
+  padding: var(--control-padding-block) var(--control-compact-padding-inline);
+  font-family: var(--type-button-label-family);
+  font-size: var(--control-label-size);
+  font-weight: var(--control-label-weight);
+  line-height: var(--control-label-line-height);
+  letter-spacing: var(--control-label-letter-spacing);
+  color: var(--surface-button-color);
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+  box-shadow: var(--surface-button-shadow);
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.app-dropdown-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.app-dropdown.currency-dropdown {
+  width: fit-content;
+  min-width: max-content;
+}
+
+.app-dropdown.currency-dropdown .app-dropdown-trigger {
+  --control-height: var(--top-control-trigger-height);
+  --control-padding-block: var(--top-control-padding-block);
+  --control-compact-padding-inline: var(--top-control-compact-padding-inline);
+  --control-radius: var(--button-radius);
+  --control-label-size: var(--type-trigger-label-size);
+  --control-label-weight: var(--type-trigger-label-weight);
+  --control-label-letter-spacing: 0;
+  min-width: 5rem;
+  width: fit-content;
+  justify-content: center;
+  --control-gap: 6px;
+  padding: var(--control-padding-block) var(--control-compact-padding-inline);
+  color: var(--type-trigger-label-color);
+}
+
+.app-dropdown.is-fit-to-options {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.app-dropdown.is-fit-to-options .app-dropdown-trigger {
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.app-dropdown-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-dropdown-value.is-placeholder {
+  color: var(--color-text-secondary);
+}
+
+.app-dropdown.currency-dropdown .app-dropdown-value {
+  flex: 0 0 auto;
+  min-width: 2rem;
+  overflow: visible;
+  text-align: center;
+  text-overflow: clip;
+}
+
+.app-dropdown.is-fit-to-options .app-dropdown-value {
+  flex: 0 1 var(--dropdown-fit-label-width);
+  width: var(--dropdown-fit-label-width);
+}
+
+.app-dropdown-chevron {
+  color: var(--color-text-secondary);
+  transition: color 0.15s;
+}
+
+.app-dropdown-trigger.is-open .app-dropdown-chevron {
+  color: var(--button-icon-selected-color);
+}
+
+.app-dropdown-trigger:is(:hover, :focus-visible):not(:disabled) .app-dropdown-chevron {
+  color: inherit;
+}
+
+/* Themed menu — elevated above the host modal layer so it's never clipped.
+   Solid background (no translucency / blur) so it never shows content behind. */
+.app-dropdown-popover {
+  background: var(--app-menu-bg);
+  border: var(--open-button-border-width) solid var(--open-button-border-color);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--app-menu-shadow);
+  overflow: hidden;
+  z-index: var(--app-modal-elevated-layer);
+}
+
+.app-dropdown-list {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  gap: 6px;
+  padding: 8px;
+}
+
+.app-dropdown-option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem 0.65rem;
+  border: var(--surface-row-border-width) solid var(--surface-row-border-color);
+  border-radius: var(--radius-sm);
+  background: var(--surface-row-bg);
+  font-family: var(--type-menu-option-family);
+  font-size: var(--type-menu-option-size);
+  font-weight: var(--type-menu-option-weight);
+  color: var(--type-menu-option-color);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.12s, border-color 0.12s;
+}
+
+.app-dropdown-option:hover {
+  --button-state-shell-bg: var(--surface-row-hover-bg);
+  --button-state-shell-border-color: var(--surface-row-hover-border-color);
+  --button-state-shell-border-width: var(--surface-row-hover-border-width);
+  --button-state-shell-assist-shadow: inset 0 0 0 var(--button-state-shell-assist-border-width) var(--button-state-shell-border-color);
+  --button-state-shell-shadow: var(--surface-row-hover-shadow);
+  --button-state-shell-opacity: 1;
+  border-color: var(--surface-row-hover-border-color);
+  background: transparent;
+  box-shadow: none;
+}
+
+.app-dropdown-option.is-selected {
+  --button-state-shell-bg: var(--surface-button-selected-bg);
+  --button-state-shell-border-color: var(--surface-button-selected-border-color);
+  --button-state-shell-border-width: var(--button-state-shell-selected-border-width);
+  --button-state-shell-assist-shadow: inset 0 0 0 var(--button-state-shell-assist-border-width) var(--button-state-shell-border-color);
+  --button-state-shell-shadow: var(--surface-button-selected-shadow);
+  --button-state-shell-opacity: 1;
+  background: transparent;
+  border-color: var(--button-state-physical-selected-border-color);
+  color: var(--surface-button-selected-color);
+  font-weight: var(--font-weight-medium);
+  box-shadow: none;
+}
+
+.currency-dropdown-popover {
+  width: max-content;
+  min-width: 6rem;
+  max-width: max-content;
+}
+
+.app-dropdown-option.is-currency-option {
+  min-height: 38px;
+  min-width: 68px;
+  justify-content: center;
+  border-radius: var(--button-radius);
+  padding: 0 10px;
+  text-align: center;
+}

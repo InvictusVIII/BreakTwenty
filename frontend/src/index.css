@@ -1,0 +1,46 @@
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: block;
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- @font-face needs the packaged font weight descriptor. */
+  font-weight: 400;
+  src: url('../node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: block;
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- @font-face needs the packaged font weight descriptor. */
+  font-weight: 500;
+  src: url('../node_modules/@fontsource/inter/files/inter-latin-500-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: block;
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- @font-face needs the packaged font weight descriptor. */
+  font-weight: 600;
+  src: url('../node_modules/@fontsource/inter/files/inter-latin-600-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: block;
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- @font-face needs the packaged font weight descriptor. */
+  font-weight: 700;
+  src: url('../node_modules/@fontsource/inter/files/inter-latin-700-normal.woff2') format('woff2');
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-family-sans, 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace);
+}

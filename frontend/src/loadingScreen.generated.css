@@ -1,0 +1,122 @@
+/* Canonical presentation shared by the Electron startup and React loading screens.
+   The frontend mirror is generated; edit this file only. */
+
+:root {
+  /* Loading-screen size knobs. */
+  --loading-screen-logo-size: clamp(3.7rem, 8vw, 4rem);
+  --loading-screen-wordmark-size: min(68vw, clamp(9.75rem, 30vw, 10rem));
+  --loading-screen-catchphrase-size: 1.3rem;
+
+  --loading-screen-padding-block: 2rem;
+  --loading-screen-padding-inline: 1.5rem;
+  --loading-screen-gap: 0.75rem;
+  --loading-screen-catchphrase-margin-top: 0.25rem;
+  --loading-screen-spinner-size: 1.85rem;
+  --loading-screen-spinner-margin-top: 0.75rem;
+  --loading-screen-spinner-border-width: 0.14rem;
+  --loading-screen-status-margin-top: 1.3rem;
+  --loading-screen-status-detail-margin-top: 0.25rem;
+}
+
+.loading-screen-shell {
+  margin: 0;
+}
+
+.loading-screen,
+.loading-screen.app {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  height: 100vh;
+  margin: 0;
+  padding: var(--loading-screen-padding-block) var(--loading-screen-padding-inline);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--loading-screen-gap);
+  text-align: center;
+  background: var(--app-canvas-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-sans);
+}
+
+.loading-screen-logo {
+  width: var(--loading-screen-logo-size);
+  height: var(--loading-screen-logo-size);
+  display: block;
+  object-fit: contain;
+  object-position: center center;
+}
+
+.loading-screen-wordmark {
+  width: var(--loading-screen-wordmark-size);
+  height: auto;
+  display: block;
+  object-fit: contain;
+  object-position: center center;
+}
+
+.loading-screen-wordmark-fallback {
+  margin: 0;
+  color: var(--color-brand-wordmark-break);
+  font-family: var(--type-page-title-family);
+  font-size: var(--type-page-title-size);
+  font-weight: var(--type-page-title-weight);
+  line-height: var(--type-page-title-line-height);
+  letter-spacing: var(--type-page-title-letter-spacing);
+}
+
+.loading-screen-wordmark-fallback-accent {
+  color: var(--color-brand-wordmark-twenty);
+}
+
+.loading-screen-catchphrase {
+  margin: var(--loading-screen-catchphrase-margin-top) 0 0;
+  font-family: var(--type-loading-catchphrase-family);
+  font-size: var(--type-loading-catchphrase-size);
+  font-weight: var(--type-loading-catchphrase-weight);
+  color: var(--type-loading-catchphrase-color);
+  line-height: var(--type-loading-catchphrase-line-height);
+  letter-spacing: var(--type-loading-catchphrase-letter-spacing);
+}
+
+.loading-screen-spinner {
+  width: var(--loading-screen-spinner-size);
+  height: var(--loading-screen-spinner-size);
+  margin-top: var(--loading-screen-spinner-margin-top);
+  border: var(--loading-screen-spinner-border-width) solid rgba(var(--rgb-white), 0.16);
+  border-top-color: var(--color-accent-primary);
+  border-radius: 999px;
+  animation: loading-screen-spin 900ms linear infinite;
+}
+
+.loading-screen-status {
+  margin-top: var(--loading-screen-status-margin-top);
+}
+
+.loading-screen-status-title,
+.loading-screen-status-detail {
+  margin: 0;
+  font-family: var(--font-family-sans);
+  font-size: var(--type-empty-state-size);
+  line-height: var(--line-height-normal);
+  letter-spacing: 0;
+}
+
+.loading-screen-status-title {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.loading-screen-status-detail {
+  color: var(--color-text-faint);
+  font-weight: var(--font-weight-regular);
+  margin-top: var(--loading-screen-status-detail-margin-top);
+}
+
+@keyframes loading-screen-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

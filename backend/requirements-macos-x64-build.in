@@ -1,0 +1,4 @@
+# Exact Python build prerequisites for the cryptography macOS x64 source build.
+cffi==2.1.0
+maturin==1.14.1
+pycparser==3.0

@@ -1,0 +1,1004 @@
+/* Cash Flow page — observation-first spending review.
+   Layout: vertical stack of panel-shell sections. Reuses the global
+   `.panel-shell` token so visual rhythm matches Dashboard/Accounts. */
+
+.cf-loading {
+  padding: 2.5rem 1rem;
+  text-align: center;
+  font-size: var(--type-empty-state-size);
+  font-weight: var(--type-empty-state-weight);
+  color: var(--type-empty-state-color);
+}
+/* Top-controls (currency + scope selectors): NOT styled here. The Cash Flow
+   page uses the exact same classes Investments + Accounts use
+   (`investments-filter-popover`, `investments-filter-trigger`,
+   `investments-currency-trigger`, `investments-currency-trigger-value`,
+   `investments-filter-trigger-chevron`, `investments-filter-panel`,
+   `investments-currency-panel`, `income-timeline-menu-list`,
+   `income-timeline-menu-item`, `scope-selector-trigger`,
+   `scope-selector-panel`, `dashboard-scope-panel`,
+   `institution-filter-toggle-all`, `scope-filter-apply-btn`), so all
+   styling flows from the shared stylesheets — Cash Flow does not redefine
+   any of them. */
+
+/* ===========================================================================
+   Cash Flow timeline control — the trigger + dropdown panel + dropdown items
+   inherit verbatim from the standardized timeline classes used by Dashboard
+   / Accounts / Investments (`investments-filter-popover`,
+   `dashboard-timeline-popover`, `dashboard-timeline-trigger`,
+   `dashboard-timeline-panel`, `timeline-range-panel`,
+   `income-timeline-menu-list`, `income-timeline-menu-item`,
+   `income-timeline-checkbox`). The arrow-button + popover-row styling
+   (`.cf-timeline-popover` / `.cf-timeline-step-btn`) lives in App.css because
+   the control is shared with the Dashboard cash-flow panel; the Custom Range
+   date inputs come from TimelineCustomRangePicker.
+   =========================================================================== */
+
+/* ===========================================================================
+   Panels.
+   =========================================================================== */
+
+.cf-panel { padding: 0; overflow: hidden; }
+
+.cf-panel:not(.is-open):has(> .cf-panel-header[aria-expanded="false"]) {
+  background: var(--surface-panel-small-bg);
+}
+
+.cf-panel.cf-invest-panel {
+  background: var(--surface-panel-small-bg);
+}
+.cf-panel-header {
+  --button-state-shell-bg: transparent;
+  --button-state-shell-border-color: transparent;
+  --button-state-shell-border-width: 0px;
+  --button-state-shell-assist-shadow: 0 0 0 0 transparent;
+  --button-state-shell-shadow: 0 0 0 0 transparent;
+  --button-state-shell-opacity: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.1rem;
+  background: transparent;
+  border: 0;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  text-align: left;
+}
+.cf-panel-header::after {
+  display: none;
+}
+.cf-panel-header:is(:hover, :focus-visible, :active) {
+  --button-state-shell-bg: transparent;
+  --button-state-shell-border-color: transparent;
+  --button-state-shell-border-width: 0px;
+  --button-state-shell-assist-shadow: 0 0 0 0 transparent;
+  --button-state-shell-shadow: 0 0 0 0 transparent;
+  --button-state-shell-opacity: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+}
+.cf-panel-header.is-static { cursor: default; }
+.cf-panel-header:hover:not(.is-static) .cf-panel-chevron {
+  color: var(--color-text-primary);
+}
+.cf-panel-title {
+  font-family: var(--type-panel-title-family);
+  font-size: var(--type-panel-title-size);
+  font-weight: var(--type-panel-title-weight);
+  color: var(--type-panel-title-color);
+  line-height: var(--type-panel-title-line-height);
+  letter-spacing: var(--type-panel-title-letter-spacing);
+}
+.cf-panel-chevron {
+  --control-chevron-size: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-chevron-size);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-none);
+}
+
+.cf-panel-chevron .app-triangle-icon {
+  width: var(--control-chevron-size);
+  height: var(--control-chevron-size);
+}
+.cf-panel-body {
+  padding: 0.4rem 1.1rem 1.1rem;
+}
+.cf-panel.cf-breakdown-panel .cf-panel-body.cf-breakdown-body {
+  min-height: 20.225rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.cf-panel.cf-breakdown-panel .cf-panel-body.cf-breakdown-body > .cf-breakdown-scroll-frame {
+  flex: 1 1 auto;
+}
+/* Money Movement is a single short tile row, so center it between the header
+   and the panel's bottom (symmetric vertical padding + flex centering)
+   instead of letting it hug the top the way the default tight top padding does. */
+.cf-panel-body.cf-invest-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-top: 1.1rem;
+}
+
+.cf-empty {
+  padding: 1.2rem;
+  text-align: center;
+  font-size: var(--type-empty-state-size);
+  font-weight: var(--type-empty-state-weight);
+  color: var(--type-empty-state-color);
+}
+
+/* ===========================================================================
+   Headline (donut + Income/Expense totals) + sibling stats panel
+   (Savings Rate + period delta). The two panels sit side-by-side on wide
+   viewports and use the viewport-responsive rule below to stack on narrow
+   ones. Opening a detail tray does not change this row's structure.
+   =========================================================================== */
+
+.cf-headline-row {
+  display: grid;
+  /* Net Cash Flow gets the smaller share (it's just a donut + figures, so a
+     full half left it horizontally empty); Recurring takes the wider right
+     column where the merchant rows benefit from the room. */
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 1.1rem;
+  align-items: stretch;
+}
+
+/* Right column = Recurring Expenses. The cell stretches with the Net Cash Flow
+   card, then Recurring flex-fills that height and scrolls only when its rows
+   exceed the available panel body. */
+.cf-headline-side {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+.cf-headline-side-inner {
+  position: static;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.cf-headline-side-inner > .cf-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cf-headline-side-inner > .cf-panel .cf-panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cf-headline-side .cf-recurring-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  /* Center the rows when they don't fill the pinned column; `safe` falls back to
+     top-aligned (scrollable, no clipping) once the list is long enough to overflow. */
+  justify-content: safe center;
+}
+/* Stacked (narrow): normal flow; Recurring capped + scroll instead of pinned. */
+@media (max-width: 64rem) {
+  .cf-headline-row { grid-template-columns: 1fr; }
+  .cf-headline-side-inner > .cf-panel { flex: 0 0 auto; }
+  .cf-headline-side .cf-recurring-list { flex: none; max-height: 18rem; }
+}
+
+.cf-headline {
+  container-type: inline-size;
+  container-name: cf-headline-card;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+}
+/* Income / Expense / Savings Rate / vs-Previous as a compact 2x2 below the donut. */
+.cf-headline-figures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem 0.9rem;
+  align-items: stretch;
+  min-width: 0;
+}
+@media (max-width: 30rem) {
+  .cf-headline-figures { grid-template-columns: 1fr; }}
+.cf-headline-figures .cf-stat-block {
+  min-width: 0;
+  background: rgba(var(--rgb-surface-hover), 0.2);
+  border: 1px solid rgba(var(--rgb-border), 0.24);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.75rem;
+}
+.cf-headline-figures .cf-stat-value-big { font-size: var(--type-modal-title-size); }
+/* Savings Rate: percentage + "income kept" meta on one line (keeps the cell the
+   same height as the vs-Previous cell beside it). */
+.cf-stat-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.cf-stat-block {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.cf-stat-label {
+  font-family: var(--type-stat-label-family);
+  font-size: var(--type-stat-label-size);
+  font-weight: var(--type-stat-label-weight);
+  color: var(--type-stat-label-color);
+  line-height: var(--type-stat-label-line-height);
+  letter-spacing: var(--type-stat-label-letter-spacing);
+  text-transform: uppercase;
+}
+.cf-stat-value-big {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--type-metric-display-compact-size);
+  font-weight: var(--font-weight-heavy);
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.1;
+  color: var(--color-text-primary);
+}
+.cf-stat-value-big.is-positive { color: var(--color-positive); }
+.cf-stat-value-big.is-negative { color: var(--color-negative); }
+.cf-stat-value-big.is-neutral { color: var(--color-text-primary); }
+.cf-stat-block--savings .cf-stat-value-big,
+.cf-stat-block--savings .cf-meta-money {
+  color: var(--color-text-primary);
+}
+.cf-stat-bar {
+  height: 0.45rem;
+  background: rgba(var(--rgb-border), 0.18);
+  border-radius: var(--radius-xs);
+  overflow: hidden;
+}
+.cf-stat-bar-fill {
+  height: 100%;
+  border-radius: var(--radius-xs);
+  transition: width 0.18s ease-out;
+}
+.cf-stat-bar-fill.is-positive { background: var(--color-positive); }
+.cf-stat-bar-fill.is-negative { background: var(--color-negative); }
+.cf-stat-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  min-width: 0;
+  flex-wrap: wrap;
+  font-size: var(--type-body-muted-size);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+.cf-meta-money {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.cf-meta-money.is-positive { color: var(--color-positive); }
+.cf-meta-money.is-negative { color: var(--color-negative); }
+.cf-meta-money.is-neutral { color: var(--color-text-primary); }
+
+.cf-headline-donut {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cf-donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.cf-donut-center-label {
+  width: min(var(--cash-flow-donut-center-label-fluid-width), var(--cash-flow-donut-center-label-width));
+  font-family: var(--type-stat-label-family);
+  font-size: var(--type-stat-label-size);
+  font-weight: var(--type-stat-label-weight);
+  color: var(--type-stat-label-color);
+  line-height: var(--type-stat-label-line-height);
+  letter-spacing: var(--type-stat-label-letter-spacing);
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 0.2rem;
+}
+.cf-donut-center-value {
+  /* Share the Dashboard Cash Flow hole cap and shrink with the donut before
+     FitMoney decides whether the exact value needs compact notation. */
+  width: min(var(--cash-flow-donut-center-value-fluid-width), var(--cash-flow-donut-center-value-width));
+  pointer-events: auto;
+  text-align: center;
+  color: var(--color-text-primary);
+  font-size: var(--type-metric-display-small-size);
+  font-weight: var(--font-weight-heavy);
+  letter-spacing: var(--tracking-tight);
+}
+/* The FitMoney box (from <Money>) must fill the hole-sized slot so it measures overflow
+   against the hole, not its own content — otherwise a huge figure renders full and bleeds
+   past the ring instead of compacting (full value still on hover). */
+.cf-donut-center-value .fit-money {
+  width: 100%;
+}
+.cf-donut-center-value.is-positive { color: var(--color-positive); }
+.cf-donut-center-value.is-negative { color: var(--color-negative); }
+/* Income / Expense as weighted bars (matching the dashboard cash-flow panel's
+   net legend): a colour chip + weight bar + amount-over-percent. Spans the full
+   figures row above the Savings Rate / vs-Previous blocks. Reuses the page's
+   own .cf-bar-track / .cf-bar-fill / .cf-bar-amount from the category bars. */
+.cf-net-bars {
+  grid-column: 1 / -1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.cf-net-row {
+  display: grid;
+  grid-template-columns: max-content minmax(2rem, 1fr) max-content;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+}
+.cf-net-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.cf-net-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.cf-net-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--type-secondary-size);
+  font-weight: var(--type-row-description-weight);
+  color: var(--type-row-description-color);
+}
+
+/* ===========================================================================
+   Category breakdown (donut + horizontal bars).
+   =========================================================================== */
+
+.cf-breakdown-scroll-frame {
+  --cf-breakdown-scroll-min-width: 36rem;
+  width: calc(100% + 2.2rem);
+  min-width: 0;
+  margin-inline: -1.1rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.cf-breakdown-scroll-viewport {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.cf-breakdown-scroll-viewport::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.cf-breakdown-scroll-surface {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: var(--cf-breakdown-scroll-min-width);
+  padding-inline: 1.1rem;
+}
+
+.cf-breakdown-grid {
+  --page-split-columns: minmax(180px, 0.85fr) minmax(280px, 1.5fr);
+  --page-split-gap: 1.2rem;
+  align-items: center;
+  padding-block: 0.3rem;
+}
+@media (max-width: 55rem) {
+  .cf-breakdown-grid { grid-template-columns: 1fr; }}
+
+.cf-breakdown-donut {
+  position: relative;
+  width: 100%;
+  /* Vertically center the donut in its cell so it lines up with the bar list
+     regardless of how many categories populate (the row is align-items:start). */
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cf-breakdown-bars {
+  align-self: center;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* vertically center bars within the donut-height row */
+  gap: 0.45rem;
+}
+.cf-bar-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.7fr) minmax(6rem, 1.4fr) minmax(4.5rem, max-content);
+  gap: 0.7rem;
+  align-items: center;
+  min-width: 0;
+}
+.cf-bar-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.cf-bar-track {
+  height: 0.5rem;
+  background: rgba(var(--rgb-border), 0.18);
+  border-radius: var(--radius-xs);
+  overflow: hidden;
+}
+.cf-bar-fill {
+  height: 100%;
+  border-radius: var(--radius-xs);
+  transition: width 0.18s ease-out;
+}
+.cf-bar-amount {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+.cf-bar-money {
+  width: 100%;
+  min-width: 0;
+  font-size: var(--type-secondary-size);
+  font-weight: var(--type-money-weight);
+  color: var(--type-money-color);
+}
+.cf-bar-percent {
+  font-size: var(--type-secondary-size);
+  font-weight: var(--type-money-weight);
+  color: var(--color-text-secondary);
+}
+
+@container cf-headline-card (max-width: 32rem) {
+  .cf-headline-figures {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cf-net-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.35rem;
+  }
+
+  .cf-bar-amount {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .cf-stat-value-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+}
+
+/* ===========================================================================
+   Money Movement — capital trades + debt principal as a single flat row of
+   equal-width tiles in the full-width panel below the hero (no group headers).
+   Tiles wrap to additional rows on narrow widths instead of squeezing.
+   =========================================================================== */
+
+.cf-invest-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.7rem;
+}
+.cf-invest-tiles > .cf-invest-row {
+  flex: 0 1 clamp(11rem, 14vw, 13.5rem);
+  min-width: 0;
+}
+.cf-invest-row {
+  position: relative;
+  padding: 0.5rem 0.85rem;
+  background: var(--surface-button-bg);
+  border: var(--surface-button-border-width) solid var(--surface-button-border-color);
+  border-radius: var(--panel-control-radius);
+  box-shadow: var(--surface-button-shadow);
+  text-align: left;
+}
+.cf-invest-row.is-clickable {
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.cf-invest-row.is-clickable:is(:hover, :focus-visible):not(.is-active) {
+  background: var(--surface-button-bg);
+  border-color: transparent;
+  box-shadow: var(--data-hover-ring);
+  outline: none;
+}
+.cf-invest-row.is-muted {
+  background: rgba(var(--rgb-surface-hover), 0.08);
+  border-color: rgba(var(--rgb-border), 0.2);
+  box-shadow: none;
+}
+.cf-invest-row.is-muted .cf-invest-label,
+.cf-invest-row.is-muted .cf-invest-value,
+.cf-invest-row.is-muted .cf-invest-hint {
+  color: var(--color-text-faint);
+}
+.cf-invest-row.is-active,
+.cf-invest-row.is-active:is(:hover, :focus-visible) {
+  z-index: 2;
+  --button-state-shell-bg: var(--surface-button-selected-bg);
+  --button-state-shell-border-color: var(--surface-button-selected-border-color);
+  --button-state-shell-border-width: var(--button-state-shell-selected-border-width);
+  --button-state-shell-assist-shadow: inset 0 0 0 var(--button-state-shell-assist-border-width) var(--button-state-shell-border-color);
+  --button-state-shell-shadow: var(--surface-button-selected-shadow);
+  --button-state-shell-opacity: 1;
+  background: transparent;
+  border-color: var(--button-state-physical-selected-border-color);
+  box-shadow: none;
+  outline: none;
+}
+.cf-invest-label {
+  font-family: var(--type-stat-label-family);
+  font-size: var(--type-stat-label-size);
+  font-weight: var(--type-stat-label-weight);
+  color: var(--type-stat-label-color);
+  line-height: var(--type-stat-label-line-height);
+  letter-spacing: var(--type-stat-label-letter-spacing);
+  text-transform: uppercase;
+}
+.cf-invest-value {
+  display: flex;
+  min-width: 0;
+  font-size: var(--type-body-large-size);
+  font-weight: var(--type-money-weight);
+  margin-top: 0.18rem;
+}
+.cf-invest-value.is-positive { color: var(--color-positive); }
+.cf-invest-value.is-negative { color: var(--color-negative); }
+.cf-invest-hint {
+  margin-top: 0.18rem;
+  font-size: var(--type-body-muted-size);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+/* ===========================================================================
+   Needs Review — unresolved signed cash directions, intentionally excluded
+   from income/spending calculations until the user assigns a purpose.
+   =========================================================================== */
+
+.cf-panel.cf-needs-review-panel {
+  background: var(--surface-panel-table-bg);
+  box-shadow: var(--surface-panel-table-shadow);
+}
+
+.cf-panel-body.cf-needs-review-body {
+  padding: 0 1.1rem;
+}
+
+/* ===========================================================================
+   Recurring list.
+   =========================================================================== */
+
+.cf-recurring-list {
+  --cf-recurring-cadence-column: 5.9rem;
+  --cf-recurring-category-column: minmax(8.5rem, 1fr);
+  --cf-recurring-description-column: minmax(14rem, 1.7fr);
+  --cf-recurring-date-column: 6.25rem;
+  --cf-recurring-amount-column: minmax(7rem, 0.7fr);
+  --cf-recurring-action-column: 1.7rem;
+  --cf-recurring-row-min-width: 47rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  box-sizing: border-box;
+  width: calc(100% + 2.2rem);
+  min-width: 0;
+  margin-right: -1.1rem;
+  margin-bottom: -1.1rem;
+  margin-left: -1.1rem;
+  padding: 0 1.1rem 1.1rem;
+  overflow-x: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+.cf-recurring-row {
+  display: grid;
+  grid-template-columns:
+    var(--cf-recurring-cadence-column)
+    var(--cf-recurring-category-column)
+    var(--cf-recurring-description-column)
+    var(--cf-recurring-date-column)
+    var(--cf-recurring-amount-column)
+    var(--cf-recurring-action-column);
+  gap: 0.7rem;
+  align-items: center;
+  min-width: var(--cf-recurring-row-min-width);
+  padding: 0.55rem 0.4rem;
+  border-radius: var(--radius-sm);
+}
+.cf-recurring-row:hover { background: rgba(var(--rgb-surface-hover), 0.18); }
+/* Wrapper for the category pill — flex so the pill sits vertically centered in
+   the row instead of resting on the span's text baseline. */
+.cf-recurring-pill {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.cf-recurring-pill .category-pill {
+  width: 100%;
+}
+.cf-recurring-desc-cell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.cf-recurring-description {
+  font-size: var(--type-secondary-size);
+  font-weight: var(--type-row-description-weight);
+  color: var(--type-row-description-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Source of the recurring charge (institution logo + account name) — shows the
+   user where each one is billed from. */
+.cf-recurring-source {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+  overflow: hidden;
+}
+.cf-recurring-account {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--type-meta-size);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+.cf-recurring-amount {
+  flex: 0 0 8.5rem;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.05rem;
+  font-size: var(--type-body-size);
+  font-weight: var(--type-money-weight);
+  font-variant-numeric: tabular-nums;
+}
+/* Native value (FitMoney) + currency code, one line, right-aligned; the FitMoney
+   shrinks (compacts to M/B/T) when the value is too long for the column. */
+.cf-amount-native {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.cf-amount-native .fit-money { flex: 0 1 auto; min-width: 0; }
+.cf-detail-money,
+.cf-invest-money,
+.cf-recurring-money {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.cf-recurring-amount.is-positive { color: var(--color-positive); }
+.cf-recurring-amount.is-negative { color: var(--color-negative); }
+.cf-recurring-cadence {
+  font-size: var(--type-stat-label-size);
+  font-weight: var(--type-stat-label-weight);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--type-stat-label-color);
+  white-space: nowrap;
+}
+.cf-recurring-due {
+  font-size: var(--type-meta-size);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cf-recurring-due.is-charged { color: var(--color-positive); }
+.cf-recurring-action {
+  border: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: var(--line-height-none);
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: var(--radius-xs);
+  transition: color 0.12s ease, background 0.12s ease;
+}
+.cf-recurring-action:hover { color: var(--color-text-primary); background: rgba(var(--rgb-surface-hover), 0.4); }
+.cf-recurring-action.is-active { color: var(--color-text-primary); background: rgba(var(--rgb-accent-primary), 0.16); }
+.cf-recurring-action:disabled { opacity: 0.35; cursor: default; }
+.cf-recurring-dismiss { font-size: var(--type-modal-title-size); padding: 0 0.3rem; }
+.cf-recurring-dismiss:hover { color: var(--color-negative); background: rgba(var(--rgb-negative), 0.12); }
+
+/* ── Breakdown row → detail tray ─────────────────────────────────────── */
+.cf-bar-row.is-clickable {
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background 0.12s ease;
+}
+.cf-bar-row.is-clickable .category-pill {
+  transition: filter 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
+}
+.cash-flow-page .cf-bar-row[role="button"].is-clickable:hover,
+.cash-flow-page .cf-bar-row[role="button"].is-clickable:focus-visible {
+  background: transparent;
+  border-color: transparent;
+  outline: none;
+  box-shadow: none;
+}
+.cf-bar-row.is-clickable:not(.is-active):is(:hover, :focus-visible) .category-pill {
+  box-shadow:
+    0 0 0 var(--data-highlight-stroke-width) var(--data-hover-stroke-color),
+    var(--data-hover-glow-shadow);
+}
+.cf-bar-row.is-active {
+  background: transparent;
+}
+.cf-bar-row.is-active .category-pill {
+  box-shadow: 0 0 0 var(--data-highlight-stroke-width) var(--data-row-highlight-border-color);
+}
+
+.cashflow-detail-panel .cf-detail-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.cf-detail-group {
+  display: flex;
+  flex-direction: column;
+}
+.cf-detail-group-label {
+  font-size: var(--type-table-header-size);
+  font-weight: var(--type-table-header-weight);
+  letter-spacing: var(--tracking-wide);
+  color: var(--date-band-color);
+  text-align: center;
+  text-transform: uppercase;
+  background: var(--date-band-bg);
+  margin: 0 calc(-1 * var(--space-4)) 0.18rem;
+  padding: var(--table-header-padding);
+  border-top: var(--date-band-border-top);
+  border-bottom: var(--date-band-border-bottom);
+  box-shadow: var(--date-band-shadow);
+}
+.cf-detail-group-rows {
+  display: flex;
+  flex-direction: column;
+}
+.cashflow-detail-panel .app-detail-drawer-header {
+  border-bottom: none;
+  background: transparent;
+}
+.cashflow-detail-panel .app-detail-drawer-body {
+  /* No top padding/gap band above the count row. */
+  padding: 0 var(--space-4) var(--space-4);
+  gap: 0;
+}
+.cf-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0 -0.875rem;
+  padding: 0.45rem 0.875rem 0.5rem;
+  border-bottom: 1px solid var(--surface-panel-divider-color);
+}
+.cf-detail-count {
+  font-size: var(--type-stat-label-size);
+  font-weight: var(--type-stat-label-weight);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--type-stat-label-color);
+}
+.cf-detail-viewall {
+  flex-shrink: 0;
+  position: relative;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--type-stat-label-size);
+  font-weight: var(--type-stat-label-weight);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  transition: color 0.18s ease;
+}
+.cf-detail-viewall::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -0.25rem;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0;
+  pointer-events: none;
+  transform: scaleX(0.7);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.cf-detail-viewall:is(:hover, :focus-visible) {
+  color: var(--color-data-highlight-text);
+  outline: none;
+}
+.cf-detail-viewall:is(:hover, :focus-visible)::before {
+  opacity: 1;
+  transform: scaleX(1);
+}
+.cf-detail-tx {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.42rem 0;
+  border-bottom: 1px solid rgba(var(--rgb-border), 0.4);
+}
+/* Drop the trailing divider under a day's last transaction — the next date
+   band (or the tray end) already separates it, so the loose row break is noise. */
+.cf-detail-group-rows .cf-detail-tx:last-child {
+  border-bottom: 0;
+}
+.cf-detail-tx-logo {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Pin every row's logo to a fixed square so a `wide` institution logo (e.g. RBC)
+   can't widen the flex cell and shove that row's pill/description right. */
+.cf-detail-tx-logo img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+.cf-detail-tx > .category-pill {
+  flex: 0 0 auto;
+}
+/* Description + (for futures Future P/L rows) a clarifying caption stack in a
+   column so the row keeps one flexible middle cell. */
+.cf-detail-tx-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.cf-detail-tx-title {
+  max-width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.cf-detail-tx-desc {
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: 0;
+  font-size: var(--type-body-large-size);
+  font-weight: var(--type-row-description-weight);
+  color: var(--type-row-description-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cf-detail-tx-quantity {
+  flex: 0 0 auto;
+  font-family: var(--font-family-mono);
+  font-size: var(--type-secondary-size);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-info);
+  white-space: nowrap;
+}
+.cf-detail-tx-meta {
+  max-width: 100%;
+  font-size: var(--type-body-muted-size);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cf-detail-amount {
+  /* Constant-width amount column (like the Transactions page). The native value and
+     the bracketed converted value BOTH route through FitMoney, so a number too long
+     for the column compacts to M/B/T (full value on hover) instead of widening the
+     tray; the two currencies stack for headroom and the description yields. */
+  flex: 0 0 8.5rem;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.05rem;
+  font-size: var(--type-body-size);
+  font-weight: var(--type-money-weight);
+  color: var(--type-money-color);
+}
+
+/* Native currency code + bracketed primary-currency value beside a native
+   amount on transaction / recurring rows. */
+.cf-amount-native-code {
+  color: inherit;
+  font-size: 0.85em;
+  font-weight: inherit;
+}
+.cf-amount-converted {
+  max-width: 100%;
+  text-align: right;
+  color: var(--color-text-secondary);
+  font-size: 0.85em;
+  font-weight: inherit;
+}
+.cf-detail-amount.is-income { color: var(--color-positive); }
+.cf-detail-amount.is-spending { color: var(--color-negative); }
+
+/* Caption under the Future P/L tray header (centered): the listed figures are
+   realized P/L, not cash transactions — the buy/sell trades open via View all. */
+.cf-detail-note {
+  margin: 0 0 0.85rem;
+  text-align: center;
+  font-size: var(--type-body-muted-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.4;
+  color: var(--color-text-faint);
+}
+.cf-detail-empty {
+  font-size: var(--type-empty-state-size);
+  font-weight: var(--type-empty-state-weight);
+  color: var(--color-text-faint);
+  padding: 0.5rem 0;
+}

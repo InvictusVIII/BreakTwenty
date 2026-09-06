@@ -1,0 +1,62 @@
+name: Update Helper Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/update-helper-smoke.yml'
+      - 'desktop/linux-update-helper/**'
+      - 'desktop/macos-update-helper/**'
+      - 'desktop/windows-update-helper/**'
+      - 'scripts/build_desktop_packaged_runtime.js'
+      - 'scripts/update_helper_harness.js'
+  pull_request:
+    paths:
+      - '.github/workflows/update-helper-smoke.yml'
+      - 'desktop/linux-update-helper/**'
+      - 'desktop/macos-update-helper/**'
+      - 'desktop/windows-update-helper/**'
+      - 'scripts/build_desktop_packaged_runtime.js'
+      - 'scripts/update_helper_harness.js'
+
+permissions:
+  contents: read
+
+jobs:
+  lifecycle:
+    name: ${{ matrix.os }} native helper
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-14
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.2
+
+      - name: Install Linux helper compiler dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev pkg-config xvfb
+
+      - name: Exercise headless update-helper lifecycle
+        run: node scripts/update_helper_harness.js
+
+      - name: Exercise native update-helper window on Linux
+        if: runner.os == 'Linux'
+        run: xvfb-run -a node scripts/update_helper_harness.js --gui-smoke
+
+      - name: Exercise native update-helper window on Windows and macOS
+        if: runner.os != 'Linux'
+        run: node scripts/update_helper_harness.js --gui-smoke

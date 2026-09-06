@@ -1,0 +1,82 @@
+appId: app.breaktwenty.desktop
+productName: BreakTwenty
+executableName: BreakTwenty
+artifactName: BreakTwenty-${version}-${arch}.${ext}
+copyright: Copyright (c) 2026 BreakTwenty
+icon: assets/icons/512x512.png
+directories:
+  output: dist/electron
+toolsets:
+  appimage: "1.0.3"
+files:
+  - package.json
+  - src/**/*
+extraResources:
+  - from: ../LICENSE.md
+    to: LICENSE.md
+  - from: assets/icons
+    to: desktop/assets/icons
+  - from: dist/packaged-runtime/resources
+    to: .
+  - from: licenses
+    to: third-party-licenses
+  - from: THIRD_PARTY_NOTICES.md
+    to: third-party-licenses/THIRD_PARTY_NOTICES.md
+  - from: NODE_RUNTIME_NOTICES.md
+    to: third-party-licenses/NODE_RUNTIME_NOTICES.md
+publish:
+  provider: github
+  owner: InvictusVIII
+  repo: BreakTwenty
+  private: false
+linux:
+  category: Office
+  maintainer: BreakTwenty
+  desktop:
+    entry:
+      StartupWMClass: ""
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+    - target: dir
+      arch:
+        - x64
+deb:
+  category: utils
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libuuid1
+    - libsecret-1-0
+win:
+  icon: assets/icons/512x512.png
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: dir
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+mac:
+  category: public.app-category.finance
+  artifactName: BreakTwenty-${version}-mac-${arch}.${ext}
+  sign: null
+  target:
+    - dmg
+  icon: assets/icons/512x512.png
+dmg:
+  sign: false
+  writeUpdateInfo: false

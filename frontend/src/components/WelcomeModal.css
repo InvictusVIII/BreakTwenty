@@ -1,0 +1,337 @@
+.welcome-overlay {
+  /* Standard modal layer; the themed Dropdown menu (elevated layer) opens above it. */
+  z-index: var(--app-modal-layer);
+}
+
+.welcome-modal {
+  width: min(30rem, 92vw);
+  max-width: 30rem;
+  text-align: left;
+}
+
+.welcome-intro {
+  width: min(34rem, 92vw);
+  max-width: 34rem;
+}
+
+.welcome-header {
+  --welcome-mark-size: 3.75rem;
+  --welcome-mark-offset-y: 0.5rem;
+  --welcome-title-wordmark-gap: 0.3rem;
+  --welcome-title-wordmark-height: 1.36em;
+  --welcome-title-wordmark-offset-y: 0.07em;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 1.75rem 1.5rem 1.25rem;
+  text-align: center;
+  border-bottom: 1px solid var(--surface-panel-divider-color);
+}
+
+.welcome-intro .welcome-header {
+  padding: var(--space-7) var(--space-7) var(--space-6);
+}
+
+.welcome-mark {
+  display: block;
+  width: var(--welcome-mark-size);
+  height: var(--welcome-mark-size);
+  margin-bottom: 0.25rem;
+  object-fit: contain;
+  transform: translateY(var(--welcome-mark-offset-y));
+  user-select: none;
+}
+
+.welcome-title {
+  margin: 0;
+  font-size: var(--type-page-title-size);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-tight);
+}
+
+.welcome-title-with-wordmark {
+  display: block;
+}
+
+.welcome-title-with-wordmark > span,
+.welcome-title-wordmark {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.welcome-title-wordmark {
+  width: auto;
+  max-width: min(12rem, 100%);
+  height: var(--welcome-title-wordmark-height);
+  margin-left: var(--welcome-title-wordmark-gap);
+  object-fit: contain;
+  transform: translateY(var(--welcome-title-wordmark-offset-y));
+  user-select: none;
+}
+
+.welcome-tagline {
+  margin: 0;
+  font-size: var(--type-body-xl-size);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-tertiary);
+  line-height: var(--line-height-tight);
+}
+
+.welcome-subtitle {
+  margin: 0;
+  font-size: var(--type-body-large-size);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-normal);
+}
+
+.welcome-intro .welcome-subtitle {
+  margin-top: var(--space-3);
+  font-size: var(--type-body-xl-size);
+}
+
+.welcome-subtitle-primary {
+  color: var(--color-text-primary);
+}
+
+.welcome-subtitle-faint {
+  color: var(--color-text-faint);
+}
+
+.welcome-subtitle-emphasis {
+  color: var(--color-text-secondary);
+}
+
+.welcome-body {
+  padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.welcome-intro .welcome-body {
+  padding: var(--space-6) var(--space-7) var(--space-7);
+}
+
+.welcome-defaults {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.welcome-default-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr);
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.welcome-default-label {
+  font-family: var(--type-subsection-title-family);
+  font-size: var(--type-subsection-title-size);
+  font-weight: var(--type-subsection-title-weight);
+  color: var(--type-subsection-title-color);
+  line-height: var(--type-subsection-title-line-height);
+  letter-spacing: var(--type-subsection-title-letter-spacing);
+  text-transform: uppercase;
+}
+
+.welcome-default-dropdown.currency-dropdown {
+  justify-self: start;
+}
+
+.welcome-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+}
+
+.welcome-finish .welcome-actions {
+  justify-content: center;
+}
+
+/* ---- Multi-step welcome tour ---- */
+
+.welcome-tour {
+  --welcome-tour-main-area-scrim-opacity: 0.15;
+}
+
+.welcome-skip {
+  margin-right: auto;
+  padding: 0.4rem 0.2rem;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  font-size: var(--type-action-link-size);
+  font-weight: var(--type-action-link-weight);
+  color: var(--type-action-link-color);
+  cursor: pointer;
+}
+
+.welcome-skip:hover:not(:disabled),
+.welcome-skip:focus-visible:not(:disabled) {
+  background: transparent;
+  box-shadow: none;
+  opacity: 0.85;
+}
+
+.welcome-skip:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* A transparent full-screen blocker swallows clicks on the app behind; separate
+   sidebar-only scrim strips darken the rail while the page workspace stays readable. */
+.welcome-tour-blocker {
+  position: fixed;
+  inset: 0;
+  z-index: var(--app-modal-layer);
+}
+
+.welcome-tour-page-scrim {
+  position: fixed;
+  z-index: var(--app-modal-layer);
+  background: rgba(0, 0, 0, var(--welcome-tour-main-area-scrim-opacity));
+  pointer-events: none;
+}
+
+.welcome-tour-sidebar-scrim {
+  position: fixed;
+  z-index: var(--app-modal-layer);
+  background: rgba(0, 0, 0, 0.68);
+  pointer-events: none;
+}
+
+/* The page is its own preview, so the spotlight is only an accent ring around the measured
+   rail button. No position transition: it snaps exactly onto the button (no transient drift). */
+.welcome-tour-spotlight {
+  position: fixed;
+  z-index: var(--app-modal-layer);
+  border-radius: var(--radius-md);
+  pointer-events: none;
+  box-shadow:
+    0 0 0 2px var(--color-accent-primary),
+    0 0 18px rgba(var(--rgb-accent-primary), 0.38);
+}
+
+/* Opaque floating window — uses the elevated surface + menu shadow, NOT the translucent
+   panel-shell gradient (the card must not let the page bleed through). The beak lives on
+   this (overflow-visible) element; the inner `-scroll` wrapper handles vertical scrolling so
+   tall content stays reachable without clipping the beak. */
+.welcome-coach {
+  position: fixed;
+  z-index: var(--app-modal-elevated-layer);
+  width: 26.5rem;
+  max-width: calc(100vw - 2rem);
+  background: var(--color-surface-elevated);
+  border: var(--surface-panel-border-width) solid var(--surface-panel-border-color);
+  border-radius: var(--surface-panel-radius);
+  box-shadow: var(--app-menu-shadow);
+}
+
+.welcome-coach-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  overflow-y: auto;
+  border-radius: var(--surface-panel-radius);
+}
+
+/* Pointer beak bridging the coach card to the spotlit nav button. Two stacked triangles
+   give it the card's surface fill plus a 1px hairline: ::before is the border-colored
+   triangle, ::after is the surface-filled triangle inset 1px so the border peeks on the
+   outer edges. Fill matches the opaque card surface (--color-surface-elevated). Side +
+   vertical offset are set inline from the measured rect. */
+.welcome-coach.point-left::before,
+.welcome-coach.point-left::after,
+.welcome-coach.point-right::before,
+.welcome-coach.point-right::after {
+  content: '';
+  position: absolute;
+  top: var(--welcome-arrow-top);
+  width: 0;
+  height: 0;
+  transform: translateY(-50%);
+  border-style: solid;
+  border-color: transparent;
+}
+
+.welcome-coach.point-left::before {
+  left: -0.7rem;
+  border-width: 0.7rem 0.7rem 0.7rem 0;
+  border-right-color: var(--surface-panel-border-color);
+}
+
+.welcome-coach.point-left::after {
+  left: calc(-0.7rem + 1px);
+  border-width: 0.7rem 0.7rem 0.7rem 0;
+  border-right-color: var(--color-surface-elevated);
+}
+
+.welcome-coach.point-right::before {
+  right: -0.7rem;
+  border-width: 0.7rem 0 0.7rem 0.7rem;
+  border-left-color: var(--surface-panel-border-color);
+}
+
+.welcome-coach.point-right::after {
+  right: calc(-0.7rem + 1px);
+  border-width: 0.7rem 0 0.7rem 0.7rem;
+  border-left-color: var(--color-surface-elevated);
+}
+
+.welcome-coach-step {
+  font-size: var(--type-meta-size);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+}
+
+.welcome-coach-title {
+  margin: 0;
+  font-size: var(--type-modal-title-size);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-tertiary);
+}
+
+.welcome-coach-desc {
+  margin: 0;
+  font-size: var(--type-body-large-size);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-normal);
+}
+
+.welcome-coach-desc.is-primary {
+  color: var(--color-text-primary);
+}
+
+.welcome-coach-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.welcome-coach-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.welcome-dots { display: inline-flex; align-items: center; gap: 0.4rem; }
+
+.welcome-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--color-surface-hover);
+  transition: width 0.15s, background 0.15s;
+}
+
+.welcome-dot.is-active {
+  width: 1.1rem;
+  background: var(--color-accent-primary);
+}
+
+/* (SamplePreview removed — each tour step now navigates to the live, demo-populated page.) */

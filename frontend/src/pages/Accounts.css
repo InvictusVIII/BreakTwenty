@@ -1,0 +1,2985 @@
+/* Accounts page styles.
+ * Extracted from App.css in Stage 3 of the CSS split. Every block here has
+ * selectors that reference classes exclusively used by pages/Accounts.js (verified
+ * against className occurrences in all pages and components). The split is
+ * purely file organization — Vite bundles all imported CSS together, so the
+ * rules remain globally scoped at runtime. Imported from pages/Accounts.js.
+ */
+
+.accounts-toolbar-group-slot,
+.accounts-toolbar-scope-slot {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.accounts-toolbar-action-controls {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.accounts-group-popover {
+  position: relative;
+  z-index: var(--app-toolbar-layer);
+  width: fit-content;
+  max-width: 100%;
+}
+
+.accounts-group-trigger {
+  flex: 0 0 auto;
+}
+
+.accounts-group-trigger:hover {
+  transform: none;
+}
+
+.accounts-group-trigger-icon {
+  color: var(--top-control-icon-color);
+}
+
+.accounts-group-summary {
+  color: inherit;
+}
+
+.accounts-group-chevron {
+  transition: color 0.18s ease, transform 0.18s ease;
+}
+
+.accounts-group-panel {
+  position: absolute;
+  top: calc(100% + 0.625rem);
+  left: 50%;
+  right: auto;
+  width: min(var(--top-control-compact-panel-width), calc(100vw - 2rem));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(-0.35rem);
+  transform-origin: top center;
+  transition: opacity 0.16s ease, transform 0.18s ease, visibility 0.18s ease;
+}
+
+.accounts-group-menu-item {
+  width: 100%;
+}
+
+.accounts-group-menu-item:hover,
+.accounts-group-menu-item:focus-visible {
+  color: var(--surface-row-hover-color);
+  outline: none;
+}
+
+.accounts-group-menu-item-label {
+  color: inherit;
+}
+
+.accounts-section-card {
+  min-width: 0;
+  max-width: 100%;
+  padding: var(--space-6) var(--space-6) var(--space-5);
+}
+
+.accounts-section-layout {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+
+.accounts-group-count {
+  color: var(--type-meta-color);
+  font-family: var(--type-meta-family);
+  font-size: var(--type-secondary-size);
+  font-weight: var(--type-meta-weight);
+  letter-spacing: var(--type-meta-letter-spacing);
+  line-height: var(--type-meta-line-height);
+}
+
+/* Statement-imported accounts (e.g. a closed Questrade account rebuilt from PDF
+   statements) render muted, setting them apart from live-synced rows: the name greys
+   to secondary text and the balance/change soften, while +/- change hues stay legible. */
+.account-row.is-imported .account-name { color: var(--color-text-faint); }
+.account-row.is-imported .account-balance,
+.account-row.is-imported .accounts-child-change { opacity: 0.6; }
+
+.transaction-import-status,
+.transaction-import-coverage {
+  display: flex;
+  min-width: 0;
+}
+
+.transaction-import-status,
+.transaction-import-coverage {
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.transaction-import-coverage {
+  align-items: flex-start;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: var(--type-secondary-size);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-tight);
+}
+
+.transaction-import-coverage > span {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transaction-import-coverage-line {
+  display: flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.25rem;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.transaction-import-coverage-label {
+  flex: 0 0 auto;
+  color: var(--color-text-secondary);
+}
+
+.transaction-import-coverage-value {
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transaction-import-status {
+  align-items: center;
+  overflow: hidden;
+  font-size: var(--type-secondary-size);
+  font-weight: var(--font-weight-semibold);
+  text-align: center;
+}
+
+.transaction-import-status-main {
+  display: flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.transaction-import-status-main > span {
+  min-width: 0;
+  /* Short statuses ("Sync complete", "Retry needed") fit one line in the 8rem
+     Status column; the one long, transient status ("Fetching transactions",
+     shown only during an active sync) wraps to two lines rather than abbreviating
+     — one-lining it would need a ~11rem column and clip half the institution
+     names. Rows are already two lines tall (Coverage), so the wrap adds no height. */
+  white-space: normal;
+}
+
+.transaction-import-status-detail {
+  width: 100%;
+  font-size: var(--type-field-hint-size);
+  font-weight: var(--type-field-hint-weight);
+  color: var(--type-field-hint-color);
+  line-height: var(--line-height-tight);
+  overflow: hidden;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.transaction-import-status.is-complete {
+  color: var(--color-positive);
+}
+
+.transaction-import-status.is-running {
+  color: var(--color-text-tertiary);
+}
+
+.transaction-import-status.is-queued {
+  color: var(--color-text-tertiary);
+}
+
+.transaction-import-status.is-partial {
+  color: var(--color-retry-warning);
+}
+
+.account-balance {
+  font-size: var(--type-account-name-size);
+  font-weight: var(--type-money-weight);
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.balance-amount {
+  min-width: 0;
+  text-align: right;
+}
+
+.account-balance.asset { color: var(--color-positive); }
+.account-balance.zero { color: var(--color-text-primary); }
+.account-balance.liability { color: var(--color-negative); }
+
+.account-currency {
+  font-size: var(--type-badge-size);
+  color: inherit;
+  /* weight matches the figure it annotates */
+  font-weight: inherit;
+  width: 28px;
+  flex-shrink: 0;
+  text-align: left;
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
+/* "Manually added" chip for connector-less institutions (no sync endpoint) — mirrors
+   the Dashboard institution-status "manual" badge: violet dot + label via the shared
+   --color-status-manual token, so the two surfaces read identically. */
+.inst-sync-manual {
+  display: inline-grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--space-1);
+  color: var(--color-status-manual);
+  font-size: var(--type-secondary-size);
+  font-weight: var(--font-weight-heavy);
+  line-height: var(--line-height-tight);
+  white-space: nowrap;
+}
+
+.inst-sync-manual-dot {
+  grid-column: 1;
+  justify-self: center;
+  width: 0.45rem;
+  height: 0.45rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.inst-sync-manual-text {
+  grid-column: 2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Sync timestamp separate from button */
+.sync-timestamp {
+  font-size: var(--type-badge-size);
+  font-weight: var(--font-weight-medium);
+}
+
+.sync-timestamp.is-synced {
+  color: var(--color-positive);
+  font-weight: var(--font-weight-bold);
+}
+
+.sync-timestamp.is-syncing {
+  color: var(--color-info);
+  font-weight: var(--font-weight-bold);
+}
+
+.sync-timestamp.is-auth {
+  color: var(--color-warning);
+  font-weight: var(--font-weight-bold);
+}
+
+.sync-timestamp.is-partial {
+  color: var(--color-retry-warning);
+  font-weight: var(--font-weight-bold);
+}
+
+.sync-timestamp.is-failed {
+  color: var(--color-negative);
+  font-weight: var(--font-weight-bold);
+}
+
+.sync-timestamp.is-never { color: var(--color-text-secondary); }
+
+/* Institution row action icons */
+.inst-settings-btn,
+.inst-detail-btn {
+  color: var(--color-text-faint);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.inst-settings-btn:hover,
+.inst-detail-btn:hover {
+  color: var(--surface-button-hover-color);
+}
+
+.accounts-section-btn {
+  flex: 0 0 auto;
+}
+
+.accounts-section-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.accounts-table-shell {
+  --accounts-change-value-width: min(100%, 13.75rem);
+  --accounts-balance-value-width: min(100%, 13.25rem);
+  margin-top: 8px;
+  overflow: visible;
+  position: relative;
+  isolation: isolate;
+}
+
+.accounts-group-change.positive, .accounts-child-change.positive { color: var(--color-positive); }
+.accounts-group-change.negative, .accounts-child-change.negative { color: var(--color-negative); }
+.accounts-group-change.zero, .accounts-child-change.zero { color: var(--color-text-primary); }
+
+.accounts-table-shell .accounts-value-hidden,
+.accounts-table-shell .accounts-value-hidden .accounts-timeline-money,
+.accounts-detail-panel .accounts-value-hidden {
+  color: var(--color-text-primary);
+}
+
+/* Group controls */
+.accounts-group-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--accounts-parent-row-action-icon-gap);
+  justify-content: flex-end;
+  flex-shrink: 0;
+  overflow: visible;
+  min-width: 0;
+}
+
+.accounts-table-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.accounts-table-group {
+  background: transparent;
+  border: var(--accounts-group-row-border);
+  border-radius: var(--accounts-group-row-radius);
+  box-shadow: var(--accounts-group-row-shadow);
+  overflow: visible;
+  position: relative;
+  z-index: 0;
+}
+
+.accounts-table-group:hover,
+.accounts-table-group:focus-within {
+  z-index: 4;
+}
+
+.accounts-table-parent-row {
+  position: relative;
+  padding: 11px 18px;
+  transition: background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.accounts-table-child-row.is-detail-selected {
+  position: relative;
+  z-index: 2;
+  background: transparent;
+  box-shadow: none;
+}
+
+.accounts-table-child-row.is-detail-selected:hover {
+  background: transparent;
+  box-shadow: none;
+}
+
+.accounts-table-child-row.is-detail-selected::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  box-sizing: border-box;
+  border:
+    var(--accounts-child-selected-border-width, var(--button-state-rim-width-lg-effective))
+    solid
+    var(--accounts-child-selected-border-color, var(--surface-button-selected-border-color));
+  pointer-events: none;
+}
+
+.accounts-table-children {
+  display: grid;
+  grid-template-rows: 0fr;
+  min-height: 0;
+  overflow: hidden;
+  border-top: 0;
+  background: var(--surface-nested-deep-bg);
+  box-shadow: var(--surface-nested-shadow);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    grid-template-rows 0.22s ease,
+    opacity 0.16s ease;
+}
+
+.accounts-table-children.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.accounts-table-children-content {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.accounts-table-child-row {
+  padding: 10px 18px;
+  border-bottom: 1px solid rgba(var(--rgb-border), 0.18);
+  background: transparent;
+}
+
+.accounts-table-children .accounts-table-child-row:last-child {
+  border-bottom: 0;
+}
+
+.accounts-table-shell .inst-sync-info {
+  min-width: 0;
+}
+
+.accounts-table-shell .inst-sync-info .inst-sync-btn {
+  align-self: center;
+  flex: 0 0 auto;
+  font-size: var(--type-meta-size);
+  min-height: var(--accounts-parent-row-sync-status-height, 1.25rem);
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: var(--accounts-parent-row-sync-status-height, 1.25rem);
+  min-width: var(--accounts-parent-row-sync-control-width);
+  justify-content: center;
+}
+
+.accounts-table-shell .inst-sync-info .inst-sync-btn > svg {
+  display: inline-block;
+  width: var(--accounts-parent-row-sync-icon-size, 1.125rem);
+  height: var(--accounts-parent-row-sync-icon-size, 1.125rem);
+  min-width: var(--accounts-parent-row-sync-icon-size, 1.125rem);
+  flex: 0 0 auto;
+  color: currentColor;
+  filter: none;
+  transition: filter 0.15s ease;
+  vertical-align: middle;
+}
+
+.accounts-table-shell .inst-sync-info .sync-timestamp {
+  align-self: center;
+  font-size: var(--type-meta-size);
+  min-height: var(--accounts-parent-row-sync-status-height, 1.25rem);
+  display: inline-flex;
+  align-items: center;
+  line-height: var(--accounts-parent-row-sync-status-height, 1.25rem);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.accounts-table-shell .accounts-table-group .accounts-table-parent-row .accounts-table-row-inner .accounts-parent-leading-chevron {
+  --button-state-shell-bg: transparent;
+  --button-state-shell-border-color: transparent;
+  --button-state-shell-border-width: 0;
+  --button-state-shell-assist-shadow: 0 0 0 0 transparent;
+  --button-state-shell-shadow: 0 0 0 0 transparent;
+  --button-state-shell-opacity: 0;
+  --button-overlay-shadow: 0 0 0 0 transparent;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  line-height: var(--line-height-none);
+}
+
+.accounts-table-shell .accounts-table-group .accounts-table-parent-row .accounts-table-row-inner .accounts-parent-leading-chevron::after {
+  content: none;
+  display: none;
+}
+
+.accounts-table-shell .accounts-table-group .accounts-table-parent-row .accounts-table-row-inner .accounts-parent-leading-chevron:is(:hover, :focus-visible, :active) {
+  --button-state-shell-bg: transparent;
+  --button-state-shell-border-color: transparent;
+  --button-state-shell-border-width: 0;
+  --button-state-shell-assist-shadow: 0 0 0 0 transparent;
+  --button-state-shell-shadow: 0 0 0 0 transparent;
+  --button-state-shell-opacity: 0;
+  --button-overlay-shadow: 0 0 0 0 transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.accounts-parent-leading-chevron:focus-visible {
+  outline: 1px solid rgba(var(--rgb-accent-primary), 0.7);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+.accounts-parent-leading-chevron .app-triangle-icon {
+  width: var(--app-structured-list-chevron-size);
+  height: var(--app-structured-list-chevron-size);
+}
+
+.accounts-table-shell .accounts-group-info .accounts-group-logo-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.accounts-table-shell .accounts-group-title {
+  color: var(--type-institution-name-color);
+  font-family: var(--type-institution-name-family);
+  font-size: var(--type-body-large-size);
+  font-weight: var(--type-institution-name-weight);
+  letter-spacing: var(--type-institution-name-letter-spacing);
+  line-height: var(--type-institution-name-line-height);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accounts-table-shell .accounts-group-title-stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.accounts-change-stack {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.12rem;
+  overflow: hidden;
+}
+
+.accounts-change-amount {
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+}
+
+.accounts-change-start {
+  width: 100%;
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.25rem;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: var(--type-meta-size);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-tight);
+}
+
+.accounts-change-start-label {
+  flex: 0 0 auto;
+  color: inherit;
+}
+
+.accounts-change-start-money {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.accounts-table-shell .account-row .accounts-child-identity {
+  display: flex;
+  align-items: center;
+}
+
+.accounts-table-shell .account-row {
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+
+.accounts-table-shell .account-row:hover {
+  background: transparent;
+}
+
+.accounts-table-shell .account-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--type-account-name-color);
+  font-family: var(--type-account-name-family);
+  font-size: var(--type-account-name-size);
+  font-weight: var(--type-account-name-weight);
+  letter-spacing: var(--type-account-name-letter-spacing);
+  line-height: var(--type-account-name-line-height);
+}
+
+.accounts-table-shell .balance-amount {
+  min-width: 0;
+  flex: 0 1 auto;
+  text-align: right;
+}
+
+.accounts-table-shell .account-currency {
+  width: auto;
+  margin-left: 0.3rem;
+  font-size: var(--type-secondary-size);
+  font-weight: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.accounts-section-card.accounts-institution-panel-list {
+  margin-top: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.accounts-table-shell.accounts-institution-panels-shell {
+  /* Accounts table typography: each knob maps to one visible row role. */
+  --accounts-table-header-font-size: var(--font-size-14);
+  --accounts-parent-row-name-font-size: var(--font-size-16);
+  --accounts-parent-row-account-count-font-size: var(--font-size-14);
+  --accounts-parent-row-value-font-size: var(--font-size-16);
+  --accounts-parent-row-sync-status-font-size: var(--font-size-13);
+  --accounts-child-row-name-font-size: var(--font-size-14);
+  --accounts-child-row-value-font-size: var(--font-size-14);
+  --accounts-child-row-currency-font-size: var(--font-size-13);
+  --accounts-parent-row-comparison-meta-font-size: var(--font-size-11);
+  --accounts-child-row-comparison-meta-font-size: var(--font-size-11);
+  --accounts-parent-row-chevron-slot-width: var(--app-structured-list-chevron-slot-size);
+  --accounts-parent-row-logo-size: 2rem;
+  --accounts-child-row-institution-logo-size: 2rem;
+  --accounts-parent-row-action-icon-size: 1.5rem;
+  --accounts-parent-row-action-icon-gap: var(--space-2);
+  --accounts-parent-row-sync-icon-size: 1.125rem;
+  --accounts-parent-row-sync-control-width: 1.75rem;
+  --accounts-parent-row-sync-status-height: 1.25rem;
+  --accounts-grid-column-gap: var(--app-structured-list-column-gap);
+  --accounts-grid-gap-width-5: calc(
+    var(--accounts-grid-column-gap)
+    + var(--accounts-grid-column-gap)
+    + var(--accounts-grid-column-gap)
+    + var(--accounts-grid-column-gap)
+    + var(--accounts-grid-column-gap)
+  );
+  --accounts-grid-gap-width-6: calc(
+    var(--accounts-grid-gap-width-5)
+    + var(--accounts-grid-column-gap)
+  );
+  --accounts-middle-spacer-width: 0.75rem;
+  --accounts-initial-width: 12.5rem;
+  --accounts-current-width: 12.5rem;
+  --accounts-change-width: 12.5rem;
+  --accounts-group-controls-width: 2rem;
+  --accounts-group-controls-track: var(--accounts-group-controls-width);
+  --accounts-table-default-content-width: var(--app-structured-list-width);
+  --accounts-table-active-content-width: var(--accounts-active-table-width, var(--accounts-table-default-content-width));
+  --accounts-table-target-content-width: max(var(--accounts-table-default-content-width), var(--accounts-table-active-content-width));
+  --accounts-table-viewport-width: min(100%, var(--accounts-table-target-content-width));
+  --accounts-table-content-width: max(100%, var(--accounts-table-target-content-width));
+  --accounts-table-radius: var(--app-structured-list-radius);
+  --accounts-table-shell-padding-block: 0rem;
+  --accounts-table-shell-padding-inline: 0rem;
+  --accounts-table-body-padding-block: var(--app-structured-list-body-padding-block);
+  --accounts-grid-padding-inline: var(--app-structured-list-row-padding-inline);
+  --accounts-grid-padding-inline-start: var(--accounts-grid-padding-inline);
+  --accounts-grid-padding-inline-end: var(--app-structured-list-row-padding-inline-end);
+  --accounts-table-header-padding-inline: var(--accounts-grid-padding-inline);
+  --accounts-parent-row-padding-inline: var(--accounts-grid-padding-inline);
+  --accounts-group-row-gap: var(--app-structured-list-row-gap);
+  --accounts-group-row-radius: var(--accounts-table-radius);
+  --accounts-group-row-border: var(--surface-accounts-parent-row-border-width) solid var(--surface-accounts-parent-row-border-color);
+  --accounts-group-row-shadow: var(--surface-accounts-parent-row-shadow);
+  --accounts-header-row-bg: var(--table-header-bg);
+  --accounts-header-row-border: var(--table-header-border);
+  --accounts-header-row-radius: var(--table-header-radius);
+  --accounts-header-row-shadow: none;
+  --accounts-header-row-min-height: var(--app-structured-list-header-row-min-height);
+  --accounts-header-row-padding-block: var(--table-header-padding-block);
+  --accounts-group-header-min-height: var(--app-structured-list-parent-row-min-height);
+  --accounts-group-header-bg: var(--surface-accounts-parent-row-bg);
+  --accounts-group-header-shadow: none;
+  --accounts-group-header-open-border-bottom: 0 solid transparent;
+  --accounts-state-border-color: var(--surface-button-selected-border-color);
+  --accounts-detail-selected-border-width: calc(var(--data-hover-stroke-width) + 1.5px);
+  --accounts-detail-selected-border-color: var(--data-highlight-stroke-color);
+  --accounts-state-frame-outset: 0px;
+  --accounts-state-frame-assist-shadow: 0 0 0 0 transparent;
+  --accounts-parent-hover-border-width: var(--button-state-shell-hover-border-width);
+  --accounts-parent-hover-border-color: var(--surface-button-hover-border-color);
+  --accounts-parent-selected-border-width: var(--button-state-shell-selected-border-width);
+  --accounts-parent-selected-border-color: var(--surface-button-selected-border-color);
+  --accounts-parent-hover-highlight-inset-top: 0px;
+  --accounts-parent-hover-highlight-inset-right: 0px;
+  --accounts-parent-hover-highlight-inset-bottom: 0px;
+  --accounts-parent-hover-highlight-inset-left: 0px;
+  --accounts-parent-selected-highlight-inset-top: 0px;
+  --accounts-parent-selected-highlight-inset-right: 0px;
+  --accounts-parent-selected-highlight-inset-bottom: 0px;
+  --accounts-parent-selected-highlight-inset-left: 0px;
+  --accounts-parent-hover-outline:
+    var(--accounts-state-frame-assist-shadow),
+    var(--surface-button-hover-shadow),
+    var(--button-state-shell-visibility-shadow),
+    var(--button-overlay-shadow);
+  --accounts-parent-selected-outline:
+    var(--accounts-state-frame-assist-shadow),
+    var(--surface-button-selected-shadow),
+    var(--button-state-shell-visibility-shadow),
+    var(--button-overlay-shadow);
+  --accounts-open-group-selected-outline: var(--accounts-parent-selected-outline);
+  --accounts-child-hover-border-width: var(--button-state-shell-hover-border-width);
+  --accounts-child-hover-border-color: var(--surface-button-hover-border-color);
+  --accounts-child-selected-border-width: var(--button-state-shell-selected-border-width);
+  --accounts-child-selected-border-color: var(--surface-button-selected-border-color);
+  --accounts-child-highlight-inset-top: 0px;
+  --accounts-child-highlight-inset-right: 0px;
+  --accounts-child-highlight-inset-bottom: 0px;
+  --accounts-child-highlight-inset-left: 0px;
+  --accounts-child-hover-highlight-inset-top: 0px;
+  --accounts-child-hover-highlight-inset-right: -1px;
+  --accounts-child-hover-highlight-inset-bottom: 0px;
+  --accounts-child-hover-highlight-inset-left: -1px;
+  --accounts-child-selected-highlight-inset-top: 0px;
+  --accounts-child-selected-highlight-inset-right: -1px;
+  --accounts-child-selected-highlight-inset-bottom: 0px;
+  --accounts-child-selected-highlight-inset-left: -1px;
+  --accounts-child-name-column-x: 1rem;
+  --accounts-child-hover-outline: var(--accounts-parent-hover-outline);
+  --accounts-child-selected-outline: var(--accounts-parent-selected-outline);
+
+  --accounts-child-row-last-radius: 0 0 var(--accounts-group-row-radius) var(--accounts-group-row-radius);
+  --accounts-group-row-min-height: var(--accounts-group-header-min-height);
+  --accounts-row-shadow-gutter-block: var(--space-5);
+  --accounts-scroll-shadow-gutter: 0.45rem;
+  --accounts-frame-clip-buffer: var(--accounts-scroll-shadow-gutter);
+  --accounts-table-frame-width: calc(var(--horizontal-scroll-viewport-width, 100%) - (2 * var(--accounts-frame-clip-buffer)));
+  --accounts-child-frame-inset: var(--surface-panel-border-width);
+  --accounts-child-frame-left: calc(var(--horizontal-scroll-left, 0px) + var(--accounts-frame-clip-buffer) + var(--accounts-child-frame-inset));
+  --accounts-child-frame-width: calc(var(--accounts-table-frame-width) - (2 * var(--accounts-child-frame-inset)));
+  --accounts-child-frame-radius: 0 0 calc(var(--accounts-group-row-radius) - var(--accounts-child-frame-inset)) calc(var(--accounts-group-row-radius) - var(--accounts-child-frame-inset));
+  --accounts-top-scrollbar-offset-y: var(--space-1);
+  --accounts-scrollbar-track-inset-inline: 25px;
+  --accounts-scrollbar-track-width: calc(var(--horizontal-scroll-viewport-width, 100%) - (2 * var(--accounts-scrollbar-track-inset-inline)));
+  --accounts-top-scrollbar-visual-height: 10px;
+  --accounts-top-scrollbar-tray-height: calc(var(--accounts-top-scrollbar-visual-height) + var(--accounts-scroll-shadow-gutter));
+  --accounts-top-scrollbar-inset-block: calc(var(--accounts-scroll-shadow-gutter) / 2);
+  --accounts-child-row-min-height: var(--app-structured-list-child-row-min-height);
+  --accounts-child-row-padding-block: var(--app-structured-list-child-row-padding-block);
+  --accounts-child-row-padding-inline: var(--accounts-grid-padding-inline);
+  --accounts-child-list-bg: var(--surface-expanded-child-bg);
+  --accounts-child-list-shadow: var(--surface-expanded-child-shadow);
+  --accounts-child-row-bg: var(--surface-expanded-child-row-bg);
+  --accounts-child-row-divider: var(--surface-expanded-child-row-divider);
+  margin-top: 0;
+  margin-inline: auto;
+  width: var(--accounts-table-viewport-width);
+  max-width: 100%;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: var(--accounts-table-shell-padding-block) var(--accounts-table-shell-padding-inline);
+  overflow: visible;
+}
+
+:root:not([data-breaktwenty-theme="light"]) .accounts-table-shell.accounts-institution-panels-shell {
+  --accounts-open-group-selected-outline: none;
+  --accounts-child-hover-outline: none;
+  --accounts-child-selected-outline: none;
+}
+
+:root[data-breaktwenty-theme="light"] .accounts-table-shell.accounts-institution-panels-shell {
+  --accounts-state-border-color: var(--surface-button-selected-border-color);
+  --accounts-state-frame-outset: var(--surface-button-border-width);
+  --accounts-state-frame-assist-shadow: inset 0 0 0 var(--button-state-shell-assist-border-width) var(--accounts-state-border-color);
+}
+
+.accounts-table-shell.accounts-institution-panels-shell .inst-settings-btn,
+.accounts-table-shell.accounts-institution-panels-shell .inst-detail-btn {
+  width: var(--accounts-parent-row-action-icon-size);
+  height: var(--accounts-parent-row-action-icon-size);
+  flex: 0 0 var(--accounts-parent-row-action-icon-size);
+  margin-right: 0;
+}
+
+.accounts-panel-header-strip {
+  min-height: var(--accounts-header-row-min-height);
+  margin-bottom: 0;
+  border: var(--accounts-header-row-border);
+  border-radius: var(--accounts-header-row-radius);
+  background: var(--accounts-header-row-bg);
+  box-shadow: var(--accounts-header-row-shadow);
+  overflow: hidden;
+}
+
+.accounts-panel-header-inner {
+  box-sizing: border-box;
+  width: 100%;
+  display: grid;
+  align-items: center;
+  row-gap: 0;
+  min-height: var(--accounts-header-row-min-height);
+  padding: var(--accounts-header-row-padding-block) var(--accounts-table-header-padding-inline);
+  padding-inline: var(--accounts-grid-padding-inline-start) var(--accounts-grid-padding-inline-end);
+  font-family: var(--type-large-table-header-family);
+  color: var(--type-large-table-header-color);
+  font-size: var(--accounts-table-header-font-size);
+  font-weight: var(--type-large-table-header-weight);
+  letter-spacing: var(--type-large-table-header-letter-spacing);
+  line-height: var(--type-large-table-header-line-height);
+  text-transform: uppercase;
+}
+
+.accounts-panel-header-group {
+  grid-column: 1;
+  min-width: 0;
+  justify-self: center;
+  text-align: center;
+}
+
+.accounts-panel-header-sync {
+  grid-column: 2;
+  min-width: 0;
+  justify-self: stretch;
+  text-align: center;
+  white-space: nowrap;
+  transform: translateX(0.5rem);
+}
+
+.accounts-panel-header-change {
+  grid-column: 4;
+  width: var(--accounts-change-value-width);
+  min-width: 0;
+  justify-self: center;
+  text-align: center;
+  white-space: normal;
+}
+
+.accounts-panel-header-change .sortable-table-header-label,
+.accounts-panel-header-start .sortable-table-header-label,
+.accounts-panel-header-end .sortable-table-header-label {
+  white-space: normal;
+  text-overflow: clip;
+  line-height: var(--line-height-tight);
+}
+
+.accounts-panel-header-spacer {
+  grid-column: 5;
+}
+
+.accounts-institution-panels-shell .accounts-table-rows {
+  gap: var(--accounts-group-row-gap);
+  padding: var(--accounts-table-body-padding-block) 0 0;
+}
+
+.accounts-institution-panels-shell .accounts-institution-panel {
+  background: transparent;
+  border: 0;
+  border-radius: var(--accounts-group-row-radius);
+  box-shadow: none;
+  overflow: visible;
+  isolation: isolate;
+  position: relative;
+}
+
+.accounts-institution-panels-shell .accounts-institution-panel:has(.accounts-table-children-content > .accounts-table-child-row:is(:hover, .is-detail-selected)) {
+  z-index: 5;
+}
+
+.accounts-institution-panels-shell .accounts-institution-panel::before,
+.accounts-institution-panels-shell .accounts-institution-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  box-sizing: border-box;
+  border: 0 solid transparent;
+  border-radius: inherit;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+.accounts-institution-panels-shell .accounts-institution-panel::before {
+  z-index: 0;
+  background: transparent;
+}
+
+.accounts-institution-panels-shell .accounts-institution-panel::after {
+  z-index: 30;
+  border: var(--accounts-group-row-border);
+  box-shadow: var(--accounts-group-row-shadow);
+}
+
+:root[data-breaktwenty-theme="light"] .accounts-institution-panels-shell .accounts-institution-panel:not(.is-detail-selected):not(.is-open):has(> .accounts-table-parent-row:hover)::before,
+:root[data-breaktwenty-theme="light"] .accounts-institution-panels-shell .accounts-table-group.is-open::before,
+:root[data-breaktwenty-theme="light"] .accounts-table-shell.is-institution-grouped .accounts-institution-panel.is-detail-selected::before {
+  top: calc(-1 * var(--accounts-state-frame-outset));
+  right: calc(-1 * var(--accounts-state-frame-outset));
+  bottom: calc(-1 * var(--accounts-state-frame-outset));
+  left: calc(-1 * var(--accounts-state-frame-outset));
+  background: var(--accounts-group-header-bg);
+  background-origin: border-box;
+  background-clip: border-box;
+}
+
+.accounts-institution-panels-shell .accounts-table-parent-row {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: var(--accounts-group-row-min-height);
+  padding: 0;
+  border: 0;
+  border-radius: var(--accounts-group-row-radius);
+  background: transparent;
+  box-shadow: var(--accounts-group-header-shadow);
+  isolation: isolate;
+  position: relative;
+}
+
+.accounts-institution-panels-shell .accounts-table-parent-row::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  box-sizing: border-box;
+  border-radius: inherit;
+  background: var(--accounts-group-header-bg);
+  background-origin: border-box;
+  background-clip: border-box;
+  pointer-events: none;
+}
+
+.accounts-institution-panels-shell .accounts-table-parent-row > * {
+  position: relative;
+  z-index: 1;
+}
+
+.accounts-institution-panels-shell .accounts-table-parent-row:hover {
+  background: transparent;
+  box-shadow: none;
+}
+
+.accounts-institution-panels-shell .accounts-institution-panel:not(.is-detail-selected):not(.is-open):has(> .accounts-table-parent-row:hover) {
+  --accounts-group-header-bg: var(--surface-expanded-parent-hover-bg);
+  --accounts-group-row-border: var(--surface-accounts-parent-row-border-width) solid transparent;
+  --accounts-group-row-shadow: none;
+}
+
+.accounts-institution-panels-shell .accounts-institution-panel:not(.is-detail-selected):not(.is-open):has(> .accounts-table-parent-row:hover)::after {
+  top: calc(var(--accounts-parent-hover-highlight-inset-top) - var(--accounts-state-frame-outset));
+  right: calc(var(--accounts-parent-hover-highlight-inset-right) - var(--accounts-state-frame-outset));
+  bottom: calc(var(--accounts-parent-hover-highlight-inset-bottom) - var(--accounts-state-frame-outset));
+  left: calc(var(--accounts-parent-hover-highlight-inset-left) - var(--accounts-state-frame-outset));
+  border: var(--accounts-parent-hover-border-width) solid var(--accounts-parent-hover-border-color);
+  box-shadow: var(--accounts-parent-hover-outline);
+}
+
+.accounts-institution-panels-shell .accounts-table-group.is-open .accounts-table-parent-row {
+  border-bottom: var(--accounts-group-header-open-border-bottom);
+  border-radius: var(--accounts-group-row-radius) var(--accounts-group-row-radius) 0 0;
+  background: transparent;
+}
+
+.accounts-institution-panels-shell .accounts-table-group.is-open .accounts-table-parent-row:hover {
+  background: transparent;
+  box-shadow: none;
+}
+
+.accounts-institution-panels-shell .accounts-table-children {
+  border-top: 0;
+  border-radius: var(--accounts-child-row-last-radius);
+  background: var(--accounts-child-list-bg);
+  box-shadow: none;
+  position: relative;
+}
+
+.accounts-institution-panels-shell .accounts-table-children-content {
+  position: relative;
+  z-index: 1;
+}
+
+.accounts-institution-panels-shell .accounts-table-child-row {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+  min-height: 0;
+  padding: 0;
+  border-top: 0;
+  border-bottom: 0;
+  background: var(--accounts-child-row-bg);
+  box-shadow: none;
+}
+
+.accounts-institution-panels-shell .accounts-table-child-row + .accounts-table-child-row {
+  border-top: var(--accounts-child-row-divider);
+}
+
+.accounts-institution-panels-shell .accounts-table-row-inner {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  display: grid;
+  justify-self: stretch;
+  align-items: center;
+}
+
+.accounts-institution-panels-shell .accounts-table-child-row .accounts-table-row-inner {
+  min-height: var(--accounts-child-row-min-height);
+  padding: var(--accounts-child-row-padding-block) var(--accounts-child-row-padding-inline);
+  padding-inline: var(--accounts-grid-padding-inline-start) var(--accounts-grid-padding-inline-end);
+}
+
+.accounts-institution-panels-shell .accounts-table-child-row::after {
+  content: "";
+  position: absolute;
+  top: var(--accounts-child-highlight-inset-top);
+  right: var(--accounts-child-highlight-inset-right);
+  bottom: var(--accounts-child-highlight-inset-bottom);
+  left: var(--accounts-child-highlight-inset-left);
+  z-index: 3;
+  box-sizing: border-box;
+  border: 0 solid transparent;
+  border-radius: 0;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+.accounts-institution-panels-shell .accounts-table-child-row:last-child::after {
+  border-radius: var(--accounts-child-row-last-radius);
+}
+
+.accounts-institution-panels-shell .accounts-table-child-row:last-child {
+  border-radius: var(--accounts-child-row-last-radius);
+}
+
+.accounts-institution-panels-shell .accounts-table-child-row > * {
+  position: relative;
+  z-index: 1;
+}
+
+.accounts-institution-panels-shell .accounts-table-child-row:not(.is-detail-selected):hover {
+  --accounts-child-highlight-inset-top: var(--accounts-child-hover-highlight-inset-top);
+  --accounts-child-highlight-inset-right: var(--accounts-child-hover-highlight-inset-right);
+  --accounts-child-highlight-inset-bottom: var(--accounts-child-hover-highlight-inset-bottom);
+  --accounts-child-highlight-inset-left: var(--accounts-child-hover-highlight-inset-left);
+  z-index: 25;
+  background: var(--accounts-child-row-bg);
+  box-shadow: none;
+}
+
+.accounts-institution-panels-shell .accounts-table-child-row:not(.is-detail-selected):hover::after {
+  border: var(--accounts-child-hover-border-width) solid var(--accounts-child-hover-border-color);
+  box-shadow: var(--accounts-child-hover-outline);
+}
+
+.accounts-institution-panels-shell .accounts-table-parent-row {
+  cursor: pointer;
+}
+
+.accounts-institution-panels-shell .accounts-institution-panel.is-detail-selected .accounts-table-parent-row {
+  background: transparent;
+  box-shadow: none;
+}
+
+.accounts-institution-panels-shell .accounts-table-child-row.is-detail-selected {
+  --accounts-child-selected-border-width: var(--accounts-detail-selected-border-width);
+  --accounts-child-selected-border-color: var(--accounts-detail-selected-border-color);
+  --accounts-child-highlight-inset-top: var(--accounts-child-selected-highlight-inset-top);
+  --accounts-child-highlight-inset-right: var(--accounts-child-selected-highlight-inset-right);
+  --accounts-child-highlight-inset-bottom: var(--accounts-child-selected-highlight-inset-bottom);
+  --accounts-child-highlight-inset-left: var(--accounts-child-selected-highlight-inset-left);
+  z-index: 25;
+  background: var(--accounts-child-row-bg);
+  box-shadow: none;
+}
+
+.accounts-institution-panels-shell .accounts-table-child-row.is-detail-selected::after {
+  border: var(--accounts-child-selected-border-width) solid var(--accounts-child-selected-border-color);
+  box-shadow: var(--accounts-child-selected-outline);
+}
+
+.accounts-institution-panels-shell .accounts-institution-panel.is-detail-selected .accounts-table-parent-row:hover {
+  background: transparent;
+  box-shadow: none;
+}
+
+.accounts-institution-panels-shell .accounts-table-child-row.is-detail-selected:hover {
+  background: var(--accounts-child-row-bg);
+  box-shadow: none;
+}
+
+.accounts-table-shell .accounts-category-info {
+  grid-column: 1;
+}
+
+.accounts-table-shell .accounts-category-account-row .accounts-child-identity {
+  gap: 0.45rem;
+}
+
+.accounts-table-shell .account-source-pill {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.accounts-table-shell .accounts-category-account-row .account-source-pill {
+  width: 1.8125rem;
+  height: 1.8125rem;
+  justify-content: center;
+}
+
+.accounts-institution-panels-shell.is-category-grouped {
+  --accounts-category-name-column-x: 0rem;
+  --accounts-category-initial-column-x: 1rem;
+  --accounts-category-current-column-x: 6rem;
+  --accounts-category-change-column-x: 8.5rem;
+  --accounts-category-actions-column-x: 0rem;
+  --accounts-category-name-width: 22rem;
+  --accounts-category-name-track: var(--accounts-category-name-width);
+  --accounts-middle-spacer-track: var(--accounts-middle-spacer-width);
+  --accounts-category-initial-track: var(--accounts-initial-width);
+  --accounts-category-current-track: var(--accounts-current-width);
+  --accounts-category-change-track: var(--accounts-change-width);
+  --accounts-category-grid-columns: var(--accounts-category-name-track) var(--accounts-middle-spacer-track) var(--accounts-category-initial-track) var(--accounts-category-current-track) var(--accounts-category-change-track) var(--accounts-group-controls-track);
+  --accounts-active-table-width: calc(
+    var(--accounts-category-name-track)
+    + var(--accounts-middle-spacer-track)
+    + var(--accounts-category-initial-track)
+    + var(--accounts-category-current-track)
+    + var(--accounts-category-change-track)
+    + var(--accounts-group-controls-track)
+    + var(--accounts-grid-padding-inline-start)
+    + var(--accounts-grid-padding-inline-end)
+    + var(--accounts-grid-gap-width-5)
+  );
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-header-inner {
+  grid-template-columns: var(--accounts-category-grid-columns);
+  column-gap: var(--accounts-grid-column-gap);
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-header-strip .sortable-table-header-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: stretch;
+  text-align: center;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-header-strip .sortable-table-header-button {
+  justify-content: center;
+  text-align: center;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-header-strip .accounts-panel-header-group {
+  display: flex;
+  grid-column: 1;
+  align-items: center;
+  justify-content: center;
+  justify-self: stretch;
+  text-align: center;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-header-strip .accounts-panel-header-group .sortable-table-header-button {
+  transform: translateX(var(--accounts-category-name-column-x));
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-header-strip .accounts-panel-header-flex {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-header-strip .accounts-panel-header-start {
+  grid-column: 3;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-header-strip .accounts-panel-header-end {
+  grid-column: 4;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-header-strip .accounts-panel-header-start .sortable-table-header-button {
+  transform: translateX(var(--accounts-category-initial-column-x));
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-header-strip .accounts-panel-header-end .sortable-table-header-button {
+  transform: translateX(var(--accounts-category-current-column-x));
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-header-strip .accounts-panel-header-start,
+.accounts-table-shell.is-category-grouped .accounts-category-header-strip .accounts-panel-header-end {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  justify-self: stretch;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-header-strip .accounts-panel-header-start .sortable-table-header-button,
+.accounts-table-shell.is-category-grouped .accounts-category-header-strip .accounts-panel-header-end .sortable-table-header-button {
+  width: fit-content;
+  max-width: 100%;
+  justify-self: stretch;
+  justify-content: center;
+  margin-right: 0;
+  text-align: center;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-header-strip .accounts-panel-header-change {
+  grid-column: 5;
+  width: 100%;
+  justify-self: stretch;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-header-strip .accounts-panel-header-change .sortable-table-header-button {
+  transform: translateX(var(--accounts-category-change-column-x));
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-header-strip .accounts-panel-header-spacer {
+  grid-column: 6;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-section-header {
+  display: grid;
+  grid-template-columns: var(--accounts-category-grid-columns);
+  align-items: center;
+  gap: var(--accounts-grid-column-gap);
+  padding: var(--app-structured-list-row-padding-block) var(--accounts-parent-row-padding-inline);
+  padding-inline: var(--accounts-grid-padding-inline-start) var(--accounts-grid-padding-inline-end);
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-info {
+  grid-column: 1;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  transform: translateX(var(--accounts-category-name-column-x));
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-info .accounts-parent-leading-chevron {
+  width: var(--accounts-parent-row-chevron-slot-width);
+}
+
+.accounts-table-shell.is-category-grouped .accounts-group-title-stack {
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.accounts-table-shell.is-category-grouped .accounts-group-title {
+  font-size: var(--accounts-parent-row-name-font-size);
+  font-weight: var(--font-weight-bold);
+}
+
+.accounts-table-shell.is-category-grouped .accounts-group-count {
+  font-size: var(--accounts-parent-row-account-count-font-size);
+  font-weight: var(--font-weight-medium);
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-flex-spacer {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-metric {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--space-1);
+  text-align: right;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-start-metric {
+  grid-column: 3;
+  transform: translateX(var(--accounts-category-initial-column-x));
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-end-metric {
+  grid-column: 4;
+  transform: translateX(var(--accounts-category-current-column-x));
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-change-metric {
+  grid-column: 5;
+  align-items: center;
+  text-align: center;
+  transform: translateX(var(--accounts-category-change-column-x));
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-metric .accounts-group-change {
+  display: grid;
+  width: var(--accounts-change-value-width);
+  max-width: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: baseline;
+  justify-items: center;
+  padding: 0;
+  font-size: var(--accounts-parent-row-value-font-size);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: normal;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-metric .accounts-timeline-money {
+  display: grid;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: baseline;
+  justify-items: center;
+  padding: 0;
+  font-size: var(--accounts-parent-row-value-font-size);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-metric .accounts-change-stack {
+  grid-column: 1;
+  align-items: center;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-metric .accounts-change-amount {
+  text-align: center;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-controls {
+  grid-column: 6;
+  width: 100%;
+  justify-self: stretch;
+  justify-content: flex-end;
+  transform: translateX(var(--accounts-category-actions-column-x));
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-account-row {
+  grid-template-columns: var(--accounts-category-grid-columns);
+  gap: var(--accounts-grid-column-gap);
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-account-row .accounts-child-identity {
+  grid-column: 1 / 3;
+  grid-row: 1;
+  gap: var(--space-2);
+  flex-wrap: nowrap;
+  row-gap: var(--space-1);
+  min-width: 0;
+  transform: translateX(var(--accounts-child-name-column-x));
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-account-row .account-flex-spacer {
+  display: none;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-account-row .account-name {
+  font-size: var(--accounts-child-row-name-font-size);
+  font-weight: var(--type-account-name-weight);
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-account-row .account-source-pill {
+  width: var(--accounts-child-row-institution-logo-size);
+  height: var(--accounts-child-row-institution-logo-size);
+  justify-content: center;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-account-row .account-flex-spacer {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-account-row .account-start {
+  grid-column: 3;
+  width: 100%;
+  transform: translateX(var(--accounts-category-initial-column-x));
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-account-row .account-end {
+  grid-column: 4;
+  width: 100%;
+  transform: translateX(var(--accounts-category-current-column-x));
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-account-row .accounts-child-change {
+  grid-column: 5;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  justify-self: center;
+  text-align: center;
+  transform: translateX(var(--accounts-category-change-column-x));
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-account-row .accounts-child-change {
+  width: var(--accounts-change-value-width);
+  max-width: 100%;
+  font-size: var(--accounts-child-row-value-font-size);
+  font-weight: var(--font-weight-medium);
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-account-row .accounts-timeline-money {
+  width: 100%;
+  max-width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: baseline;
+  justify-items: center;
+  font-size: var(--accounts-child-row-value-font-size);
+  font-weight: var(--font-weight-medium);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-account-row .accounts-change-stack {
+  grid-column: 1;
+  align-items: center;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-account-row .accounts-change-amount {
+  text-align: center;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-account-row .account-currency {
+  font-size: var(--accounts-child-row-currency-font-size);
+}
+
+.accounts-institution-panels-shell.is-institution-grouped {
+  --accounts-institution-name-column-x: 0rem;
+  --accounts-institution-sync-column-x: 0rem;
+  --accounts-institution-initial-column-x: 0rem;
+  --accounts-institution-current-column-x: 0.5rem;
+  --accounts-institution-change-column-x: 0rem;
+  --accounts-institution-actions-column-x: 0.5rem;
+  --accounts-group-controls-width: calc(var(--accounts-parent-row-action-icon-size) + var(--accounts-parent-row-action-icon-size) + var(--accounts-parent-row-action-icon-gap));
+  --accounts-sync-anchor-col: var(--accounts-parent-row-sync-control-width);
+  --accounts-institution-name-width: 16.5rem;
+  --accounts-sync-width: 10rem;
+  --accounts-institution-name-track: var(--accounts-institution-name-width);
+  --accounts-sync-track: var(--accounts-sync-width);
+  --accounts-middle-spacer-track: var(--accounts-middle-spacer-width);
+  --accounts-initial-track: var(--accounts-initial-width);
+  --accounts-current-track: var(--accounts-current-width);
+  --accounts-change-track: var(--accounts-change-width);
+  --accounts-institution-grid-columns: var(--accounts-institution-name-track) var(--accounts-sync-track) var(--accounts-middle-spacer-track) var(--accounts-initial-track) var(--accounts-current-track) var(--accounts-change-track) var(--accounts-group-controls-track);
+  --accounts-active-table-width: calc(
+    var(--accounts-institution-name-track)
+    + var(--accounts-sync-track)
+    + var(--accounts-middle-spacer-track)
+    + var(--accounts-initial-track)
+    + var(--accounts-current-track)
+    + var(--accounts-change-track)
+    + var(--accounts-group-controls-track)
+    + var(--accounts-grid-padding-inline-start)
+    + var(--accounts-grid-padding-inline-end)
+    + var(--accounts-grid-gap-width-6)
+  );
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-header-inner {
+  grid-template-columns: var(--accounts-institution-grid-columns);
+  column-gap: var(--accounts-grid-column-gap);
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-header-strip .sortable-table-header-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: stretch;
+  text-align: center;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-header-strip .sortable-table-header-button {
+  justify-content: center;
+  text-align: center;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-header-strip .accounts-panel-header-group {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  justify-self: stretch;
+  padding-left: calc(var(--accounts-parent-row-chevron-slot-width) + var(--accounts-parent-row-logo-size) + (var(--space-2) * 2));
+  text-align: left;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-header-strip .accounts-panel-header-group .sortable-table-header-button {
+  justify-content: flex-start;
+  text-align: left;
+  transform: translateX(var(--accounts-institution-name-column-x));
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-header-strip .accounts-panel-header-sync {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: stretch;
+  text-align: center;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-header-strip .accounts-panel-header-sync .sortable-table-header-button {
+  transform: translateX(var(--accounts-institution-sync-column-x));
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-panel-header-flex {
+  grid-column: 3;
+  min-width: 0;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-header-strip .accounts-panel-header-start,
+.accounts-table-shell.is-institution-grouped .accounts-institution-header-strip .accounts-panel-header-end {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  justify-self: stretch;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-header-strip .accounts-panel-header-start {
+  grid-column: 4;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-header-strip .accounts-panel-header-end {
+  grid-column: 5;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-header-strip .accounts-panel-header-start .sortable-table-header-button,
+.accounts-table-shell.is-institution-grouped .accounts-institution-header-strip .accounts-panel-header-end .sortable-table-header-button {
+  width: fit-content;
+  max-width: 100%;
+  justify-self: stretch;
+  justify-content: center;
+  text-align: center;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-header-strip .accounts-panel-header-start .sortable-table-header-button {
+  transform: translateX(var(--accounts-institution-initial-column-x));
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-header-strip .accounts-panel-header-end .sortable-table-header-button {
+  transform: translateX(var(--accounts-institution-current-column-x));
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-header-strip .accounts-panel-header-start .sortable-table-header-button {
+  margin-right: 0;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-header-strip .accounts-panel-header-end .sortable-table-header-button {
+  margin-right: 0;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-header-strip .accounts-panel-header-change {
+  grid-column: 6;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  justify-self: stretch;
+  text-align: center;
+  padding-right: 0;
+  white-space: nowrap;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-header-strip .accounts-panel-header-change .sortable-table-header-button {
+  width: fit-content;
+  justify-content: center;
+  transform: translateX(var(--accounts-institution-change-column-x));
+  text-align: center;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-header-strip .accounts-panel-header-spacer {
+  grid-column: 7;
+}
+
+.accounts-institution-panels-shell .accounts-table-group.is-open,
+.accounts-table-shell.is-institution-grouped .accounts-institution-panel.is-detail-selected {
+  --accounts-group-header-bg: var(--surface-expanded-parent-selected-bg);
+  --accounts-group-row-border: var(--surface-accounts-parent-row-border-width) solid transparent;
+  --accounts-group-row-shadow: none;
+  z-index: 5;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-panel.is-detail-selected {
+  --accounts-parent-selected-border-width: var(--accounts-detail-selected-border-width);
+  --accounts-parent-selected-border-color: var(--accounts-detail-selected-border-color);
+}
+
+.accounts-institution-panels-shell .accounts-table-group.is-open::after,
+.accounts-table-shell.is-institution-grouped .accounts-institution-panel.is-detail-selected::after {
+  top: calc(var(--accounts-parent-selected-highlight-inset-top) - var(--accounts-state-frame-outset));
+  right: calc(var(--accounts-parent-selected-highlight-inset-right) - var(--accounts-state-frame-outset));
+  bottom: calc(var(--accounts-parent-selected-highlight-inset-bottom) - var(--accounts-state-frame-outset));
+  left: calc(var(--accounts-parent-selected-highlight-inset-left) - var(--accounts-state-frame-outset));
+  border: var(--accounts-parent-selected-border-width) solid var(--accounts-parent-selected-border-color);
+}
+
+.accounts-institution-panels-shell .accounts-table-group.is-open::after {
+  box-shadow: var(--accounts-open-group-selected-outline);
+}
+
+:root:not([data-breaktwenty-theme="light"]) .accounts-institution-panels-shell .accounts-table-group.is-open:not(.is-detail-selected)::after {
+  border: var(--surface-expanded-parent-state-frame-border-width) solid var(--surface-expanded-parent-state-frame-border-color);
+  box-shadow: var(--surface-expanded-parent-state-frame-shadow);
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-panel.is-detail-selected::after {
+  box-shadow: var(--accounts-parent-selected-outline);
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-section-header {
+  display: grid;
+  grid-template-columns: var(--accounts-institution-grid-columns);
+  align-items: center;
+  gap: var(--accounts-grid-column-gap);
+  padding: var(--app-structured-list-row-padding-block) var(--accounts-parent-row-padding-inline);
+  padding-inline: var(--accounts-grid-padding-inline-start) var(--accounts-grid-padding-inline-end);
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-group-info {
+  grid-column: 1;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  transform: translateX(var(--accounts-institution-name-column-x));
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-group-info .accounts-group-logo-wrap {
+  width: var(--accounts-parent-row-logo-size);
+  height: var(--accounts-parent-row-logo-size);
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-parent-leading-chevron {
+  width: var(--accounts-parent-row-chevron-slot-width);
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-group-title-stack {
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-group-title {
+  font-size: var(--accounts-parent-row-name-font-size);
+  font-weight: var(--font-weight-bold);
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-group-count {
+  font-size: var(--accounts-parent-row-account-count-font-size);
+  font-weight: var(--font-weight-medium);
+}
+
+.accounts-table-shell.is-institution-grouped .inst-sync-info {
+  grid-column: 2;
+  display: grid;
+  grid-template-columns: var(--accounts-sync-anchor-col) minmax(0, max-content);
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  justify-content: center;
+  justify-self: center;
+  column-gap: var(--space-2);
+  min-width: 0;
+  white-space: nowrap;
+  transform: translateX(var(--accounts-institution-sync-column-x));
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-flex-spacer {
+  grid-column: 3;
+  min-width: 0;
+}
+
+.accounts-table-shell.is-institution-grouped .inst-sync-info .inst-sync-btn,
+.accounts-table-shell.is-institution-grouped .inst-sync-info .sync-timestamp,
+.accounts-table-shell.is-institution-grouped .inst-sync-manual {
+  font-size: var(--accounts-parent-row-sync-status-font-size);
+  line-height: var(--line-height-tight);
+}
+
+.accounts-table-shell.is-institution-grouped .inst-sync-info .sync-timestamp {
+  grid-column: 2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accounts-table-shell.is-institution-grouped .inst-sync-manual {
+  grid-column: 1 / -1;
+  grid-template-columns: var(--accounts-sync-anchor-col) minmax(0, max-content);
+  justify-content: center;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.accounts-table-shell.is-institution-grouped .inst-sync-anchor {
+  grid-column: 1;
+  width: var(--accounts-sync-anchor-col);
+  min-width: var(--accounts-sync-anchor-col);
+  justify-content: center;
+  justify-self: center;
+  padding-inline: 0;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-metric {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--space-1);
+  text-align: right;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-start-metric {
+  grid-column: 4;
+  transform: translateX(var(--accounts-institution-initial-column-x));
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-end-metric {
+  grid-column: 5;
+  transform: translateX(var(--accounts-institution-current-column-x));
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-change-metric {
+  grid-column: 6;
+  align-items: center;
+  text-align: center;
+  transform: translateX(var(--accounts-institution-change-column-x));
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-metric .accounts-group-change {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  align-items: baseline;
+  padding: 0;
+  font-size: var(--accounts-parent-row-value-font-size);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: normal;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-metric .accounts-group-change {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  padding-right: 0;
+  text-align: center;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-change-metric .accounts-group-change {
+  width: var(--accounts-change-value-width);
+  max-width: 100%;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-metric .accounts-timeline-money {
+  display: grid;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: baseline;
+  justify-items: center;
+  padding: 0;
+  font-size: var(--accounts-parent-row-value-font-size);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.accounts-table-shell .accounts-timeline-value {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--space-1);
+  text-align: right;
+}
+
+.accounts-table-shell .accounts-timeline-label {
+  display: flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  overflow: hidden;
+  color: var(--type-stat-label-color);
+  font-family: var(--type-stat-label-family);
+  font-size: var(--type-stat-label-size);
+  font-weight: var(--type-stat-label-weight);
+  letter-spacing: var(--type-stat-label-letter-spacing);
+  line-height: var(--type-stat-label-line-height);
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.accounts-table-shell .accounts-timeline-date {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accounts-table-shell .accounts-timeline-money {
+  color: var(--color-text-primary);
+}
+
+.accounts-table-shell .accounts-timeline-money .balance-amount {
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+}
+
+.accounts-table-shell .accounts-timeline-money .account-currency {
+  width: auto;
+  margin-left: 0;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-metric .accounts-change-start,
+.accounts-table-shell.is-institution-grouped .accounts-institution-metric .accounts-change-start {
+  font-size: var(--accounts-parent-row-comparison-meta-font-size);
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-account-row .accounts-change-start,
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .accounts-change-start {
+  font-size: var(--accounts-child-row-comparison-meta-font-size);
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-start-metric,
+.accounts-table-shell.is-category-grouped .accounts-category-end-metric,
+.accounts-table-shell.is-category-grouped .accounts-category-account-row .account-start,
+.accounts-table-shell.is-category-grouped .accounts-category-account-row .account-end,
+.accounts-table-shell.is-institution-grouped .accounts-institution-start-metric,
+.accounts-table-shell.is-institution-grouped .accounts-institution-end-metric,
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .account-start,
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .account-end {
+  align-items: center;
+  text-align: center;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-start-metric .accounts-timeline-value,
+.accounts-table-shell.is-category-grouped .accounts-category-end-metric .accounts-timeline-value,
+.accounts-table-shell.is-category-grouped .accounts-category-account-row .account-start .accounts-timeline-value,
+.accounts-table-shell.is-category-grouped .accounts-category-account-row .account-end .accounts-timeline-value,
+.accounts-table-shell.is-institution-grouped .accounts-institution-start-metric .accounts-timeline-value,
+.accounts-table-shell.is-institution-grouped .accounts-institution-end-metric .accounts-timeline-value,
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .account-start .accounts-timeline-value,
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .account-end .accounts-timeline-value {
+  width: var(--accounts-balance-value-width);
+  max-width: 100%;
+  align-items: center;
+  text-align: center;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-start-metric .accounts-timeline-money,
+.accounts-table-shell.is-category-grouped .accounts-category-end-metric .accounts-timeline-money,
+.accounts-table-shell.is-category-grouped .accounts-category-account-row .account-start .accounts-timeline-money,
+.accounts-table-shell.is-category-grouped .accounts-category-account-row .account-end .accounts-timeline-money,
+.accounts-table-shell.is-institution-grouped .accounts-institution-start-metric .accounts-timeline-money,
+.accounts-table-shell.is-institution-grouped .accounts-institution-end-metric .accounts-timeline-money,
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .account-start .accounts-timeline-money,
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .account-end .accounts-timeline-money {
+  width: 100%;
+  max-width: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  text-align: center;
+}
+
+.accounts-table-shell.is-category-grouped .accounts-category-start-metric .accounts-timeline-money .balance-amount,
+.accounts-table-shell.is-category-grouped .accounts-category-end-metric .accounts-timeline-money .balance-amount,
+.accounts-table-shell.is-category-grouped .accounts-category-account-row .account-start .accounts-timeline-money .balance-amount,
+.accounts-table-shell.is-category-grouped .accounts-category-account-row .account-end .accounts-timeline-money .balance-amount,
+.accounts-table-shell.is-institution-grouped .accounts-institution-start-metric .accounts-timeline-money .balance-amount,
+.accounts-table-shell.is-institution-grouped .accounts-institution-end-metric .accounts-timeline-money .balance-amount,
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .account-start .accounts-timeline-money .balance-amount,
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .account-end .accounts-timeline-money .balance-amount {
+  text-align: center;
+}
+
+.accounts-table-shell .accounts-timeline-value.positive .accounts-timeline-money {
+  color: var(--color-positive);
+}
+
+.accounts-table-shell .accounts-timeline-value.negative .accounts-timeline-money {
+  color: var(--color-negative);
+}
+
+.accounts-table-shell .accounts-timeline-value.zero .accounts-timeline-money,
+.accounts-table-shell .accounts-timeline-value.empty .accounts-timeline-money {
+  color: var(--color-text-primary);
+}
+
+.accounts-table-shell .accounts-timeline-empty {
+  color: var(--color-text-faint);
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-metric .accounts-change-stack {
+  grid-column: 1;
+  align-items: center;
+  padding-right: 0;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-metric .accounts-change-amount {
+  text-align: center;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-metric .accounts-change-start {
+  justify-content: center;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-actions {
+  grid-column: 7;
+  width: 100%;
+  justify-self: stretch;
+  justify-content: center;
+  transform: translateX(var(--accounts-institution-actions-column-x));
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row {
+  grid-template-columns: var(--accounts-institution-grid-columns);
+  gap: var(--accounts-grid-column-gap);
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .accounts-child-identity {
+  grid-column: 1 / 4;
+  grid-row: 1;
+  gap: var(--space-2);
+  flex-wrap: nowrap;
+  row-gap: var(--space-1);
+  min-width: 0;
+  transform: translateX(var(--accounts-child-name-column-x));
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .account-sync-spacer,
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .account-flex-spacer {
+  display: none;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .account-name {
+  font-size: var(--accounts-child-row-name-font-size);
+  font-weight: var(--type-account-name-weight);
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .account-sync-spacer {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .account-flex-spacer {
+  grid-column: 3;
+  min-width: 0;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .account-start {
+  grid-column: 4;
+  width: 100%;
+  transform: translateX(var(--accounts-institution-initial-column-x));
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .account-end {
+  grid-column: 5;
+  width: 100%;
+  transform: translateX(var(--accounts-institution-current-column-x));
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .accounts-child-change {
+  grid-column: 6;
+  display: grid;
+  box-sizing: border-box;
+  width: var(--accounts-change-value-width);
+  max-width: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: baseline;
+  justify-items: center;
+  justify-self: center;
+  text-align: center;
+  padding-right: 0;
+  transform: translateX(var(--accounts-institution-change-column-x));
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .accounts-child-change {
+  font-size: var(--accounts-child-row-value-font-size);
+  font-weight: var(--font-weight-medium);
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .accounts-timeline-money {
+  display: grid;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: baseline;
+  justify-items: center;
+  font-size: var(--accounts-child-row-value-font-size);
+  font-weight: var(--font-weight-medium);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .accounts-change-stack {
+  grid-column: 1;
+  align-items: center;
+  padding-right: 0;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .accounts-change-amount {
+  width: 100%;
+  text-align: center;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .accounts-change-amount .fit-money-value {
+  display: block;
+  text-align: center;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .accounts-change-start {
+  justify-content: center;
+}
+
+.accounts-table-shell.is-institution-grouped .accounts-institution-account-row .account-currency {
+  font-size: var(--accounts-child-row-currency-font-size);
+}
+
+.accounts-table-shell.accounts-institution-panels-shell .accounts-table-child-row.is-detail-selected,
+.accounts-table-shell.accounts-institution-panels-shell .accounts-table-child-row.is-detail-selected:hover {
+  box-shadow: none;
+}
+
+.accounts-table-shell .accounts-table-child-row .account-name-row {
+  flex: 0 1 auto;
+  width: max-content;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.accounts-table-shell .accounts-table-child-row .accounts-child-identity.is-editing .account-name-row {
+  max-width: none;
+}
+
+.accounts-detail-panel {
+  max-height: calc(100vh - var(--app-table-tray-top) - var(--space-4));
+}
+
+.app-edge-tray.accounts-detail-tray.is-account-detail {
+  --accounts-detail-tray-top: calc(var(--app-table-tray-top) - var(--space-1));
+}
+
+.app-edge-tray.accounts-detail-tray.is-account-detail .app-edge-tray-shell {
+  top: var(--accounts-detail-tray-top);
+}
+
+.accounts-detail-panel.is-account-detail {
+  max-height: calc(100vh - var(--accounts-detail-tray-top) - var(--space-2));
+}
+
+.accounts-detail-title-main {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.accounts-detail-title-logo {
+  flex: 0 0 auto;
+  width: 1.875rem;
+  height: 1.875rem;
+}
+
+.accounts-detail-title-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.08rem;
+}
+
+.accounts-detail-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accounts-detail-title-sync-status {
+  align-self: flex-start;
+  max-width: 100%;
+  min-height: 0;
+  overflow: hidden;
+  font-size: var(--type-meta-size);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  text-overflow: ellipsis;
+  transform: none;
+  white-space: nowrap;
+}
+
+.accounts-detail-back {
+  min-height: var(--top-control-icon-svg-size);
+  margin-top: 0;
+}
+
+.accounts-detail-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.accounts-detail-section-title {
+  color: var(--type-subsection-title-color);
+  font-family: var(--type-subsection-title-family);
+  font-size: var(--type-subsection-title-size);
+  font-weight: var(--type-subsection-title-weight);
+  letter-spacing: var(--type-subsection-title-letter-spacing);
+  line-height: var(--type-subsection-title-line-height);
+  text-transform: uppercase;
+}
+
+.accounts-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.accounts-detail-section-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.accounts-detail-section-title {
+  margin: 0;
+}
+
+.accounts-detail-section-meta {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--type-stat-label-color);
+  font-family: var(--type-stat-label-family);
+  font-size: var(--type-stat-label-size);
+  font-weight: var(--type-stat-label-weight);
+  letter-spacing: var(--tracking-wide);
+  line-height: var(--type-stat-label-line-height);
+  text-align: right;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.accounts-detail-chart {
+  min-width: 0;
+  overflow: visible;
+  border: 1px solid rgba(var(--rgb-border), 0.42);
+  border-radius: var(--radius-sm);
+  background: rgba(var(--rgb-bg), 0.42);
+}
+
+.tooltip-card.accounts-detail-chart-tooltip {
+  --accounts-detail-tooltip-arrow-left: 50%;
+  transform: none;
+}
+
+.accounts-detail-chart-tooltip::after {
+  left: var(--accounts-detail-tooltip-arrow-left);
+}
+
+.accounts-detail-empty {
+  padding: var(--space-3);
+  border: 1px solid rgba(var(--rgb-border), 0.38);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-faint);
+  font-size: var(--type-empty-state-size);
+  font-weight: var(--type-empty-state-weight);
+  line-height: var(--line-height-normal);
+}
+
+.accounts-detail-transactions-viewall {
+  flex-shrink: 0;
+  position: relative;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--type-stat-label-size);
+  font-weight: var(--type-stat-label-weight);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: color 0.18s ease;
+}
+
+.accounts-detail-transactions-viewall::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -0.25rem;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0;
+  pointer-events: none;
+  transform: scaleX(0.7);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.accounts-detail-transactions-viewall:is(:hover, :focus-visible) {
+  color: var(--color-data-highlight-text);
+  outline: none;
+}
+
+.accounts-detail-transactions-viewall:is(:hover, :focus-visible)::before {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.accounts-detail-transactions-list {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.accounts-detail-transactions-group-label {
+  margin: 0 calc(-1 * var(--space-4));
+  padding: var(--table-header-padding);
+  border-top: var(--date-band-border-top);
+  border-bottom: var(--date-band-border-bottom);
+  background: var(--date-band-bg);
+  box-shadow: var(--date-band-shadow);
+  color: var(--date-band-color);
+  font-size: var(--type-table-header-size);
+  font-weight: var(--type-table-header-weight);
+  letter-spacing: var(--type-table-header-letter-spacing);
+  line-height: var(--type-table-header-line-height);
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.accounts-detail-transactions-group-rows {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.accounts-detail-tx {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.6rem 0;
+  border-bottom: 1px solid rgba(var(--rgb-border), 0.4);
+}
+
+.accounts-detail-transactions-group-rows .accounts-detail-tx:last-child {
+  border-bottom: 0;
+}
+
+.accounts-detail-tx > .category-pill {
+  flex: 0 0 auto;
+}
+
+.accounts-detail-tx-main {
+  flex: 1 1 auto;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.accounts-detail-tx-desc {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--type-row-description-color);
+  font-size: var(--type-body-large-size);
+  font-weight: var(--type-row-description-weight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accounts-detail-tx-amount {
+  flex: 0 0 8.5rem;
+  min-width: 0;
+  color: var(--type-money-color);
+  font-size: var(--type-body-size);
+  font-weight: var(--type-money-weight);
+  text-align: right;
+}
+
+.accounts-detail-tx-amount.is-income {
+  color: var(--color-positive);
+}
+
+.accounts-detail-tx-amount.is-spending {
+  color: var(--color-negative);
+}
+
+.accounts-detail-tx-money {
+  width: 100%;
+}
+
+.accounts-detail-account-list {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.accounts-detail-import-row {
+  display: grid;
+  grid-template-columns: minmax(8.75rem, 0.65fr) minmax(0, 1.85fr);
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 4.25rem;
+}
+
+.accounts-detail-import-summary-row {
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  border-bottom: 1px solid rgba(var(--rgb-border), 0.28);
+}
+
+.accounts-detail-import-summary-row .transaction-import-status,
+.accounts-detail-import-summary-row .transaction-import-coverage {
+  font-size: var(--type-body-size);
+}
+
+.accounts-detail-panel .transaction-import-status {
+  align-items: center;
+  text-align: center;
+}
+
+.accounts-detail-panel .transaction-import-status-main {
+  justify-content: center;
+}
+
+.accounts-detail-panel .transaction-import-status-main > span {
+  text-align: center;
+}
+
+.accounts-detail-panel .transaction-import-status-detail {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.accounts-detail-panel .transaction-import-coverage {
+  align-items: flex-start;
+  overflow: visible;
+}
+
+.accounts-detail-panel .transaction-import-coverage > span,
+.accounts-detail-panel .transaction-import-coverage-line,
+.accounts-detail-panel .transaction-import-coverage-value {
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.accounts-detail-panel .transaction-import-coverage-line {
+  width: 100%;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.accounts-detail-panel .transaction-import-coverage-value {
+  white-space: nowrap;
+  text-align: left;
+}
+
+.accounts-detail-panel .transaction-import-coverage > span:not(.transaction-import-coverage-line) {
+  white-space: nowrap;
+}
+
+.transaction-import-added-line {
+  color: var(--color-text-primary);
+}
+
+.accounts-detail-panel .transaction-import-status.is-unavailable,
+.accounts-detail-panel .transaction-import-coverage.is-unavailable {
+  color: var(--color-text-faint);
+}
+
+@media (max-width: 40rem) {
+  .accounts-detail-import-row {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: flex-start;
+  }
+
+  .accounts-detail-panel .transaction-import-coverage > span,
+  .accounts-detail-panel .transaction-import-coverage-line,
+  .accounts-detail-panel .transaction-import-coverage-value {
+    white-space: normal;
+  }
+
+  .accounts-detail-panel .transaction-import-coverage-line {
+    flex-wrap: wrap;
+  }
+}
+
+.accounts-detail-account-item {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: var(--surface-inset-layer-border-width) solid var(--surface-inset-layer-border-color);
+  border-radius: var(--surface-inset-layer-radius);
+  background: var(--surface-inset-layer-bg);
+  background-origin: border-box;
+  background-clip: border-box;
+  box-shadow: var(--surface-inset-layer-shadow);
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.accounts-detail-account-row {
+  --button-state-shell-bg: transparent;
+  --button-state-shell-border-color: transparent;
+  --button-state-shell-border-width: 0;
+  --button-state-shell-assist-shadow: 0 0 0 0 transparent;
+  --button-state-shell-shadow: 0 0 0 0 transparent;
+  --button-state-shell-opacity: 0;
+  --button-overlay-shadow: 0 0 0 0 transparent;
+  width: 100%;
+  min-height: 3.1rem;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: calc(var(--surface-inset-layer-radius) - var(--surface-inset-layer-border-width));
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.accounts-detail-account-row::after {
+  content: none;
+  display: none;
+}
+
+.accounts-detail-account-row:hover,
+.accounts-detail-account-row:focus-visible {
+  --button-state-shell-bg: transparent;
+  --button-state-shell-border-color: transparent;
+  --button-state-shell-border-width: 0;
+  --button-state-shell-assist-shadow: 0 0 0 0 transparent;
+  --button-state-shell-shadow: 0 0 0 0 transparent;
+  --button-state-shell-opacity: 0;
+  --button-overlay-shadow: 0 0 0 0 transparent;
+  outline: none;
+}
+
+.accounts-detail-account-item:focus-within,
+.accounts-detail-account-item:hover {
+  border-color: var(--surface-row-hover-border-color);
+  background: var(--surface-row-hover-bg);
+  box-shadow: var(--surface-row-hover-shadow);
+}
+
+.accounts-detail-account-copy {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.accounts-detail-account-status-icon {
+  flex: 0 0 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  line-height: var(--line-height-none);
+}
+
+.accounts-detail-account-status-icon.transaction-import-status {
+  font-size: var(--type-body-size);
+}
+
+.accounts-detail-account-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--type-account-name-color);
+  font-family: var(--type-account-name-family);
+  font-size: var(--type-account-name-size);
+  font-weight: var(--type-account-name-weight);
+  letter-spacing: var(--type-account-name-letter-spacing);
+  line-height: var(--type-account-name-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inst-sync-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-family-sans);
+  font-size: var(--type-meta-size);
+  font-weight: var(--font-weight-bold);
+  transition: color 0.15s;
+}
+
+.inst-sync-btn:hover {
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+
+.inst-sync-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.inst-sync-btn.is-synced {
+  color: var(--color-positive);
+}
+
+.inst-sync-btn.is-synced:hover {
+  color: var(--color-positive);
+}
+
+.inst-sync-btn.is-syncing {
+  color: var(--color-info);
+}
+
+.inst-sync-btn.is-syncing:disabled {
+  opacity: 1;
+}
+
+.inst-sync-btn.is-auth {
+  color: var(--color-warning);
+}
+
+.inst-sync-btn.is-auth:hover {
+  color: var(--color-warning);
+}
+
+.inst-sync-btn.is-partial {
+  color: var(--color-retry-warning);
+}
+
+.inst-sync-btn.is-failed {
+  color: var(--color-negative);
+}
+
+/* Sync icon glow on hover - icon only */
+.inst-sync-btn.is-synced:hover svg {
+  filter: drop-shadow(0 0 7px rgba(var(--rgb-positive), 0.62));
+}
+
+.inst-sync-btn.is-syncing:hover svg {
+  filter: drop-shadow(0 0 7px rgba(var(--rgb-info), 0.62));
+}
+
+.inst-sync-btn.is-partial:hover svg {
+  filter: drop-shadow(0 0 7px var(--color-retry-warning));
+}
+
+.inst-sync-btn.is-failed:hover svg {
+  filter: drop-shadow(0 0 7px rgba(var(--rgb-negative), 0.62));
+}
+
+.inst-sync-btn.is-auth:hover svg {
+  filter: drop-shadow(0 0 7px rgba(var(--rgb-warning), 0.62));
+}
+
+@container app-page (min-width: 0rem) {
+  .accounts-table-shell.accounts-institution-panels-shell {
+    --accounts-content-clip-left: calc(var(--horizontal-scroll-left, 0px) + var(--accounts-frame-clip-buffer));
+    --accounts-content-clip-right: max(0px, calc(var(--accounts-table-content-width) - var(--horizontal-scroll-left, 0px) - var(--horizontal-scroll-viewport-width, 100%) + var(--accounts-frame-clip-buffer)));
+    width: var(--accounts-table-viewport-width);
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: visible;
+    border-right-color: rgba(var(--rgb-border), 0.86);
+    scrollbar-width: none;
+  }
+
+  .accounts-table-shell.accounts-institution-panels-shell::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
+  .accounts-table-scroll-sizer {
+    width: var(--accounts-table-content-width);
+    height: 0;
+    pointer-events: none;
+  }
+
+  .accounts-table-horizontal-scrollbar {
+    --accounts-horizontal-scroll-content-width: var(--accounts-horizontal-scroll-measured-content-width);
+    --accounts-horizontal-scroll-min-range: calc(var(--app-scrollbar-size) * 4);
+    position: sticky;
+    left: 0;
+    z-index: 8;
+    width: 100%;
+    height: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-top: 0 solid transparent;
+    border-bottom: 0 solid transparent;
+    background: transparent;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .accounts-table-horizontal-scrollbar.is-visible {
+    --app-scrollbar-thumb-horizontal-bottom-inset: max(0px, calc(var(--app-horizontal-scrollbar-tray-height) - var(--app-scrollbar-thumb-cross-offset) - var(--app-scrollbar-thumb-cross-size)));
+    height: var(--app-horizontal-scrollbar-tray-height);
+    border-top: 0;
+    border-bottom: 0;
+    box-shadow: none;
+    background-color: var(--app-scrollbar-track-bg);
+    background-image: none;
+    scrollbar-color: var(--app-scrollbar-thumb) var(--app-scrollbar-track);
+    font-size: 0;
+    line-height: 0;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .accounts-table-horizontal-scrollbar.is-visible::-webkit-scrollbar {
+    height: var(--app-horizontal-scrollbar-tray-height);
+  }
+
+  .accounts-table-horizontal-scrollbar.is-visible::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  .accounts-table-horizontal-scrollbar.is-visible::-webkit-scrollbar-track,
+  .accounts-table-horizontal-scrollbar.is-visible::-webkit-scrollbar-track-piece,
+  .accounts-table-horizontal-scrollbar.is-visible::-webkit-scrollbar-corner {
+    background: var(--app-scrollbar-track-bg);
+  }
+
+  .accounts-table-horizontal-scrollbar.is-visible::-webkit-scrollbar-thumb {
+    background: var(--app-scrollbar-thumb);
+    border-top: var(--app-scrollbar-thumb-cross-offset) solid transparent;
+    border-right: 0 solid transparent;
+    border-bottom: var(--app-scrollbar-thumb-horizontal-bottom-inset) solid transparent;
+    border-left: 0 solid transparent;
+    border-radius: var(--app-scrollbar-thumb-radius);
+    background-clip: content-box;
+  }
+
+  .accounts-table-horizontal-scrollbar-inner {
+    width: var(--accounts-horizontal-scroll-content-width);
+    height: 1px;
+    min-height: 0;
+  }
+
+  .accounts-table-top-scrollbar.is-visible,
+  .accounts-table-bottom-scrollbar.is-visible {
+    --accounts-horizontal-scroll-content-width: var(--accounts-table-content-width);
+    left: var(--accounts-scrollbar-track-inset-inline);
+    width: var(--accounts-scrollbar-track-width);
+    max-width: var(--accounts-scrollbar-track-width);
+    margin-inline: 0;
+    height: var(--accounts-top-scrollbar-tray-height);
+    border-top: 0;
+    border-bottom: 0;
+    box-shadow: none;
+    background-color: transparent;
+  }
+
+  .accounts-table-top-scrollbar.is-visible {
+    margin-top: var(--accounts-top-scrollbar-offset-y);
+  }
+
+  .accounts-table-top-scrollbar.is-visible::-webkit-scrollbar,
+  .accounts-table-bottom-scrollbar.is-visible::-webkit-scrollbar {
+    height: var(--accounts-top-scrollbar-tray-height);
+  }
+
+  .accounts-table-top-scrollbar.is-visible::-webkit-scrollbar-track,
+  .accounts-table-top-scrollbar.is-visible::-webkit-scrollbar-track-piece,
+  .accounts-table-bottom-scrollbar.is-visible::-webkit-scrollbar-track,
+  .accounts-table-bottom-scrollbar.is-visible::-webkit-scrollbar-track-piece {
+    border-top: var(--accounts-top-scrollbar-inset-block) solid transparent;
+    border-bottom: var(--accounts-top-scrollbar-inset-block) solid transparent;
+    background-clip: content-box;
+  }
+
+  .accounts-table-top-scrollbar.is-visible::-webkit-scrollbar-thumb,
+  .accounts-table-bottom-scrollbar.is-visible::-webkit-scrollbar-thumb {
+    border-top: var(--app-scrollbar-thumb-cross-offset) solid transparent;
+    border-right: 0 solid transparent;
+    border-bottom: var(--app-scrollbar-thumb-horizontal-bottom-inset) solid transparent;
+    border-left: 0 solid transparent;
+    background-clip: content-box;
+  }
+
+  .accounts-panel-header-strip {
+    position: sticky;
+    left: 0;
+    width: var(--horizontal-scroll-viewport-width, 100%);
+    min-width: var(--horizontal-scroll-viewport-width, 100%);
+    max-width: var(--horizontal-scroll-viewport-width, 100%);
+    isolation: isolate;
+    overflow: visible;
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+  }
+
+  .accounts-panel-header-strip::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: auto;
+    bottom: 0;
+    left: var(--accounts-frame-clip-buffer);
+    z-index: 0;
+    box-sizing: border-box;
+    width: var(--accounts-table-frame-width);
+    border: var(--accounts-header-row-border);
+    border-radius: inherit;
+    background: var(--accounts-header-row-bg);
+    box-shadow: var(--accounts-header-row-shadow);
+    pointer-events: none;
+  }
+
+  .accounts-panel-header-inner {
+    position: relative;
+    z-index: 1;
+    clip-path: inset(0 var(--accounts-content-clip-right) 0 var(--accounts-content-clip-left));
+  }
+
+  .accounts-institution-panels-shell .accounts-table-rows {
+    width: var(--accounts-table-content-width);
+    max-width: none;
+    padding-bottom: var(--accounts-row-shadow-gutter-block);
+  }
+
+  .accounts-institution-panels-shell .accounts-institution-panel {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    transform: none;
+    overflow: visible;
+  }
+
+  .accounts-institution-panels-shell .accounts-institution-panel::before {
+    top: 0;
+    right: auto;
+    bottom: 0;
+    left: calc(var(--horizontal-scroll-left, 0px) + var(--accounts-frame-clip-buffer));
+    width: var(--accounts-table-frame-width);
+  }
+
+  .accounts-institution-panels-shell .accounts-institution-panel::after {
+    top: 0;
+    right: auto;
+    bottom: 0;
+    left: calc(var(--horizontal-scroll-left, 0px) + var(--accounts-frame-clip-buffer));
+    width: var(--accounts-table-frame-width);
+  }
+
+  .accounts-institution-panels-shell .accounts-table-parent-row,
+  .accounts-institution-panels-shell .accounts-table-children {
+    position: relative;
+    z-index: 1;
+  }
+
+  .accounts-institution-panels-shell .accounts-table-parent-row {
+    clip-path: none;
+  }
+
+  .accounts-institution-panels-shell .accounts-table-parent-row::before {
+    top: 0;
+    right: auto;
+    bottom: 0;
+    left: calc(var(--horizontal-scroll-left, 0px) + var(--accounts-frame-clip-buffer));
+    width: var(--accounts-table-frame-width);
+  }
+
+  .accounts-institution-panels-shell .accounts-table-parent-row > .accounts-table-row-inner {
+    clip-path: inset(0 var(--accounts-content-clip-right) 0 var(--accounts-content-clip-left));
+  }
+
+  .accounts-institution-panels-shell .accounts-table-children {
+    isolation: isolate;
+    background: transparent;
+  }
+
+  .accounts-institution-panels-shell .accounts-table-children::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: auto;
+    bottom: 0;
+    left: var(--accounts-child-frame-left);
+    z-index: 0;
+    box-sizing: border-box;
+    width: var(--accounts-child-frame-width);
+    border-radius: var(--accounts-child-frame-radius);
+    background: var(--accounts-child-list-bg);
+    box-shadow: var(--accounts-child-list-shadow);
+    pointer-events: none;
+  }
+
+  .accounts-institution-panels-shell .accounts-table-child-row::after {
+    right: auto;
+    left: calc(var(--accounts-child-frame-left) + var(--accounts-child-highlight-inset-left));
+    width: calc(var(--accounts-child-frame-width) - var(--accounts-child-highlight-inset-left) - var(--accounts-child-highlight-inset-right));
+  }
+
+  .accounts-institution-panels-shell .accounts-table-child-row + .accounts-table-child-row {
+    border-top: 0;
+  }
+
+  .accounts-institution-panels-shell .accounts-table-child-row + .accounts-table-child-row::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: auto;
+    left: var(--accounts-child-frame-left);
+    z-index: 2;
+    width: var(--accounts-child-frame-width);
+    border-top: var(--accounts-child-row-divider);
+    pointer-events: none;
+  }
+
+  .accounts-institution-panels-shell .accounts-table-child-row > * {
+    clip-path: inset(0 var(--accounts-content-clip-right) 0 var(--accounts-content-clip-left));
+  }
+
+  :root[data-breaktwenty-theme="light"] .accounts-institution-panels-shell .accounts-institution-panel:not(.is-detail-selected):not(.is-open):has(> .accounts-table-parent-row:hover)::before,
+  :root[data-breaktwenty-theme="light"] .accounts-institution-panels-shell .accounts-table-group.is-open::before,
+  :root[data-breaktwenty-theme="light"] .accounts-table-shell.is-institution-grouped .accounts-institution-panel.is-detail-selected::before {
+    top: calc(-1 * var(--accounts-state-frame-outset));
+    right: auto;
+    bottom: calc(-1 * var(--accounts-state-frame-outset));
+    left: calc(var(--horizontal-scroll-left, 0px) + var(--accounts-frame-clip-buffer) - var(--accounts-state-frame-outset));
+    width: calc(var(--accounts-table-frame-width) + (2 * var(--accounts-state-frame-outset)));
+  }
+
+  .accounts-institution-panels-shell .accounts-institution-panel:not(.is-detail-selected):not(.is-open):has(> .accounts-table-parent-row:hover)::after {
+    top: calc(var(--accounts-parent-hover-highlight-inset-top) - var(--accounts-state-frame-outset));
+    right: auto;
+    bottom: calc(var(--accounts-parent-hover-highlight-inset-bottom) - var(--accounts-state-frame-outset));
+    left: calc(var(--horizontal-scroll-left, 0px) + var(--accounts-frame-clip-buffer) + var(--accounts-parent-hover-highlight-inset-left) - var(--accounts-state-frame-outset));
+    width: calc(var(--accounts-table-frame-width) - var(--accounts-parent-hover-highlight-inset-left) - var(--accounts-parent-hover-highlight-inset-right) + (2 * var(--accounts-state-frame-outset)));
+    border: var(--accounts-parent-hover-border-width) solid var(--accounts-parent-hover-border-color);
+    box-shadow: var(--accounts-parent-hover-outline);
+  }
+
+  .accounts-institution-panels-shell .accounts-table-group.is-open::after,
+  .accounts-table-shell.is-institution-grouped .accounts-institution-panel.is-detail-selected::after {
+    top: calc(var(--accounts-parent-selected-highlight-inset-top) - var(--accounts-state-frame-outset));
+    right: auto;
+    bottom: calc(var(--accounts-parent-selected-highlight-inset-bottom) - var(--accounts-state-frame-outset));
+    left: calc(var(--horizontal-scroll-left, 0px) + var(--accounts-frame-clip-buffer) + var(--accounts-parent-selected-highlight-inset-left) - var(--accounts-state-frame-outset));
+    width: calc(var(--accounts-table-frame-width) - var(--accounts-parent-selected-highlight-inset-left) - var(--accounts-parent-selected-highlight-inset-right) + (2 * var(--accounts-state-frame-outset)));
+    border: var(--accounts-parent-selected-border-width) solid var(--accounts-parent-selected-border-color);
+  }
+
+  .accounts-institution-panels-shell .accounts-table-group.is-open::after {
+    box-shadow: var(--accounts-open-group-selected-outline);
+  }
+
+  .accounts-table-shell.is-institution-grouped .accounts-institution-panel.is-detail-selected::after {
+    box-shadow: var(--accounts-parent-selected-outline);
+  }
+
+  .accounts-panel-header-inner {
+    width: var(--accounts-table-content-width);
+    max-width: none;
+    transform: translateX(calc(-1 * var(--horizontal-scroll-left, 0px)));
+  }
+
+  .accounts-table-row-inner {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    transform: none;
+  }
+
+  .accounts-table-shell.is-category-grouped .accounts-category-header-strip,
+  .accounts-table-shell.is-institution-grouped .accounts-institution-header-strip {
+    display: grid;
+  }
+}
