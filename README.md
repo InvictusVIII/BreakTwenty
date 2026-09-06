@@ -159,13 +159,13 @@ desktop/dist/electron/
 
 Bug reports, improvements, feature suggestions, documentation changes, and pull requests are welcome.
 
-Please read **[CONTRIBUTING.md](CONTRIBUTING.md)** before submitting a contribution.
+Please read **[CONTRIBUTING.md](https://github.com/InvictusVIII/BreakTwenty?tab=contributing-ov-file)** before submitting a contribution.
 
 ## 🔒 Security
 
 Found a suspected security issue? Please **do not post vulnerability details publicly**.
 
-Follow the private reporting instructions in **[SECURITY.md](.github/SECURITY.md)**.
+Follow the private reporting instructions in **[SECURITY.md](https://github.com/InvictusVIII/BreakTwenty?tab=security-ov-file)**.
 
 ## ⚖️ License
 
@@ -173,8 +173,8 @@ Follow the private reporting instructions in **[SECURITY.md](.github/SECURITY.md
 
 BreakTwenty is **source-available, not open source**.
 
-Personal and non-commercial use, modification, and permitted redistribution are governed by the **[BreakTwenty Source-Available License 1.0](LICENSE.md)**.
+Personal and non-commercial use, modification, and permitted redistribution are governed by the **[BreakTwenty Source-Available License 1.0](https://github.com/InvictusVIII/BreakTwenty?tab=License-1-ov-file#readme)**.
 
 Commercial use, organizational use, business use, revenue-generating use, and monetization require separate written permission.
 
-The exact terms in [LICENSE.md](LICENSE.md) control.
+The exact terms in [LICENSE.md](https://github.com/InvictusVIII/BreakTwenty?tab=License-1-ov-file#readme) control.

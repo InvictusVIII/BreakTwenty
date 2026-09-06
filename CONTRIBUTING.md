@@ -12,7 +12,7 @@ BreakTwenty is source-available, not open source.
 
 All contributions are **voluntary and unpaid**.
 
-By intentionally submitting a pull request or other contribution for inclusion in BreakTwenty, you agree to the contribution terms in Section 9 of [LICENSE.md](LICENSE.md#9-contributions-to-the-official-breaktwenty-project).
+By intentionally submitting a pull request or other contribution for inclusion in BreakTwenty, you agree to the contribution terms in Section 9 of [LICENSE.md](https://github.com/InvictusVIII/BreakTwenty?tab=License-1-ov-file#readme).
 
 In practical terms, this means:
 
@@ -43,4 +43,4 @@ Pull-request jobs do not receive signing, updater, bank, application-key, or rel
 
 Do not report vulnerabilities or exploitation details through a public issue, discussion, or pull request.
 
-Use the private reporting process described in [SECURITY.md](.github/SECURITY.md#security-testing-and-disclosure).
+Use the private reporting process described in [SECURITY.md](https://github.com/InvictusVIII/BreakTwenty?tab=security-ov-file).

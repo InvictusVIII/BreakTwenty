@@ -84,4 +84,4 @@ BreakTwenty does not currently offer:
 
 This document explains how to report security issues and which BreakTwenty releases receive security fixes.
 
-It does not grant additional rights to use, modify, test, or distribute BreakTwenty and does not replace or expand the permissions granted by [LICENSE.md](../LICENSE.md).
+It does not grant additional rights to use, modify, test, or distribute BreakTwenty and does not replace or expand the permissions granted by [LICENSE.md](https://github.com/InvictusVIII/BreakTwenty?tab=License-1-ov-file#readme).
