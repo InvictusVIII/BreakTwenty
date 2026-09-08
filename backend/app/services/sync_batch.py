@@ -31,6 +31,8 @@ from app.provider_catalog import (
 from app.services.event_bus import EVENT_SYNC_BATCH, publish_event
 from app.services.network_preflight import (
     SYNC_NETWORK_BLOCKED_MESSAGE,
+    TEMPORARY_DNS_FAILURE_MARKER,
+    run_provider_dns_resolution,
     run_sync_network_gate,
 )
 from app.services.sqlite_write_gate import sqlite_write_gate
@@ -59,6 +61,8 @@ SYNC_BATCH_LEASE_RENEW_INTERVAL_SECONDS = 60
 SYNC_BATCH_WATCHDOG_INTERVAL_SECONDS = 60
 SYNC_BATCH_WAIT_TIMEOUT_SECONDS = 35 * 60
 TRANSACTION_IMPORT_ENQUEUE_TIMEOUT_SECONDS = 10.0
+SYNC_BATCH_NETWORK_RECOVERY_MODES = frozenset({"auto", "manual"})
+NETWORK_RECOVERY_PENDING_MARKER = "_network_recovery_pending"
 
 _sync_batch_watchdog_task: asyncio.Task[Any] | None = None
 _sync_batch_tasks: dict[tuple[int, str], asyncio.Task[Any]] = {}
@@ -778,10 +782,15 @@ async def _run_sync_batch_job(
         api_semaphore = asyncio.Semaphore(SYNC_BATCH_API_CONCURRENCY)
         scraper_semaphore = asyncio.Semaphore(SYNC_BATCH_SCRAPER_CONCURRENCY)
 
-        async def run_connection(key: str, target: dict[str, Any]) -> None:
+        async def run_connection(
+            key: str,
+            target: dict[str, Any],
+            *,
+            allow_network_recovery: bool,
+        ) -> dict[str, Any] | None:
             route_provider = target["route_provider"]
             if not route_provider:
-                return
+                return None
             provider_type = _provider_type(route_provider)
             semaphore = scraper_semaphore if provider_type == "scraper" else api_semaphore
             async with total_semaphore, semaphore:
@@ -791,30 +800,33 @@ async def _run_sync_batch_job(
                     route_provider,
                 )
                 try:
-                    await _run_single_connection(
+                    return await _run_single_connection(
                         user_id,
                         batch_id,
                         key,
                         target,
                         lease_token=lease_token,
                         mode=mode,
+                        defer_temporary_dns_failure=allow_network_recovery,
                     )
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:
                     clear_provider_activity(f"sync-batch:{batch_id}:{key}")
+                    response = {
+                        "status": "error",
+                        "message": safe_connector_public_message(exc),
+                    }
                     await _finish_connection(
                         user_id,
                         batch_id,
                         key,
                         target,
                         route_provider,
-                        {
-                            "status": "error",
-                            "message": safe_connector_public_message(exc),
-                        },
+                        response,
                         lease_token=lease_token,
                     )
+                    return response
                 finally:
                     logger.info(
                         "sync batch stage batch_id=%s provider=%s stage=connector_finished",
@@ -824,12 +836,76 @@ async def _run_sync_batch_job(
 
         tasks = [
             create_tracked_task(
-                run_connection(key, target),
+                run_connection(
+                    key,
+                    target,
+                    allow_network_recovery=(
+                        _normalize_mode(mode) in SYNC_BATCH_NETWORK_RECOVERY_MODES
+                    ),
+                ),
                 name=f"sync-batch-connection:{user_id}:{batch_id}:{key}",
             )
             for key, target in ordered_targets
         ]
-        await asyncio.gather(*tasks, return_exceptions=True)
+        first_results = await asyncio.gather(*tasks, return_exceptions=True)
+        pending_network_failures = [
+            (key, target, result)
+            for (key, target), result in zip(ordered_targets, first_results, strict=True)
+            if isinstance(result, dict)
+            and result.get(NETWORK_RECOVERY_PENDING_MARKER) is True
+        ]
+        batch_dns_outage_confirmed = any(
+            response.get(TEMPORARY_DNS_FAILURE_MARKER) is True
+            for _, _, response in pending_network_failures
+        )
+        if pending_network_failures and batch_dns_outage_confirmed:
+            recovery_gate = await run_sync_network_gate(
+                [target["route_provider"] for _, target, _ in pending_network_failures],
+                user_id=user_id,
+                flow="batch_recovery",
+                mode=mode,
+                batch_id=batch_id,
+            )
+            if recovery_gate.status == "ready":
+                logger.info(
+                    "sync batch temporary DNS recovery retry batch_id=%s connections=%s",
+                    batch_id,
+                    len(pending_network_failures),
+                )
+                retry_tasks = [
+                    create_tracked_task(
+                        run_connection(
+                            key,
+                            target,
+                            allow_network_recovery=False,
+                        ),
+                        name=f"sync-batch-dns-retry:{user_id}:{batch_id}:{key}",
+                    )
+                    for key, target, _ in pending_network_failures
+                ]
+                await asyncio.gather(*retry_tasks, return_exceptions=True)
+            else:
+                for key, target, response in pending_network_failures:
+                    await _finish_connection(
+                        user_id,
+                        batch_id,
+                        key,
+                        target,
+                        str(target["route_provider"]),
+                        response,
+                        lease_token=lease_token,
+                    )
+        elif pending_network_failures:
+            for key, target, response in pending_network_failures:
+                await _finish_connection(
+                    user_id,
+                    batch_id,
+                    key,
+                    target,
+                    str(target["route_provider"]),
+                    response,
+                    lease_token=lease_token,
+                )
 
         def mark_done(job: dict[str, Any]) -> None:
             job["status"] = "done"
@@ -959,7 +1035,8 @@ async def _run_single_connection(
     *,
     lease_token: str,
     mode: str = "auto",
-) -> None:
+    defer_temporary_dns_failure: bool = False,
+) -> dict[str, Any]:
     provider = str(target["provider"])
     institution_id = int(target["institution_id"])
     route_provider = str(target["route_provider"])
@@ -1037,7 +1114,7 @@ async def _run_single_connection(
                 response,
                 lease_token=lease_token,
             )
-            return
+            return response
 
         try:
             async with async_session() as db:
@@ -1053,6 +1130,7 @@ async def _run_single_connection(
                     institution_id=institution_id,
                     sync_scope=sync_scope,
                     sync_source=sync_source,
+                    include_network_recovery_hint=defer_temporary_dns_failure,
                 )
             response_status = str(response.get("status") or "")
             can_enqueue_transactions = not bool(response.get("transaction_import_deferred")) and (
@@ -1113,6 +1191,29 @@ async def _run_single_connection(
                 institution_id=institution_id,
             )
 
+        if (
+            defer_temporary_dns_failure
+            and _normalize_mode(mode) in SYNC_BATCH_NETWORK_RECOVERY_MODES
+            and str(response.get("status") or "").lower() == "network_error"
+        ):
+            dns_result = await run_provider_dns_resolution(route_provider)
+            temporary_dns_failure = (
+                response.get(TEMPORARY_DNS_FAILURE_MARKER) is True
+                or dns_result.status == "temporary_failure"
+            )
+            if temporary_dns_failure:
+                logger.info(
+                    "sync batch connection waiting for temporary DNS recovery batch_id=%s provider=%s error_name=%s",
+                    batch_id,
+                    route_provider,
+                    dns_result.error_name,
+                )
+            return {
+                **response,
+                NETWORK_RECOVERY_PENDING_MARKER: True,
+                TEMPORARY_DNS_FAILURE_MARKER: temporary_dns_failure,
+            }
+
         await _finish_connection(
             user_id,
             batch_id,
@@ -1122,6 +1223,7 @@ async def _run_single_connection(
             response,
             lease_token=lease_token,
         )
+        return response
     finally:
         clear_provider_activity(activity_id)
 

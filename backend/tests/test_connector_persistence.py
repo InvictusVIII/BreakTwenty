@@ -24,6 +24,7 @@ from app.models import (
     ConnectionAuthArtifact,
     Holding,
     Institution,
+    PendingSyncStatus,
     User,
     VisibleAuthAttemptArtifact,
 )
@@ -236,7 +237,7 @@ class ConnectorPersistenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("persist start sync_id=wise-stale-sync", rendered)
         self.assertNotIn("persist result sync_id=wise-stale-sync", rendered)
 
-    async def test_transaction_phase_failure_replaces_account_phase_ok_status(self) -> None:
+    async def test_transaction_phase_failure_preserves_account_phase_ok_status(self) -> None:
         async with self._sessionmaker() as session:
             institution = Institution(
                 user_id=1,
@@ -286,7 +287,106 @@ class ConnectorPersistenceTests(unittest.IsolatedAsyncioTestCase):
                 )
 
             self.assertEqual(transaction_response["status"], expected_status)
-            self.assertEqual(persisted_status, expected_status)
+            self.assertEqual(persisted_status, "ok")
+
+    async def test_pending_status_uses_final_provider_result_not_worst_intermediate_result(
+        self,
+    ) -> None:
+        async with self._sessionmaker() as session:
+            institution = Institution(
+                user_id=1,
+                name="Coinbase",
+                type="api",
+                provider="coinbase",
+                enabled=True,
+                sync_status="stale",
+            )
+            session.add(institution)
+            await session.flush()
+            institution_id = int(institution.id)
+            await session.commit()
+
+        cases = (
+            (("network_error", "ok"), "ok"),
+            (("ok", "network_error"), "network_error"),
+            (("error", "auth_required"), "auth_required"),
+        )
+        for statuses, expected_status in cases:
+            with self.subTest(statuses=statuses):
+                async with self._sessionmaker() as session:
+                    await session.execute(
+                        PendingSyncStatus.__table__.delete().where(
+                            PendingSyncStatus.user_id == 1,
+                            PendingSyncStatus.status_provider == "coinbase",
+                            PendingSyncStatus.institution_key == str(institution_id),
+                        )
+                    )
+                    await session.execute(
+                        Institution.__table__.update()
+                        .where(Institution.id == institution_id)
+                        .values(sync_status="stale")
+                    )
+                    await session.commit()
+
+                with patch.object(
+                    sync_utils,
+                    "_institution_family_actively_syncing",
+                    new=AsyncMock(return_value=True),
+                ):
+                    for status in statuses:
+                        async with self._sessionmaker() as session:
+                            await sync_utils.persist_result_sync_status(
+                                session,
+                                1,
+                                "coinbase",
+                                {"status": status},
+                                institution_id=institution_id,
+                            )
+
+                async with self._sessionmaker() as session:
+                    pending_status = await session.scalar(
+                        select(PendingSyncStatus.final_status).where(
+                            PendingSyncStatus.user_id == 1,
+                            PendingSyncStatus.status_provider == "coinbase",
+                            PendingSyncStatus.institution_key == str(institution_id),
+                        )
+                    )
+                    institution_status = await session.scalar(
+                        select(Institution.sync_status).where(
+                            Institution.id == institution_id
+                        )
+                    )
+
+                self.assertEqual(expected_status, pending_status)
+                self.assertEqual("stale", institution_status)
+
+                with patch.object(
+                    sync_utils,
+                    "_institution_family_actively_syncing",
+                    new=AsyncMock(return_value=False),
+                ):
+                    await sync_utils._drain_pending_status(
+                        1,
+                        "coinbase",
+                        institution_id,
+                    )
+
+                async with self._sessionmaker() as session:
+                    final_status = await session.scalar(
+                        select(Institution.sync_status).where(
+                            Institution.id == institution_id
+                        )
+                    )
+                    pending_count = await session.scalar(
+                        select(func.count(PendingSyncStatus.id)).where(
+                            PendingSyncStatus.user_id == 1,
+                            PendingSyncStatus.status_provider == "coinbase",
+                            PendingSyncStatus.institution_key == str(institution_id),
+                        )
+                    )
+
+                self.assertEqual(expected_status, final_status)
+                self.assertEqual(0, pending_count)
 
     async def test_hybrid_scraper_sync_preserves_catalog_institution_type(self) -> None:
         async with self._sessionmaker() as session:

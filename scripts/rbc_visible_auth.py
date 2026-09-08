@@ -7,9 +7,10 @@ import asyncio
 import json
 import os
 import re
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Coroutine
 from urllib.parse import parse_qsl, urlsplit
 
 from browser_timezone import DEFAULT_USER_TIMEZONE, normalize_browser_timezone
@@ -104,20 +105,172 @@ RBC_BOOTSTRAP_KEEP_COOKIE_NAMES = frozenset(
 RBC_CREDENTIAL_LOCK_GRACE_SECONDS = 8.0
 RBC_WAIT_POLL_SECONDS = 0.35
 RBC_CREDENTIAL_CAPTURE_POLL_SECONDS = 0.15
-# Windows runs a slower background poll than other platforms: each CDP
-# round-trip is far more expensive there, so the previously-aggressive 0.1s
-# sampler saturated the single browser channel and starved credential prefill.
-RBC_CREDENTIAL_CAPTURE_BACKGROUND_POLL_SECONDS = 0.3 if RBC_WINDOWS_FLOW else 0.2
+RBC_CREDENTIAL_CAPTURE_BACKGROUND_POLL_SECONDS = 0.2
 RBC_CREDENTIAL_CAPTURE_BACKGROUND_IDLE_POLL_SECONDS = 0.4
 RBC_CREDENTIAL_CAPTURE_FAST_TIMEOUT_MS = 75
 RBC_CREDENTIAL_CAPTURE_REQUEST_BURST_SECONDS = 1.5 if RBC_WINDOWS_FLOW else 0.45
 RBC_CREDENTIAL_CAPTURE_REQUEST_BURST_POLL_SECONDS = 0.03 if RBC_WINDOWS_FLOW else 0.05
+RBC_CREDENTIAL_CAPTURE_TASK_DRAIN_SECONDS = 2.0
+RBC_WINDOWS_LOGIN_ROUTE_CAPTURE_TIMEOUT_SECONDS = 1.0
+RBC_WINDOWS_LOGIN_ROUTE_PATTERN = "**/cgi-bin/rbaccess/**"
 RBC_WINDOWS_CONTEXT_CLOSE_TIMEOUT_SECONDS = 8.0
 RBC_WINDOWS_BROWSER_CLOSE_TIMEOUT_SECONDS = 4.0
-RBC_CREDENTIAL_CAPTURE_BINDING_NAME = "__breaktwentyRbcCredentialCapturePublish"
 RBC_GENERATED_SECRET_MAX_LENGTH = 512
 RBC_GENERATED_SECRET_PAYLOAD_RE = re.compile(r"^(?:\d+,)?eyJ[A-Za-z0-9+/=_-]{80,}$")
 RBC_GENERATED_SECRET_HEX_RE = re.compile(r"^[0-9a-fA-F]{160,}$")
+
+
+@dataclass
+class RBCCredentialCaptureState:
+    tasks: set[asyncio.Task[Any]] = field(default_factory=set)
+    accepting_tasks: bool = True
+    task_scheduled_count: int = 0
+    task_completed_count: int = 0
+    task_failed_count: int = 0
+    task_cancelled_count: int = 0
+    task_rejected_count: int = 0
+    task_error_types: set[str] = field(default_factory=set)
+    cdp_install_attempt_count: int = 0
+    cdp_install_success_count: int = 0
+    cdp_install_failure_count: int = 0
+    cdp_install_error_types: set[str] = field(default_factory=set)
+    cdp_rbc_post_count: int = 0
+    request_rbc_post_count: int = 0
+    cdp_login_post_count: int = 0
+    request_login_post_count: int = 0
+    cdp_post_data_inline_count: int = 0
+    cdp_post_data_retrieved_count: int = 0
+    cdp_post_data_missing_count: int = 0
+    request_post_data_inline_count: int = 0
+    request_post_data_missing_count: int = 0
+    credential_post_count: int = 0
+    cdp_credential_post_count: int = 0
+    request_credential_post_count: int = 0
+    post_data_fetch_error_types: set[str] = field(default_factory=set)
+    request_capture_error_types: set[str] = field(default_factory=set)
+    route_install_attempt_count: int = 0
+    route_install_success_count: int = 0
+    route_install_failure_count: int = 0
+    route_install_error_types: set[str] = field(default_factory=set)
+    route_login_post_count: int = 0
+    route_capture_error_types: set[str] = field(default_factory=set)
+    field_observations: dict[str, dict[str, set[str]]] = field(
+        default_factory=lambda: {
+            source: {"K1": set(), "QQ": set(), "Q1": set()}
+            for source in ("cdp_request", "request", "route")
+        }
+    )
+    drain_started_count: int = 0
+    drain_completed_count: int = 0
+    drain_timeout_count: int = 0
+    drain_initial_pending_count: int = 0
+
+    def summary(self) -> dict[str, Any]:
+        return {
+            "capture_task_scheduled_count": self.task_scheduled_count,
+            "capture_task_completed_count": self.task_completed_count,
+            "capture_task_failed_count": self.task_failed_count,
+            "capture_task_cancelled_count": self.task_cancelled_count,
+            "capture_task_rejected_count": self.task_rejected_count,
+            "capture_task_pending_count": len(self.tasks),
+            "capture_task_error_types": sorted(self.task_error_types),
+            "capture_task_drain_started_count": self.drain_started_count,
+            "capture_task_drain_completed_count": self.drain_completed_count,
+            "capture_task_drain_timeout_count": self.drain_timeout_count,
+            "capture_task_drain_initial_pending_count": self.drain_initial_pending_count,
+            "cdp_install_attempt_count": self.cdp_install_attempt_count,
+            "cdp_install_success_count": self.cdp_install_success_count,
+            "cdp_install_failure_count": self.cdp_install_failure_count,
+            "cdp_install_error_types": sorted(self.cdp_install_error_types),
+            "cdp_request_listener_installed": self.cdp_install_success_count > 0,
+            "cdp_rbc_post_count": self.cdp_rbc_post_count,
+            "request_rbc_post_count": self.request_rbc_post_count,
+            "cdp_login_post_count": self.cdp_login_post_count,
+            "request_login_post_count": self.request_login_post_count,
+            "cdp_post_data_inline_count": self.cdp_post_data_inline_count,
+            "cdp_post_data_retrieved_count": self.cdp_post_data_retrieved_count,
+            "cdp_post_data_missing_count": self.cdp_post_data_missing_count,
+            "request_post_data_inline_count": self.request_post_data_inline_count,
+            "request_post_data_missing_count": self.request_post_data_missing_count,
+            "credential_post_count": self.credential_post_count,
+            "cdp_credential_post_count": self.cdp_credential_post_count,
+            "request_credential_post_count": self.request_credential_post_count,
+            "post_data_fetch_error_types": sorted(self.post_data_fetch_error_types),
+            "request_capture_error_types": sorted(self.request_capture_error_types),
+            "route_install_attempt_count": self.route_install_attempt_count,
+            "route_install_success_count": self.route_install_success_count,
+            "route_install_failure_count": self.route_install_failure_count,
+            "route_install_error_types": sorted(self.route_install_error_types),
+            "route_login_post_count": self.route_login_post_count,
+            "route_capture_error_types": sorted(self.route_capture_error_types),
+            "windows_login_route_listener_installed": self.route_install_success_count > 0,
+            "credential_field_observations": {
+                source: {
+                    key: sorted(values) if values else ["missing"]
+                    for key, values in fields.items()
+                }
+                for source, fields in self.field_observations.items()
+            },
+        }
+
+
+def _schedule_rbc_capture_task(
+    capture_state: RBCCredentialCaptureState,
+    coroutine: Coroutine[Any, Any, Any],
+) -> asyncio.Task[Any] | None:
+    if not capture_state.accepting_tasks:
+        capture_state.task_rejected_count += 1
+        coroutine.close()
+        return None
+    try:
+        task = asyncio.create_task(coroutine)
+    except RuntimeError:
+        capture_state.task_rejected_count += 1
+        coroutine.close()
+        return None
+    capture_state.task_scheduled_count += 1
+    capture_state.tasks.add(task)
+
+    def capture_done(completed_task: asyncio.Task[Any]) -> None:
+        capture_state.tasks.discard(completed_task)
+        if completed_task.cancelled():
+            capture_state.task_cancelled_count += 1
+            return
+        error = completed_task.exception()
+        if error is None:
+            capture_state.task_completed_count += 1
+            return
+        capture_state.task_failed_count += 1
+        capture_state.task_error_types.add(type(error).__name__)
+
+    task.add_done_callback(capture_done)
+    return task
+
+
+async def _drain_rbc_capture_tasks(
+    capture_state: RBCCredentialCaptureState,
+    *,
+    timeout_seconds: float = RBC_CREDENTIAL_CAPTURE_TASK_DRAIN_SECONDS,
+) -> bool:
+    capture_state.accepting_tasks = False
+    capture_state.drain_started_count += 1
+    capture_state.drain_initial_pending_count = len(capture_state.tasks)
+    if not capture_state.tasks:
+        capture_state.drain_completed_count += 1
+        return True
+    done, pending = await asyncio.wait(
+        set(capture_state.tasks),
+        timeout=max(0.0, timeout_seconds),
+    )
+    del done
+    if not pending:
+        capture_state.drain_completed_count += 1
+        return True
+    capture_state.drain_timeout_count += 1
+    for task in pending:
+        task.cancel()
+    await asyncio.gather(*pending, return_exceptions=True)
+    return False
 RBC_ENTRY_NAVIGATION_ATTEMPTS = 3
 RBC_ENTRY_NAVIGATION_RETRY_SECONDS = 2.0
 RBC_ACCOUNT_LIST_FETCH_TIMEOUT_SECONDS = 0.75
@@ -682,6 +835,60 @@ def _is_rbc_generated_secret_payload(value: str | None) -> bool:
     )
 
 
+def _rbc_credential_mapping_from_post_data(post_data: str) -> dict[str, Any]:
+    parsed = _parse_rbc_json_body(post_data)
+    if isinstance(parsed, dict):
+        return parsed
+    return dict(parse_qsl(post_data, keep_blank_values=True))
+
+
+def _rbc_credential_field_classifications(mapping: dict[str, Any]) -> dict[str, str]:
+    normalized = {str(key).upper(): value for key, value in mapping.items()}
+    classifications: dict[str, str] = {}
+    for key in ("K1", "QQ", "Q1"):
+        value = str(normalized.get(key) or "")
+        if not value:
+            classifications[key] = "missing"
+        elif _is_rbc_masked_secret(value):
+            classifications[key] = "masked"
+        elif _is_rbc_generated_secret_payload(value):
+            classifications[key] = "generated"
+        else:
+            classifications[key] = "raw"
+    return classifications
+
+
+def _rbc_is_login_request_url(url: str) -> bool:
+    lowered = str(url or "").lower()
+    return (
+        "rbunxcgi" in lowered
+        or "rbcgi3m01" in lowered
+        or "request=clientsignin" in lowered
+    )
+
+
+def _record_rbc_post_data_observation(
+    capture_state: RBCCredentialCaptureState,
+    *,
+    post_data: str,
+    source: str,
+) -> bool:
+    mapping = _rbc_credential_mapping_from_post_data(post_data)
+    classifications = _rbc_credential_field_classifications(mapping)
+    credential_post = any(value != "missing" for value in classifications.values())
+    if not credential_post:
+        return False
+    capture_state.credential_post_count += 1
+    if source == "cdp_request":
+        capture_state.cdp_credential_post_count += 1
+    elif source == "request":
+        capture_state.request_credential_post_count += 1
+    source_observations = capture_state.field_observations[source]
+    for key, classification in classifications.items():
+        source_observations[key].add(classification)
+    return True
+
+
 def _capture_rbc_username(
     captured_credentials: dict[str, str],
     username: str,
@@ -752,21 +959,24 @@ def _capture_rbc_credentials_from_post_data(
     *,
     post_data: str,
     source: str,
+    capture_state: RBCCredentialCaptureState | None = None,
 ) -> bool:
     if not post_data:
         return False
 
-    parsed = _parse_rbc_json_body(post_data)
-    credential_pair = _credentials_from_mapping(parsed) if isinstance(parsed, dict) else None
+    mapping = _rbc_credential_mapping_from_post_data(post_data)
+    credential_request = (
+        _record_rbc_post_data_observation(capture_state, post_data=post_data, source=source)
+        if capture_state is not None
+        else any(key in {str(item).upper() for item in mapping} for key in ("K1", "QQ", "Q1"))
+    )
+    credential_pair = _credentials_from_mapping(mapping)
     if credential_pair is None:
-        pairs = dict(parse_qsl(post_data, keep_blank_values=True))
-        credential_pair = _credentials_from_mapping(pairs)
-    if credential_pair is None:
-        return False
+        return credential_request
     username, password = credential_pair
     _capture_rbc_username(captured_credentials, username, source=source)
     _capture_rbc_password(captured_credentials, password, source=source)
-    return True
+    return credential_request
 
 
 def _capture_rbc_credentials_from_request(
@@ -774,6 +984,7 @@ def _capture_rbc_credentials_from_request(
     request,
     *,
     post_data: str | None = None,
+    capture_state: RBCCredentialCaptureState | None = None,
 ) -> bool:
     method = str(getattr(request, "method", "") or "").upper()
     if method != "POST":
@@ -789,62 +1000,148 @@ def _capture_rbc_credentials_from_request(
         captured_credentials,
         post_data=post_data,
         source="request",
+        capture_state=capture_state,
     )
 
 
-async def _install_rbc_windows_cdp_request_capture(context, page, captured_credentials: dict[str, str]) -> None:
+async def _install_rbc_windows_cdp_request_capture(
+    context,
+    page,
+    captured_credentials: dict[str, str],
+    capture_state: RBCCredentialCaptureState | None = None,
+) -> None:
     if not RBC_WINDOWS_FLOW or getattr(page, "_rbc_windows_cdp_request_capture_installed", False):
         return
-    setattr(page, "_rbc_windows_cdp_request_capture_installed", True)
+    capture_state = capture_state or RBCCredentialCaptureState()
+    capture_state.cdp_install_attempt_count += 1
     try:
         session = await context.new_cdp_session(page)
         await session.send("Network.enable")
-    except Exception:
+    except Exception as exc:
+        capture_state.cdp_install_failure_count += 1
+        capture_state.cdp_install_error_types.add(type(exc).__name__)
         return
-    setattr(page, "_rbc_windows_cdp_request_capture_session", session)
 
     async def capture_cdp_request(params: dict[str, Any]) -> None:
-        try:
-            request = params.get("request") if isinstance(params, dict) else None
-            if not isinstance(request, dict):
-                return
-            method = str(request.get("method") or "").upper()
-            url = str(request.get("url") or "")
-            if method != "POST" or not _rbc_host_matches(url):
-                return
-            post_data = str(request.get("postData") or "")
-            if not post_data and request.get("hasPostData") and params.get("requestId"):
-                try:
-                    body = await session.send(
-                        "Network.getRequestPostData",
-                        {"requestId": str(params.get("requestId"))},
-                    )
-                except Exception:
-                    body = {}
-                if isinstance(body, dict):
-                    post_data = str(body.get("postData") or "")
-            if not post_data:
-                return
-            credential_request = _capture_rbc_credentials_from_post_data(
-                captured_credentials,
-                post_data=post_data,
-                source="cdp_request",
-            )
-            if credential_request and not _rbc_has_unmasked_password(captured_credentials):
-                await _capture_rbc_raw_input_credentials_burst(page, captured_credentials)
-        except Exception:
+        request = params.get("request") if isinstance(params, dict) else None
+        if not isinstance(request, dict):
             return
+        method = str(request.get("method") or "").upper()
+        url = str(request.get("url") or "")
+        if method != "POST" or not _rbc_host_matches(url):
+            return
+        capture_state.cdp_rbc_post_count += 1
+        if _rbc_is_login_request_url(url):
+            capture_state.cdp_login_post_count += 1
+        post_data = str(request.get("postData") or "")
+        if post_data:
+            capture_state.cdp_post_data_inline_count += 1
+        elif request.get("hasPostData") and params.get("requestId"):
+            try:
+                body = await session.send(
+                    "Network.getRequestPostData",
+                    {"requestId": str(params.get("requestId"))},
+                )
+            except Exception as exc:
+                capture_state.post_data_fetch_error_types.add(type(exc).__name__)
+                body = {}
+            if isinstance(body, dict):
+                post_data = str(body.get("postData") or "")
+            if post_data:
+                capture_state.cdp_post_data_retrieved_count += 1
+        if not post_data:
+            capture_state.cdp_post_data_missing_count += 1
+            return
+        credential_request = _capture_rbc_credentials_from_post_data(
+            captured_credentials,
+            post_data=post_data,
+            source="cdp_request",
+            capture_state=capture_state,
+        )
+        if credential_request and not _rbc_has_unmasked_password(captured_credentials):
+            await _capture_rbc_raw_input_credentials_burst(page, captured_credentials)
 
     def on_request_will_be_sent(params) -> None:
-        try:
-            asyncio.create_task(capture_cdp_request(params))
-        except RuntimeError:
+        request = params.get("request") if isinstance(params, dict) else None
+        if not isinstance(request, dict):
             return
+        if str(request.get("method") or "").upper() != "POST":
+            return
+        if not _rbc_host_matches(str(request.get("url") or "")):
+            return
+        _schedule_rbc_capture_task(capture_state, capture_cdp_request(params))
 
-    session.on("Network.requestWillBeSent", on_request_will_be_sent)
+    try:
+        session.on("Network.requestWillBeSent", on_request_will_be_sent)
+    except Exception as exc:
+        capture_state.cdp_install_failure_count += 1
+        capture_state.cdp_install_error_types.add(type(exc).__name__)
+        return
+    setattr(page, "_rbc_windows_cdp_request_capture_session", session)
+    setattr(page, "_rbc_windows_cdp_request_capture_installed", True)
+    capture_state.cdp_install_success_count += 1
 
 
-def _install_rbc_request_capture(page, captured_credentials: dict[str, str]) -> None:
+async def _install_rbc_windows_login_route_capture(
+    context,
+    captured_credentials: dict[str, str],
+    capture_state: RBCCredentialCaptureState,
+) -> None:
+    if not RBC_WINDOWS_FLOW or getattr(context, "_rbc_windows_login_route_capture_installed", False):
+        return
+    capture_state.route_install_attempt_count += 1
+
+    async def capture_login_route(route, request) -> None:
+        try:
+            method = str(getattr(request, "method", "") or "").upper()
+            url = str(getattr(request, "url", "") or "")
+            if method != "POST" or not _rbc_host_matches(url) or not _rbc_is_login_request_url(url):
+                return
+            capture_state.route_login_post_count += 1
+            request_frame = getattr(request, "frame", None)
+            request_page = getattr(request_frame, "page", None)
+            if request_page is not None and not visible_auth.is_page_closed(request_page):
+                try:
+                    async with asyncio.timeout(RBC_WINDOWS_LOGIN_ROUTE_CAPTURE_TIMEOUT_SECONDS):
+                        await _capture_rbc_raw_input_credentials(
+                            request_page,
+                            captured_credentials,
+                            timeout_ms=RBC_CREDENTIAL_CAPTURE_FAST_TIMEOUT_MS,
+                            include_hidden_fallback=True,
+                        )
+                except Exception as exc:
+                    capture_state.route_capture_error_types.add(type(exc).__name__)
+            post_data = visible_auth.safe_request_post_data(request)
+            if post_data:
+                _capture_rbc_credentials_from_post_data(
+                    captured_credentials,
+                    post_data=post_data,
+                    source="route",
+                    capture_state=capture_state,
+                )
+        except Exception as exc:
+            capture_state.route_capture_error_types.add(type(exc).__name__)
+        finally:
+            try:
+                await route.continue_()
+            except Exception as exc:
+                capture_state.route_capture_error_types.add(type(exc).__name__)
+
+    try:
+        await context.route(RBC_WINDOWS_LOGIN_ROUTE_PATTERN, capture_login_route)
+    except Exception as exc:
+        capture_state.route_install_failure_count += 1
+        capture_state.route_install_error_types.add(type(exc).__name__)
+        return
+    setattr(context, "_rbc_windows_login_route_capture_installed", True)
+    capture_state.route_install_success_count += 1
+
+
+def _install_rbc_request_capture(
+    page,
+    captured_credentials: dict[str, str],
+    capture_state: RBCCredentialCaptureState | None = None,
+) -> None:
     if getattr(page, "_rbc_request_capture_installed", False):
         return
     setattr(page, "_rbc_request_capture_installed", True)
@@ -855,27 +1152,48 @@ def _install_rbc_request_capture(page, captured_credentials: dict[str, str]) -> 
             url = str(getattr(request, "url", "") or "")
             if method != "POST" or not _rbc_host_matches(url):
                 return
+            if capture_state is not None:
+                capture_state.request_rbc_post_count += 1
+                if _rbc_is_login_request_url(url):
+                    capture_state.request_login_post_count += 1
             post_data = visible_auth.safe_request_post_data(request)
             if not post_data:
+                if capture_state is not None:
+                    capture_state.request_post_data_missing_count += 1
                 return
+            if capture_state is not None:
+                capture_state.request_post_data_inline_count += 1
             credential_request = _capture_rbc_credentials_from_request(
                 captured_credentials,
                 request,
                 post_data=post_data,
+                capture_state=capture_state,
             )
             if credential_request and not _rbc_has_unmasked_password(captured_credentials):
-                try:
-                    loop = asyncio.get_running_loop()
-                    loop.create_task(_capture_rbc_raw_input_credentials_burst(page, captured_credentials))
-                except RuntimeError:
-                    pass
-        except Exception:
+                if capture_state is not None:
+                    _schedule_rbc_capture_task(
+                        capture_state,
+                        _capture_rbc_raw_input_credentials_burst(page, captured_credentials),
+                    )
+                else:
+                    try:
+                        loop = asyncio.get_running_loop()
+                        loop.create_task(_capture_rbc_raw_input_credentials_burst(page, captured_credentials))
+                    except RuntimeError:
+                        pass
+        except Exception as exc:
+            if capture_state is not None:
+                capture_state.request_capture_error_types.add(type(exc).__name__)
             return
 
     page.on("request", on_request)
 
 
-def bind_rbc_page_watcher(page, captured_credentials: dict[str, str]) -> None:
+def bind_rbc_page_watcher(
+    page,
+    captured_credentials: dict[str, str],
+    capture_state: RBCCredentialCaptureState | None = None,
+) -> None:
     if getattr(page, "_rbc_page_watcher_installed", False):
         return
     setattr(page, "_rbc_page_watcher_installed", True)
@@ -891,7 +1209,7 @@ def bind_rbc_page_watcher(page, captured_credentials: dict[str, str]) -> None:
             return
 
     page.on("framenavigated", on_frame_navigated)
-    _install_rbc_request_capture(page, captured_credentials)
+    _install_rbc_request_capture(page, captured_credentials, capture_state)
     _install_rbc_response_capture(page)
 
 
@@ -1002,44 +1320,46 @@ async def _rbc_first_input_value(
     selectors: tuple[str, ...],
     *,
     visible_only: bool = False,
-    reject_masked: bool = False,
+    reject_transformed: bool = False,
     timeout_ms: int = 250,
 ) -> str:
     targets = await _rbc_input_targets(page)
     fallback = ""
-    fallback_is_masked = False
+    fallback_is_transformed = False
+    selector_group = ", ".join(selectors)
     for target in targets:
-        for selector in selectors:
-            try:
-                locator = target.locator(selector)
-                count = min(await locator.count(), 8)
-            except Exception:
-                continue
-            for index in range(count):
-                input_locator = locator.nth(index)
+        try:
+            locator = target.locator(selector_group)
+            count = min(await locator.count(), 8)
+        except Exception:
+            continue
+        for index in range(count):
+            input_locator = locator.nth(index)
+            visible = False
+            if visible_only:
                 try:
                     visible = bool(await input_locator.is_visible(timeout=timeout_ms))
                 except Exception:
                     visible = False
-                if visible_only and not visible:
+                if not visible:
                     continue
-                try:
-                    value = str(await input_locator.input_value(timeout=timeout_ms) or "")
-                except Exception:
-                    continue
-                if not value:
-                    continue
-                value_is_masked = _is_rbc_masked_secret(value)
-                if reject_masked and value_is_masked:
-                    fallback = value
-                    fallback_is_masked = True
-                    continue
-                if visible:
-                    return value
-                if not fallback or fallback_is_masked:
-                    fallback = value
-                    fallback_is_masked = value_is_masked
-    if reject_masked and fallback_is_masked:
+            try:
+                value = str(await input_locator.input_value(timeout=timeout_ms) or "")
+            except Exception:
+                continue
+            if not value:
+                continue
+            value_is_transformed = _is_rbc_masked_secret(value) or _is_rbc_generated_secret_payload(value)
+            if reject_transformed and value_is_transformed:
+                fallback = value
+                fallback_is_transformed = True
+                continue
+            if not visible_only or visible:
+                return value
+            if not fallback or fallback_is_transformed:
+                fallback = value
+                fallback_is_transformed = value_is_transformed
+    if reject_transformed and fallback_is_transformed:
         return ""
     return fallback
 
@@ -1048,14 +1368,14 @@ async def _rbc_first_visible_input_value(
     page,
     selectors: tuple[str, ...],
     *,
-    reject_masked: bool = False,
+    reject_transformed: bool = False,
     timeout_ms: int = 250,
 ) -> str:
     return await _rbc_first_input_value(
         page,
         selectors,
         visible_only=True,
-        reject_masked=reject_masked,
+        reject_transformed=reject_transformed,
         timeout_ms=timeout_ms,
     )
 
@@ -1088,37 +1408,39 @@ async def _capture_rbc_raw_input_credentials(
     timeout_ms: int = 250,
     include_hidden_fallback: bool = False,
 ) -> None:
-    username = await _rbc_first_visible_input_value(
-        page,
-        RBC_USERNAME_SELECTORS,
-        timeout_ms=timeout_ms,
-    )
-    username_source = "raw"
-    if not username and include_hidden_fallback:
+    if include_hidden_fallback:
+        password = await _rbc_first_input_value(
+            page,
+            RBC_PASSWORD_SELECTORS,
+            reject_transformed=True,
+            timeout_ms=timeout_ms,
+        )
+        password_source = "raw_hidden"
+    else:
+        password = await _rbc_first_visible_input_value(
+            page,
+            RBC_PASSWORD_SELECTORS,
+            reject_transformed=True,
+            timeout_ms=timeout_ms,
+        )
+        password_source = "raw"
+    _capture_rbc_password(captured_credentials, password, source=password_source)
+
+    if include_hidden_fallback:
         username = await _rbc_first_input_value(
             page,
             RBC_USERNAME_SELECTORS,
             timeout_ms=timeout_ms,
         )
         username_source = "raw_hidden"
-    _capture_rbc_username(captured_credentials, username, source=username_source)
-
-    password = await _rbc_first_visible_input_value(
-        page,
-        RBC_PASSWORD_SELECTORS,
-        reject_masked=True,
-        timeout_ms=timeout_ms,
-    )
-    password_source = "raw"
-    if not password and include_hidden_fallback:
-        password = await _rbc_first_input_value(
+    else:
+        username = await _rbc_first_visible_input_value(
             page,
-            RBC_PASSWORD_SELECTORS,
-            reject_masked=True,
+            RBC_USERNAME_SELECTORS,
             timeout_ms=timeout_ms,
         )
-        password_source = "raw_hidden"
-    _capture_rbc_password(captured_credentials, password, source=password_source)
+        username_source = "raw"
+    _capture_rbc_username(captured_credentials, username, source=username_source)
 
 
 async def _capture_rbc_context_raw_input_credentials(
@@ -1127,6 +1449,7 @@ async def _capture_rbc_context_raw_input_credentials(
     *,
     timeout_ms: int = RBC_CREDENTIAL_CAPTURE_FAST_TIMEOUT_MS,
     include_hidden_fallback: bool = True,
+    capture_state: RBCCredentialCaptureState | None = None,
 ) -> None:
     try:
         pages = list(getattr(context, "pages", []) or [])
@@ -1137,7 +1460,7 @@ async def _capture_rbc_context_raw_input_credentials(
             continue
         if not _rbc_host_matches(visible_auth.safe_page_url(page)):
             continue
-        bind_rbc_page_watcher(page, captured_credentials)
+        bind_rbc_page_watcher(page, captured_credentials, capture_state)
         try:
             await _capture_rbc_raw_input_credentials(
                 page,
@@ -1172,10 +1495,15 @@ async def _run_rbc_credential_capture_sampler(
     context,
     captured_credentials: dict[str, str],
     stop_event: asyncio.Event,
+    capture_state: RBCCredentialCaptureState | None = None,
 ) -> None:
     while not stop_event.is_set():
         try:
-            await _capture_rbc_context_raw_input_credentials(context, captured_credentials)
+            await _capture_rbc_context_raw_input_credentials(
+                context,
+                captured_credentials,
+                capture_state=capture_state,
+            )
         except Exception as exc:
             if visible_auth.is_browser_closed_error(exc):
                 return
@@ -1361,6 +1689,7 @@ async def wait_for_authenticated_session(
     captured_credentials: dict[str, str],
     prefill_credentials: tuple[str, str] | None = None,
     popup_lock: PopupInteractionLock | None = None,
+    capture_state: RBCCredentialCaptureState | None = None,
 ) -> Any:
     deadline = visible_auth.visible_auth_deadline(TIMEOUT_SECONDS)
     last_description = ""
@@ -1373,7 +1702,12 @@ async def wait_for_authenticated_session(
     login_form_seen_logged = False
     capture_stop_event = asyncio.Event()
     capture_task = asyncio.create_task(
-        _run_rbc_credential_capture_sampler(context, captured_credentials, capture_stop_event)
+        _run_rbc_credential_capture_sampler(
+            context,
+            captured_credentials,
+            capture_stop_event,
+            capture_state,
+        )
     )
     try:
         while visible_auth.visible_auth_deadline_active(deadline):
@@ -1509,24 +1843,102 @@ async def wait_for_authenticated_session(
             await popup_lock.set_locked(False)
 
 
-async def _prepare_rbc_context_page(context, captured_credentials: dict[str, str]):
+async def _prepare_rbc_context_page(
+    context,
+    captured_credentials: dict[str, str],
+    capture_state: RBCCredentialCaptureState | None = None,
+):
     pages = list(getattr(context, "pages", []) or [])
     if pages:
         page = pages[0]
-        bind_rbc_page_watcher(page, captured_credentials)
-        await _install_rbc_windows_cdp_request_capture(context, page, captured_credentials)
+        bind_rbc_page_watcher(page, captured_credentials, capture_state)
+        await _install_rbc_windows_cdp_request_capture(context, page, captured_credentials, capture_state)
         for extra_page in pages[1:]:
-            bind_rbc_page_watcher(extra_page, captured_credentials)
-            await _install_rbc_windows_cdp_request_capture(context, extra_page, captured_credentials)
+            bind_rbc_page_watcher(extra_page, captured_credentials, capture_state)
+            await _install_rbc_windows_cdp_request_capture(
+                context,
+                extra_page,
+                captured_credentials,
+                capture_state,
+            )
             try:
                 await extra_page.close()
             except Exception:
                 pass
         return page
     page = await context.new_page()
-    bind_rbc_page_watcher(page, captured_credentials)
-    await _install_rbc_windows_cdp_request_capture(context, page, captured_credentials)
+    bind_rbc_page_watcher(page, captured_credentials, capture_state)
+    await _install_rbc_windows_cdp_request_capture(context, page, captured_credentials, capture_state)
     return page
+
+
+def _rbc_credential_capture_details(
+    captured_credentials: dict[str, str],
+    capture_state: RBCCredentialCaptureState,
+) -> dict[str, Any]:
+    unmasked_login_value_capture_count = sum(
+        int(captured_credentials.get(key) or 0)
+        for key in (
+            "_raw_password_capture_count",
+            "_raw_hidden_password_capture_count",
+            "_request_password_capture_count",
+            "_cdp_request_password_capture_count",
+            "_route_password_capture_count",
+        )
+    )
+    return {
+        "unmasked_login_value_capture_count": unmasked_login_value_capture_count,
+        "unmasked_login_value_captured": _rbc_has_unmasked_password(captured_credentials),
+        "raw_username_capture_count": int(captured_credentials.get("_raw_username_capture_count") or 0),
+        "raw_hidden_username_capture_count": int(
+            captured_credentials.get("_raw_hidden_username_capture_count") or 0
+        ),
+        "request_username_capture_count": int(captured_credentials.get("_request_username_capture_count") or 0),
+        "cdp_request_username_capture_count": int(
+            captured_credentials.get("_cdp_request_username_capture_count") or 0
+        ),
+        "raw_password_capture_count": int(captured_credentials.get("_raw_password_capture_count") or 0),
+        "raw_hidden_password_capture_count": int(
+            captured_credentials.get("_raw_hidden_password_capture_count") or 0
+        ),
+        "request_password_capture_count": int(captured_credentials.get("_request_password_capture_count") or 0),
+        "cdp_request_password_capture_count": int(
+            captured_credentials.get("_cdp_request_password_capture_count") or 0
+        ),
+        "route_username_capture_count": int(
+            captured_credentials.get("_route_username_capture_count") or 0
+        ),
+        "route_password_capture_count": int(
+            captured_credentials.get("_route_password_capture_count") or 0
+        ),
+        "request_masked_password_count": int(captured_credentials.get("_request_masked_password_count") or 0),
+        "cdp_request_masked_password_count": int(
+            captured_credentials.get("_cdp_request_masked_password_count") or 0
+        ),
+        "raw_masked_password_count": int(captured_credentials.get("_raw_masked_password_count") or 0),
+        "raw_hidden_masked_password_count": int(
+            captured_credentials.get("_raw_hidden_masked_password_count") or 0
+        ),
+        "request_generated_password_count": int(
+            captured_credentials.get("_request_generated_password_count") or 0
+        ),
+        "cdp_request_generated_password_count": int(
+            captured_credentials.get("_cdp_request_generated_password_count") or 0
+        ),
+        "route_masked_password_count": int(
+            captured_credentials.get("_route_masked_password_count") or 0
+        ),
+        "route_generated_password_count": int(
+            captured_credentials.get("_route_generated_password_count") or 0
+        ),
+        "raw_generated_password_count": int(captured_credentials.get("_raw_generated_password_count") or 0),
+        "raw_hidden_generated_password_count": int(
+            captured_credentials.get("_raw_hidden_generated_password_count") or 0
+        ),
+        "username_captured": bool(captured_credentials.get("username")),
+        "password_captured": _rbc_has_unmasked_password(captured_credentials),
+        **capture_state.summary(),
+    }
 
 
 async def run() -> None:
@@ -1536,6 +1948,7 @@ async def run() -> None:
         raise RuntimeError("Visible auth attempt ID is required.")
 
     captured_credentials = {"username": "", "password": ""}
+    capture_state = RBCCredentialCaptureState()
     saved_credentials = None
     bootstrap_storage_state = None
     bootstrap_storage_slot = ""
@@ -1632,14 +2045,25 @@ async def run() -> None:
                     )
                 ) from exc
 
+            await _install_rbc_windows_login_route_capture(
+                context,
+                captured_credentials,
+                capture_state,
+            )
+
             popup_lock: PopupInteractionLock | None = None
 
             def on_new_page(new_page) -> None:
-                bind_rbc_page_watcher(new_page, captured_credentials)
+                bind_rbc_page_watcher(new_page, captured_credentials, capture_state)
 
                 async def bind_locked_page() -> None:
                     try:
-                        await _install_rbc_windows_cdp_request_capture(context, new_page, captured_credentials)
+                        await _install_rbc_windows_cdp_request_capture(
+                            context,
+                            new_page,
+                            captured_credentials,
+                            capture_state,
+                        )
                         should_lock = popup_lock.locked
                         await popup_lock.bind_page(new_page, await context.new_cdp_session(new_page))
                         if should_lock:
@@ -1648,14 +2072,20 @@ async def run() -> None:
                         return
 
                 if popup_lock is not None:
-                    asyncio.create_task(bind_locked_page())
+                    _schedule_rbc_capture_task(capture_state, bind_locked_page())
                 elif RBC_WINDOWS_FLOW:
-                    asyncio.create_task(
-                        _install_rbc_windows_cdp_request_capture(context, new_page, captured_credentials)
+                    _schedule_rbc_capture_task(
+                        capture_state,
+                        _install_rbc_windows_cdp_request_capture(
+                            context,
+                            new_page,
+                            captured_credentials,
+                            capture_state,
+                        ),
                     )
 
             context.on("page", on_new_page)
-            page = await _prepare_rbc_context_page(context, captured_credentials)
+            page = await _prepare_rbc_context_page(context, captured_credentials, capture_state)
 
             runtime_description = browser_runtime.get("runtime") or "unknown"
             runtime_path = browser_runtime.get("executable_path") or "patchright_default"
@@ -1704,9 +2134,10 @@ async def run() -> None:
                     ),
                     **visible_auth.browser_launch_details(launch_kwargs),
                     "browser_init_scripts_enabled": False,
-                    "credential_capture_strategy": "bounded_post_load_input_polling_and_structured_request_capture",
+                    "credential_capture_strategy": "bounded_post_load_input_polling_and_structured_request_capture_with_windows_login_route_pause",
                     "credential_capture_background_poll_seconds": RBC_CREDENTIAL_CAPTURE_BACKGROUND_POLL_SECONDS,
                     "windows_cdp_request_capture_enabled": RBC_WINDOWS_FLOW,
+                    "windows_login_route_capture_enabled": RBC_WINDOWS_FLOW,
                     "browser_runtime": runtime_description,
                     "runtime_mode": runtime_mode,
                     "runtime_version": runtime_version,
@@ -1725,15 +2156,14 @@ async def run() -> None:
                     popup_lock = None
 
             early_capture_stop_event = asyncio.Event()
-            # wait_for_authenticated_session runs its own capture sampler. On
-            # Windows a second concurrent sampler doubles the CDP round-trip load
-            # on the single browser channel and starves credential prefill on slow
-            # hardware, so skip it there; Linux/Mac keep both samplers unchanged.
-            early_capture_task = (
-                None
-                if RBC_WINDOWS_FLOW
-                else asyncio.create_task(
-                    _run_rbc_credential_capture_sampler(context, captured_credentials, early_capture_stop_event)
+            # Match the proven Linux/macOS lifecycle on Windows: sample live
+            # fields before navigation as well as inside the authenticated wait.
+            early_capture_task = asyncio.create_task(
+                _run_rbc_credential_capture_sampler(
+                    context,
+                    captured_credentials,
+                    early_capture_stop_event,
+                    capture_state,
                 )
             )
             try:
@@ -1744,20 +2174,42 @@ async def run() -> None:
                     captured_credentials=captured_credentials,
                     prefill_credentials=saved_credentials,
                     popup_lock=popup_lock,
+                    capture_state=capture_state,
                 )
             finally:
                 early_capture_stop_event.set()
-                if early_capture_task is not None:
-                    try:
-                        await asyncio.wait_for(early_capture_task, timeout=1.0)
-                    except Exception:
-                        early_capture_task.cancel()
+                try:
+                    await asyncio.wait_for(early_capture_task, timeout=1.0)
+                except Exception:
+                    early_capture_task.cancel()
             await visible_auth.ensure_visible_auth_context_handoff_lock(
                 context,
                 provider_display_name="RBC",
                 log_support_event=log_support_event,
                 reason="authenticated",
             )
+            await _drain_rbc_capture_tasks(capture_state)
+            await _capture_rbc_context_raw_input_credentials(
+                context,
+                captured_credentials,
+                capture_state=capture_state,
+            )
+            captured_pair = collect_rbc_credentials(captured_credentials)
+            credential_capture_details = _rbc_credential_capture_details(
+                captured_credentials,
+                capture_state,
+            )
+            await log_support_event(
+                stage="credential capture summary",
+                message="RBC visible-auth credential capture summary.",
+                details=credential_capture_details,
+            )
+            if not captured_pair:
+                raise RuntimeError(
+                    "RBC raw credentials could not be captured from the secure login flow. Start RBC login again."
+                )
+            username, password = captured_pair
+
             capture_started_at = asyncio.get_running_loop().time()
             active_target = page
             user_agent = await visible_auth.collect_user_agent(active_target)
@@ -1775,6 +2227,18 @@ async def run() -> None:
                 "has_user_agent": bool(session_artifact.get("user_agent")),
                 "handoff_capture_ms": int((asyncio.get_running_loop().time() - capture_started_at) * 1000),
             }
+            await log_support_event(
+                stage="storage_state captured",
+                debug=True,
+                message="RBC visible-auth storage state captured.",
+                details=storage_state_details,
+            )
+            await log_support_event(
+                stage="session_artifact captured",
+                debug=True,
+                message="RBC visible-auth session artifact captured.",
+                details=session_artifact_details,
+            )
             if context is not None:
                 if await visible_auth.close_visible_auth_context_after_capture(
                     context,
@@ -1790,68 +2254,6 @@ async def run() -> None:
                     browser_executable_path=runtime_path if RBC_WINDOWS_FLOW else None,
                 ):
                     context = None
-            captured_pair = collect_rbc_credentials(captured_credentials)
-            credential_capture_details = {
-                "raw_username_capture_count": int(captured_credentials.get("_raw_username_capture_count") or 0),
-                "raw_hidden_username_capture_count": int(
-                    captured_credentials.get("_raw_hidden_username_capture_count") or 0
-                ),
-                "request_username_capture_count": int(captured_credentials.get("_request_username_capture_count") or 0),
-                "cdp_request_username_capture_count": int(
-                    captured_credentials.get("_cdp_request_username_capture_count") or 0
-                ),
-                "raw_password_capture_count": int(captured_credentials.get("_raw_password_capture_count") or 0),
-                "raw_hidden_password_capture_count": int(
-                    captured_credentials.get("_raw_hidden_password_capture_count") or 0
-                ),
-                "request_password_capture_count": int(captured_credentials.get("_request_password_capture_count") or 0),
-                "cdp_request_password_capture_count": int(
-                    captured_credentials.get("_cdp_request_password_capture_count") or 0
-                ),
-                "request_masked_password_count": int(captured_credentials.get("_request_masked_password_count") or 0),
-                "cdp_request_masked_password_count": int(
-                    captured_credentials.get("_cdp_request_masked_password_count") or 0
-                ),
-                "raw_masked_password_count": int(captured_credentials.get("_raw_masked_password_count") or 0),
-                "raw_hidden_masked_password_count": int(
-                    captured_credentials.get("_raw_hidden_masked_password_count") or 0
-                ),
-                "request_generated_password_count": int(
-                    captured_credentials.get("_request_generated_password_count") or 0
-                ),
-                "cdp_request_generated_password_count": int(
-                    captured_credentials.get("_cdp_request_generated_password_count") or 0
-                ),
-                "raw_generated_password_count": int(captured_credentials.get("_raw_generated_password_count") or 0),
-                "raw_hidden_generated_password_count": int(
-                    captured_credentials.get("_raw_hidden_generated_password_count") or 0
-                ),
-                "username_captured": bool(captured_credentials.get("username")),
-                "password_captured": _rbc_has_unmasked_password(captured_credentials),
-            }
-            await log_support_event(
-                stage="storage_state captured",
-                debug=True,
-                message="RBC visible-auth storage state captured.",
-                details=storage_state_details,
-            )
-            await log_support_event(
-                stage="session_artifact captured",
-                debug=True,
-                message="RBC visible-auth session artifact captured.",
-                details=session_artifact_details,
-            )
-            await log_support_event(
-                stage="credential capture summary",
-                debug=True,
-                message="RBC visible-auth credential capture summary.",
-                details=credential_capture_details,
-            )
-            if not captured_pair:
-                raise RuntimeError(
-                    "RBC raw credentials could not be captured from the secure login flow. Start RBC login again."
-                )
-            username, password = captured_pair
 
             auth_message = "Authenticated RBC session detected. Saving session for background sync."
             await log_support_event(stage="authenticated", message=auth_message, last_output=auth_message)
@@ -1905,6 +2307,8 @@ async def run() -> None:
             visible_auth.print_status(message)
             raise
         finally:
+            if capture_state.accepting_tasks or capture_state.tasks:
+                await _drain_rbc_capture_tasks(capture_state, timeout_seconds=0.0)
             await visible_auth.close_visible_auth_context_quietly(
                 context,
                 context_close_timeout_seconds=(

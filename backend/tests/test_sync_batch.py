@@ -349,6 +349,142 @@ class SyncBatchConcurrencyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("sync_all", gate.await_args.kwargs["mode"])
         self.assertEqual({"sync_all"}, set(observed_modes))
 
+    async def test_auto_batch_retries_only_temporary_dns_failures_once(self) -> None:
+        user_id = 1
+        batch_id = "temporary-dns-recovery-batch"
+        targets_by_key = {
+            "connection:1": {
+                "provider": "rbc",
+                "institution_id": 1,
+                "route_provider": "rbc",
+            },
+            "connection:2": {
+                "provider": "td",
+                "institution_id": 2,
+                "route_provider": "td",
+            },
+            "connection:3": {
+                "provider": "bmo",
+                "institution_id": 3,
+                "route_provider": "bmo",
+            },
+        }
+        await self._store_job(user_id, batch_id, targets_by_key, mode="auto")
+        calls: list[tuple[str, bool]] = []
+
+        async def run_single_connection(_user_id, _batch_id, key, _target, **kwargs):
+            allow_recovery = kwargs["defer_temporary_dns_failure"]
+            calls.append((key, allow_recovery))
+            if key == "connection:1" and allow_recovery:
+                return {
+                    "status": "network_error",
+                    sync_batch.NETWORK_RECOVERY_PENDING_MARKER: True,
+                    sync_batch.TEMPORARY_DNS_FAILURE_MARKER: True,
+                }
+            if key == "connection:2" and allow_recovery:
+                return {
+                    "status": "network_error",
+                    sync_batch.NETWORK_RECOVERY_PENDING_MARKER: True,
+                    sync_batch.TEMPORARY_DNS_FAILURE_MARKER: False,
+                }
+            return {"status": "ok"}
+
+        gate = AsyncMock(side_effect=(_gate_result("ready"), _gate_result("ready")))
+        with (
+            patch.object(
+                sync_batch,
+                "_order_connections_for_batch",
+                return_value=list(targets_by_key.items()),
+            ),
+            patch.object(sync_batch, "_run_single_connection", side_effect=run_single_connection),
+            patch.object(sync_batch, "run_sync_network_gate", new=gate),
+            patch.object(sync_batch, "publish_event"),
+        ):
+            await sync_batch._run_sync_batch_job(user_id, batch_id, targets_by_key)
+
+        self.assertEqual(
+            calls,
+            [
+                ("connection:1", True),
+                ("connection:2", True),
+                ("connection:3", True),
+                ("connection:1", False),
+                ("connection:2", False),
+            ],
+        )
+        self.assertEqual(2, gate.await_count)
+        self.assertEqual("batch_recovery", gate.await_args_list[1].kwargs["flow"])
+
+    async def test_nightly_batch_does_not_enable_interactive_network_recovery(self) -> None:
+        user_id = 1
+        batch_id = "nightly-no-network-recovery-batch"
+        targets_by_key = {
+            "connection:1": {
+                "provider": "rbc",
+                "institution_id": 1,
+                "route_provider": "rbc",
+            }
+        }
+        await self._store_job(user_id, batch_id, targets_by_key, mode="nightly")
+        recovery_flags: list[bool] = []
+
+        async def run_single_connection(*_args, **kwargs):
+            recovery_flags.append(kwargs["defer_temporary_dns_failure"])
+            return {"status": "network_error"}
+
+        gate = AsyncMock(return_value=_gate_result("ready"))
+        with (
+            patch.object(
+                sync_batch,
+                "_order_connections_for_batch",
+                return_value=list(targets_by_key.items()),
+            ),
+            patch.object(sync_batch, "_run_single_connection", side_effect=run_single_connection),
+            patch.object(sync_batch, "run_sync_network_gate", new=gate),
+            patch.object(sync_batch, "publish_event"),
+        ):
+            await sync_batch._run_sync_batch_job(user_id, batch_id, targets_by_key)
+
+        self.assertEqual([False], recovery_flags)
+        gate.assert_awaited_once()
+
+    async def test_batch_does_not_retry_unconfirmed_network_failures(self) -> None:
+        user_id = 1
+        batch_id = "unconfirmed-network-failure-batch"
+        target = {
+            "provider": "coinbase",
+            "institution_id": 1,
+            "route_provider": "coinbase",
+        }
+        targets_by_key = {"connection:1": target}
+        await self._store_job(user_id, batch_id, targets_by_key, mode="manual")
+        response = {
+            "status": "network_error",
+            sync_batch.NETWORK_RECOVERY_PENDING_MARKER: True,
+            sync_batch.TEMPORARY_DNS_FAILURE_MARKER: False,
+        }
+        run_connection = AsyncMock(return_value=response)
+        finish_connection = AsyncMock()
+        gate = AsyncMock(return_value=_gate_result("ready"))
+
+        with (
+            patch.object(
+                sync_batch,
+                "_order_connections_for_batch",
+                return_value=list(targets_by_key.items()),
+            ),
+            patch.object(sync_batch, "_run_single_connection", new=run_connection),
+            patch.object(sync_batch, "_finish_connection", new=finish_connection),
+            patch.object(sync_batch, "run_sync_network_gate", new=gate),
+            patch.object(sync_batch, "publish_event"),
+        ):
+            await sync_batch._run_sync_batch_job(user_id, batch_id, targets_by_key)
+
+        run_connection.assert_awaited_once()
+        finish_connection.assert_awaited_once()
+        self.assertIs(response, finish_connection.await_args.args[5])
+        gate.assert_awaited_once()
+
     def test_batch_modes_map_to_explicit_attempt_sources(self) -> None:
         self.assertEqual("autosync", sync_batch._sync_source_for_batch_mode("auto"))
         self.assertEqual("sync_all", sync_batch._sync_source_for_batch_mode("manual"))
@@ -387,6 +523,9 @@ class SyncBatchConcurrencyTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual("sync_all", run_connector.await_args.kwargs["sync_source"])
+        self.assertFalse(
+            run_connector.await_args.kwargs["include_network_recovery_hint"]
+        )
         self.assertEqual("sync_all", enqueue.await_args.kwargs["reason"])
 
     async def test_batch_gate_runs_before_provider_work(self) -> None:

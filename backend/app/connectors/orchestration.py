@@ -22,7 +22,12 @@ from app.provider_catalog import (
     provider_uses_background_transaction_import,
 )
 from app.services.runtime_state import clear_provider_reauth_quarantine_async
-from app.services.network_preflight import NetworkPreflightResult, run_provider_network_preflight
+from app.services.network_preflight import (
+    TEMPORARY_DNS_FAILURE_MARKER,
+    NetworkPreflightResult,
+    is_temporary_dns_preflight_result,
+    run_provider_network_preflight,
+)
 from app.services.holdings_sector_enrichment import enrich_holding_rows_with_sectors
 from app.services.sqlite_write_gate import retry_sqlite_busy, sqlite_write_gate
 from app.services.sync_tracking import (
@@ -248,17 +253,17 @@ async def persist_connector_result(
                 if persistence_metadata.get("institution_id"):
                     response["institution_id"] = persistence_metadata["institution_id"]
             if result.status != SyncStatus.ALREADY_SYNCING:
-                should_persist_status = True
                 response_status = str(response.get("status") or "").lower()
-                if sync_scope == "transactions":
-                    should_persist_status = response_status in {
-                        "ok",
-                        "network_error",
-                        "error",
-                        "auth_required",
-                        "different_profile_detected",
-                    }
-                elif sync_scope == "accounts" and response_status == "ok":
+                # Institution.sync_status is the account/balance phase authority.
+                # Durable transaction-job state supplies Phase 2 active/complete/
+                # partial settlement. Only decisive transaction auth rejection also
+                # updates the institution; transport/generic failures stay job-level
+                # and cannot pin an intermediate retry error over the final result.
+                should_persist_status = sync_scope != "transactions" or response_status in {
+                    "auth_required",
+                    "different_profile_detected",
+                }
+                if sync_scope == "accounts" and response_status == "ok":
                     try:
                         follow_up_pending = bool(provider_uses_background_transaction_import(provider))
                     except Exception:
@@ -377,6 +382,7 @@ async def run_connector_sync(
     sync_source: str | None = None,
     success_precommit_hook: SuccessPrecommitHook | None = None,
     attempt_id: str | None = None,
+    include_network_recovery_hint: bool = False,
 ) -> tuple[SyncResult, dict]:
     from app.services.support_auto_archive import archive_run_fire_and_forget
 
@@ -419,8 +425,13 @@ async def run_connector_sync(
             transaction_job_lease_token=transaction_job_lease_token,
         ):
             result = await connector.sync(user_id)
+        network_preflight = None
         if result.status == SyncStatus.NETWORK_ERROR:
-            await _log_network_preflight(provider=provider, user_id=user_id, sync_id=sync_id)
+            network_preflight = await _log_network_preflight(
+                provider=provider,
+                user_id=user_id,
+                sync_id=sync_id,
+            )
         response = await retry_sqlite_busy(
             lambda: persist_connector_result(
                 db,
@@ -496,6 +507,10 @@ async def run_connector_sync(
             archive_scheduled=archive_scheduled,
             debug=True,
         )
+        if include_network_recovery_hint and is_temporary_dns_preflight_result(
+            network_preflight
+        ):
+            response = {**response, TEMPORARY_DNS_FAILURE_MARKER: True}
         return result, response
     except Exception as exc:
         network_failure = is_network_error(exc)

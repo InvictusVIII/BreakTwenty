@@ -210,11 +210,11 @@
 }
 
 .transaction-import-status.is-running {
-  color: var(--color-text-tertiary);
+  color: var(--color-accent-secondary);
 }
 
 .transaction-import-status.is-queued {
-  color: var(--color-text-tertiary);
+  color: var(--color-accent-secondary);
 }
 
 .transaction-import-status.is-partial {
@@ -2394,7 +2394,7 @@
 
 .accounts-detail-import-row {
   display: grid;
-  grid-template-columns: minmax(8.75rem, 0.65fr) minmax(0, 1.85fr);
+  grid-template-columns: minmax(8.75rem, max-content) minmax(0, 1fr);
   align-items: center;
   gap: var(--space-2);
   min-height: 4.25rem;
@@ -2412,15 +2412,26 @@
 
 .accounts-detail-panel .transaction-import-status {
   align-items: center;
+  overflow: visible;
   text-align: center;
 }
 
 .accounts-detail-panel .transaction-import-status-main {
   justify-content: center;
+  overflow: visible;
+  position: relative;
+}
+
+.accounts-detail-panel .transaction-import-status-main > svg {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: calc(100% + 0.4rem);
+  margin-block: auto;
 }
 
 .accounts-detail-panel .transaction-import-status-main > span {
   text-align: center;
+  white-space: nowrap;
 }
 
 .accounts-detail-panel .transaction-import-status-detail {

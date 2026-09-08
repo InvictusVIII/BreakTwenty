@@ -518,9 +518,6 @@ function ScraperAuthModal({
     setDesktopVisibleAuthActive(institution.provider, false);
     desktopVisibleAuthAttemptIdRef.current = '';
     desktopVisibleAuthSyncIdRef.current = '';
-    if (isDesktopVisibleAuthFlow && institution.provider) {
-      sessionStorage.setItem(getSkipAutoLoginOnceKey(institution.provider), '1');
-    }
     autoLoginStartedRef.current = true;
     setIsSilentSyncLocked(false);
     setBridgeMessage('');
@@ -992,7 +989,6 @@ function ScraperAuthModal({
         institution.provider && sessionStorage.getItem(getSkipAutoLoginOnceKey(institution.provider)) === '1';
       if (skipProviderAutoLoginOnce) {
         sessionStorage.removeItem(getSkipAutoLoginOnceKey(institution.provider));
-        return;
       }
       autoLoginStartedRef.current = true;
       void launchDesktopVisibleAuthFlowRef.current?.(desktopVisibleAuthConfig);

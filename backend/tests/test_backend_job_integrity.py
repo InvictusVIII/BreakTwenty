@@ -340,6 +340,145 @@ class TransactionImportLeaseHeartbeatTests(unittest.IsolatedAsyncioTestCase):
             },
         )
 
+    async def test_sync_all_transaction_job_retries_once_after_temporary_dns_recovery(self) -> None:
+        async with self._sessionmaker() as db:
+            job = await db.get(TransactionImportJob, 1)
+            job.reason = "sync_all"
+            job.source_sync_id = "rbc-sync-all"
+            await db.commit()
+
+        run_connector = AsyncMock(
+            side_effect=(
+                (
+                    object(),
+                    {
+                        "status": "network_error",
+                        "sync_id": "rbc-sync-all",
+                        transaction_import_jobs.TEMPORARY_DNS_FAILURE_MARKER: True,
+                    },
+                ),
+                (object(), {"status": "ok", "sync_id": "rbc-sync-all"}),
+            )
+        )
+        mark_job = AsyncMock()
+        with (
+            patch.object(
+                transaction_import_jobs,
+                "_background_import_enabled",
+                return_value=True,
+            ),
+            patch.object(
+                transaction_import_jobs,
+                "acquire_sync_lock",
+                new=AsyncMock(return_value=True),
+            ),
+            patch.object(transaction_import_jobs, "release_sync_lock", new=AsyncMock()),
+            patch.object(transaction_import_jobs, "_touch_job_progress", new=AsyncMock()),
+            patch.object(transaction_import_jobs, "_mark_job", new=mark_job),
+            patch.object(
+                transaction_import_jobs,
+                "run_provider_dns_resolution",
+                new=AsyncMock(
+                    return_value=SimpleNamespace(status="resolved", error_name=None)
+                ),
+            ),
+            patch.object(
+                transaction_import_jobs,
+                "run_sync_network_gate",
+                new=AsyncMock(return_value=SimpleNamespace(status="ready")),
+            ) as recovery_gate,
+            patch(
+                "app.connectors.orchestration.run_connector_sync",
+                new=run_connector,
+            ),
+            patch(
+                "app.services.recurrence.run_detection_for_user",
+                new=AsyncMock(),
+            ),
+        ):
+            await transaction_import_jobs._run_claimed_transaction_import_job(
+                "rbc-heartbeat-job",
+                job,
+                "owner-one",
+            )
+
+        self.assertEqual(2, run_connector.await_count)
+        self.assertTrue(
+            run_connector.await_args_list[0].kwargs["include_network_recovery_hint"]
+        )
+        self.assertFalse(
+            run_connector.await_args_list[1].kwargs["include_network_recovery_hint"]
+        )
+        recovery_gate.assert_awaited_once()
+        self.assertEqual(
+            "transaction_import_recovery",
+            recovery_gate.await_args.kwargs["flow"],
+        )
+        self.assertEqual(
+            transaction_import_jobs.JOB_STATUS_COMPLETE,
+            mark_job.await_args_list[-1].args[1],
+        )
+
+    async def test_individual_transaction_job_does_not_retry_network_error(self) -> None:
+        async with self._sessionmaker() as db:
+            job = await db.get(TransactionImportJob, 1)
+            job.reason = "individual_sync"
+            job.source_sync_id = "rbc-individual"
+            await db.commit()
+
+        run_connector = AsyncMock(
+            return_value=(
+                object(),
+                {"status": "network_error", "sync_id": "rbc-individual"},
+            )
+        )
+        mark_job = AsyncMock()
+        dns_resolution = AsyncMock()
+        recovery_gate = AsyncMock()
+        with (
+            patch.object(
+                transaction_import_jobs,
+                "_background_import_enabled",
+                return_value=True,
+            ),
+            patch.object(
+                transaction_import_jobs,
+                "acquire_sync_lock",
+                new=AsyncMock(return_value=True),
+            ),
+            patch.object(transaction_import_jobs, "release_sync_lock", new=AsyncMock()),
+            patch.object(transaction_import_jobs, "_touch_job_progress", new=AsyncMock()),
+            patch.object(transaction_import_jobs, "_mark_job", new=mark_job),
+            patch.object(
+                transaction_import_jobs,
+                "run_provider_dns_resolution",
+                new=dns_resolution,
+            ),
+            patch.object(
+                transaction_import_jobs,
+                "run_sync_network_gate",
+                new=recovery_gate,
+            ),
+            patch(
+                "app.connectors.orchestration.run_connector_sync",
+                new=run_connector,
+            ),
+        ):
+            await transaction_import_jobs._run_claimed_transaction_import_job(
+                "rbc-heartbeat-job",
+                job,
+                "owner-one",
+            )
+
+        run_connector.assert_awaited_once()
+        self.assertFalse(run_connector.await_args.kwargs["include_network_recovery_hint"])
+        dns_resolution.assert_not_awaited()
+        recovery_gate.assert_not_awaited()
+        self.assertEqual(
+            transaction_import_jobs.JOB_STATUS_FAILED,
+            mark_job.await_args_list[-1].args[1],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

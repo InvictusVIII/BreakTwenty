@@ -172,6 +172,14 @@ CONTRADICTORY_README_PATTERNS = (
     re.compile(r"\bBreakTwenty is (?:fully )?open[ -]source\b", re.IGNORECASE),
     re.compile(r"\bBreakTwenty is licensed under (?:the )?(?:MIT|Apache|GPL|AGPL|BSD)\b", re.IGNORECASE),
 )
+README_LICENSE_TARGETS = (
+    "LICENSE.md",
+    "https://github.com/InvictusVIII/BreakTwenty?tab=License-1-ov-file#readme",
+)
+CONTRIBUTION_LICENSE_TARGETS = (
+    "LICENSE.md#9-contributions-to-the-official-breaktwenty-project",
+    "https://github.com/InvictusVIII/BreakTwenty?tab=License-1-ov-file#9-contributions-to-the-official-breaktwenty-project",
+)
 
 
 class SafetyError(RuntimeError):
@@ -422,10 +430,16 @@ def verify_legal_package(repo: Path, candidate: str, policy: dict[str, object]) 
         "Source Available — Not Open Source",
         "BreakTwenty Source-Available License 1.0",
         "Commercial use, organizational use, business use, revenue-generating use, and monetization",
-        "The exact terms in [LICENSE.md](LICENSE.md) control.",
     ):
         if phrase not in readme:
             violations.append(f"{candidate[:12]}:README.md: required source-available statement is missing: {phrase!r}")
+    if not any(
+        f"The exact terms in [LICENSE.md]({target}) control." in readme
+        for target in README_LICENSE_TARGETS
+    ):
+        violations.append(
+            f"{candidate[:12]}:README.md: required canonical LICENSE.md control statement is missing"
+        )
     for pattern in CONTRADICTORY_README_PATTERNS:
         if pattern.search(readme):
             violations.append(
@@ -435,7 +449,10 @@ def verify_legal_package(repo: Path, candidate: str, policy: dict[str, object]) 
     contributing = decoded.get("CONTRIBUTING.md", "")
     if "source-available, not open source" not in contributing:
         violations.append(f"{candidate[:12]}:CONTRIBUTING.md: source-available status is missing or contradictory")
-    if not re.search(r"Section 9 of \[LICENSE\.md\]\(LICENSE\.md(?:#[^)]+)?\)", contributing):
+    if not any(
+        f"Section 9 of [LICENSE.md]({target})" in contributing
+        for target in CONTRIBUTION_LICENSE_TARGETS
+    ):
         violations.append(f"{candidate[:12]}:CONTRIBUTING.md: contribution licence terms are missing")
     if "not required to accept, merge, publish, or continue using any contribution" not in contributing:
         violations.append(f"{candidate[:12]}:CONTRIBUTING.md: contribution acceptance discretion is missing")

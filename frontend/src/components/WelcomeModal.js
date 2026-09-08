@@ -3,7 +3,12 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useRightTrayReservation, useTheme } from '../appState';
 import { API } from '../config';
 import { APP_BRAND_NAME } from '../constants/brand';
-import { DEFAULT_USER_TIMEZONE, getAvailableTimezones } from '../utils/timezone';
+import {
+  DEFAULT_USER_TIME_FORMAT,
+  DEFAULT_USER_TIMEZONE,
+  USER_TIME_FORMAT_OPTIONS,
+  getAvailableTimezones,
+} from '../utils/timezone';
 import { getBrandImageAssets } from '../utils/brandImageAssets';
 import { brandAssetVersions } from '../generatedBrandAssets';
 import BrandName, { renderBrandText } from './BrandName';
@@ -37,6 +42,7 @@ function WelcomeModal({
   primaryCurrency = 'CAD',
   currencyOptions = [],
   userTimezone = DEFAULT_USER_TIMEZONE,
+  userTimeFormat = DEFAULT_USER_TIME_FORMAT,
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -48,6 +54,7 @@ function WelcomeModal({
   const [railRect, setRailRect] = useState(null);
   const [mainRect, setMainRect] = useState(null);
   const [selectedTimezoneOverride, setSelectedTimezoneOverride] = useState(null);
+  const [selectedTimeFormatOverride, setSelectedTimeFormatOverride] = useState(null);
   const [selectedCurrencyOverride, setSelectedCurrencyOverride] = useState(null);
 
   const current = WELCOME_TOUR_STEPS[stepIndex];
@@ -59,12 +66,17 @@ function WelcomeModal({
     () => getAvailableTimezones().map((timezone) => ({ value: timezone, label: timezone })),
     [],
   );
+  const timeFormatOptions = useMemo(
+    () => USER_TIME_FORMAT_OPTIONS.map((option) => ({ value: option.key, label: option.label })),
+    [],
+  );
   const resolvedCurrencyOptions = useMemo(
     () => (currencyOptions.length > 0 ? currencyOptions : ['CAD'])
       .map((currency) => ({ value: currency, label: currency })),
     [currencyOptions],
   );
   const selectedTimezone = selectedTimezoneOverride || userTimezone || DEFAULT_USER_TIMEZONE;
+  const selectedTimeFormat = selectedTimeFormatOverride || userTimeFormat || DEFAULT_USER_TIME_FORMAT;
   const selectedCurrency = selectedCurrencyOverride || primaryCurrency || 'CAD';
   const welcomeBrandAssets = getBrandImageAssets(themeMode, brandAssetVersions);
 
@@ -98,9 +110,10 @@ function WelcomeModal({
     if (!onSaveDefaults) return;
     await onSaveDefaults({
       timezone: selectedTimezone,
+      timeFormat: selectedTimeFormat,
       primaryCurrency: selectedCurrency,
     });
-  }, [onSaveDefaults, selectedCurrency, selectedTimezone]);
+  }, [onSaveDefaults, selectedCurrency, selectedTimeFormat, selectedTimezone]);
 
   const startTour = useCallback(async () => {
     setSubmitting(true);
@@ -288,6 +301,17 @@ function WelcomeModal({
                   ariaLabel="Timezone"
                   onChange={setSelectedTimezoneOverride}
                   maxHeight={240}
+                />
+              </div>
+              <div className="welcome-default-row">
+                <span className="welcome-default-label">Time Format</span>
+                <Dropdown
+                  className="welcome-default-dropdown"
+                  value={selectedTimeFormat}
+                  disabled={submitting}
+                  options={timeFormatOptions}
+                  ariaLabel="Time Format"
+                  onChange={setSelectedTimeFormatOverride}
                 />
               </div>
               <div className="welcome-default-row">

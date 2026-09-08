@@ -14,10 +14,12 @@ SHARED_CONNECTOR_DEBUG_ENV = "BREAKTWENTY_CONNECTOR_DEBUG"
 CONNECTOR_LOG_REDACTED = "<redacted>"
 CONNECTOR_LOG_VALUE_LIMIT = 1000
 CONNECTOR_PUBLIC_MESSAGE_LIMIT = 500
+# Keep redaction work bounded when exception or provider text is uncontrolled.
+CONNECTOR_LOG_INPUT_LIMIT = 16_384
 _URL_PATTERN = re.compile(r"\b[a-z][a-z0-9+.-]*://[^\s<>\"']+", re.IGNORECASE)
-_PRIVATE_KEY_PATTERN = re.compile(
-    r"-----BEGIN [^-\r\n]*PRIVATE KEY-----.*?-----END [^-\r\n]*PRIVATE KEY-----",
-    re.IGNORECASE | re.DOTALL,
+_PRIVATE_KEY_MARKER_PATTERN = re.compile(
+    r"-----(BEGIN|END) [^-\r\n]*PRIVATE KEY-----",
+    re.IGNORECASE,
 )
 _AUTH_SCHEME_PATTERN = re.compile(r"\b(Bearer|Basic)\s+[^\s,;]+", re.IGNORECASE)
 _JWT_PATTERN = re.compile(r"\b[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b")
@@ -66,9 +68,36 @@ def _redact_url(url: str) -> str:
     return urlunsplit((parsed.scheme, netloc, parsed.path, query, fragment)) + trailing
 
 
+def _redact_private_key_blocks(text: str) -> str:
+    """Redact complete or unterminated PEM private-key blocks in one marker pass."""
+    parts: list[str] = []
+    cursor = 0
+    block_start: int | None = None
+    for marker in _PRIVATE_KEY_MARKER_PATTERN.finditer(text):
+        marker_kind = marker.group(1).upper()
+        if block_start is None:
+            if marker_kind == "BEGIN":
+                block_start = marker.start()
+            continue
+        if marker_kind != "END":
+            continue
+        parts.extend((text[cursor:block_start], CONNECTOR_LOG_REDACTED))
+        cursor = marker.end()
+        block_start = None
+    if block_start is not None:
+        parts.extend((text[cursor:block_start], CONNECTOR_LOG_REDACTED))
+        cursor = len(text)
+    if not parts:
+        return text
+    parts.append(text[cursor:])
+    return "".join(parts)
+
+
 def sanitize_connector_log_text(value: Any, *, limit: int = CONNECTOR_LOG_VALUE_LIMIT) -> str:
-    text = str(value or "")
-    text = _PRIVATE_KEY_PATTERN.sub(CONNECTOR_LOG_REDACTED, text)
+    raw_text = str(value or "")
+    input_truncated = len(raw_text) > CONNECTOR_LOG_INPUT_LIMIT
+    text = raw_text[:CONNECTOR_LOG_INPUT_LIMIT]
+    text = _redact_private_key_blocks(text)
     text = _URL_PATTERN.sub(lambda match: _redact_url(match.group(0)), text)
     text = _AUTH_SCHEME_PATTERN.sub(lambda match: f"{match.group(1)} {CONNECTOR_LOG_REDACTED}", text)
     text = _NAMED_SECRET_PATTERN.sub(
@@ -78,7 +107,7 @@ def sanitize_connector_log_text(value: Any, *, limit: int = CONNECTOR_LOG_VALUE_
     text = _JWT_PATTERN.sub(CONNECTOR_LOG_REDACTED, text)
     text = _EMAIL_PATTERN.sub(CONNECTOR_LOG_REDACTED, text)
     text = re.sub(r"\s+", " ", text).strip()
-    if len(text) <= limit:
+    if len(text) <= limit and not input_truncated:
         return text
     return f"{text[:limit].rstrip()}..."
 

@@ -227,6 +227,9 @@
             "text": "Go to **App Hub** and register a new personal app (or use an existing one)"
           },
           {
+            "text": "Under **OAuth scopes**, keep the default top checkbox selected. The second market-data checkbox is not required"
+          },
+          {
             "text": "Under your app, click **Generate new token**"
           },
           {
@@ -1364,6 +1367,7 @@
       }
     },
     "backend": {
+      "networkPreflight": { "host": "webapi.moomoo.com" },
       "connector": {
         "modulePath": "app.connectors.moomoo",
         "className": "MoomooConnector",

@@ -182,6 +182,10 @@ test('main and updater keep the single-instance and awaited-install invariants',
   assert.doesNotMatch(mainSource, /\{ role: 'reload' \}|\{ role: 'forceReload' \}/);
   assert.match(mainSource, /reloadMainWindowThroughBackendReadiness/);
   assert.match(mainSource, /probeBackendHealth/);
+  assert.match(mainSource, /app\.isPackaged[\s\S]*USE_PACKAGED_DYNAMIC_BACKEND_PORT/);
+  assert.match(mainSource, /app\.isPackaged[\s\S]*USE_PACKAGED_DYNAMIC_FRONTEND_PORT/);
+  assert.match(backendManagerSource, /'app\.desktop_server'/);
+  assert.match(mainSource, /backendApiUrl !== previousBackendApiUrl[\s\S]*waitForDidFinishLoad/);
   assert.match(backendHealthProbeSource, /setTimeout[\s\S]*Backend health timed out during/);
   assert.match(mainSource, /breaktwenty:app-diagnostics-list/);
   assert.match(mainSource, /role: 'help'[\s\S]*Check for Updates/);

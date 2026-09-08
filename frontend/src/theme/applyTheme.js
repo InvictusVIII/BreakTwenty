@@ -100,7 +100,7 @@ function dispatchThemeHmr(mode) {
 }
 
 if (import.meta.hot) {
-  import.meta.hot.accept(['./colors', './surfaces', './typography', './runtimeTokens'], ([
+  void import.meta.hot.accept(['./colors', './surfaces', './typography', './runtimeTokens'], ([
     nextColors,
     nextSurfaces,
     nextTypography,

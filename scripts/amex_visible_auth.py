@@ -329,8 +329,9 @@ def _amex_origin_from_url(url: str | None) -> str | None:
         return None
     if not parsed.scheme or not parsed.netloc:
         return None
-    host = parsed.netloc.lower()
-    if host.endswith("americanexpress.com"):
+    host = (parsed.hostname or "").lower()
+    root = "americanexpress.com"
+    if host == root or host.endswith("." + root):
         return f"{parsed.scheme}://{parsed.netloc}"
     return None
 

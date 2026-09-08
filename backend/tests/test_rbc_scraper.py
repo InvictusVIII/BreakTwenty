@@ -448,10 +448,15 @@ class RBCCreditCardBackfillTests(unittest.IsolatedAsyncioTestCase):
             user_agent,
             split_depth=0,
             window_results=None,
+            failure_results=None,
             refresh_context=None,
         ):
-            del storage_state, encrypted_id, external_id, user_agent, split_depth, window_results, refresh_context
+            del storage_state, encrypted_id, external_id, user_agent, split_depth, window_results
+            del refresh_context
             if (start_date, end_date) == failed_window:
+                failure_results.append(
+                    (start_date, end_date, rbc.RBC_CC_SEARCH_FAILURE_OTHER)
+                )
                 return None, False
             return [
                 {
@@ -480,6 +485,423 @@ class RBCCreditCardBackfillTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(succeeded)
         self.assertEqual(len(windows) - 1, len(transactions))
         self.assertTrue(all(txn["transactionId"].startswith("txn-") for txn in transactions))
+
+    async def test_exact_http_500_leaf_gets_one_deferred_recovery_pass(self) -> None:
+        failed_window = (date(2022, 9, 9), date(2023, 3, 9))
+        successful_window = (date(2023, 3, 10), date(2023, 9, 8))
+        calls: list[tuple[date, date]] = []
+        events: list[dict] = []
+
+        def transaction(transaction_id: str, booking_date: date) -> dict:
+            return {
+                "transactionId": transaction_id,
+                "bookingDate": booking_date.isoformat(),
+                "amount": 1,
+                "description": [transaction_id],
+                "creditDebitIndicator": "DEBIT",
+            }
+
+        async def fake_fetch_window(
+            storage_state,
+            *,
+            encrypted_id,
+            external_id,
+            start_date,
+            end_date,
+            user_agent,
+            split_depth=0,
+            window_results=None,
+            failure_results=None,
+            refresh_context=None,
+            max_attempts_override=None,
+        ):
+            del storage_state, encrypted_id, external_id, user_agent, split_depth, refresh_context
+            del max_attempts_override
+            current_window = (start_date, end_date)
+            calls.append(current_window)
+            if current_window == failed_window and calls.count(failed_window) == 1:
+                window_results.append((*failed_window, [], False))
+                failure_results.append((*failed_window, rbc.RBC_CC_SEARCH_FAILURE_HTTP_500))
+                return None, False
+            recovered = transaction(
+                "recovered" if current_window == failed_window else "already-complete",
+                start_date,
+            )
+            window_results.append((start_date, end_date, [recovered], True))
+            return [recovered], True
+
+        async def recorder(event):
+            events.append(event)
+
+        sleep = AsyncMock()
+        warmup = AsyncMock()
+        with (
+            patch.object(rbc, "_fetch_rbc_cc_search_window_direct", side_effect=fake_fetch_window),
+            patch.object(rbc, "_warm_rbc_cc_account_context_direct", new=warmup),
+            patch.object(rbc.asyncio, "sleep", new=sleep),
+        ):
+            transactions, succeeded = await rbc._collect_rbc_cc_backward_history_direct(
+                {"cookies": []},
+                account={
+                    "encrypted_id": "encrypted",
+                    "external_id": "rbc:V001",
+                    "category": "creditCards",
+                },
+                encrypted_id="encrypted",
+                external_id="rbc:V001",
+                backfill_days=365,
+                user_agent="ua",
+                windows=[failed_window, successful_window],
+                transaction_window_recorder=recorder,
+            )
+
+        self.assertTrue(succeeded)
+        self.assertEqual([failed_window, successful_window, failed_window], calls)
+        self.assertEqual(
+            {"already-complete", "recovered"},
+            {transaction["transactionId"] for transaction in transactions},
+        )
+        sleep.assert_awaited_once_with(rbc.RBC_CC_SEARCH_DEFERRED_RECOVERY_DELAYS_SECONDS[0])
+        warmup.assert_awaited_once()
+        failed_window_events = [
+            event["event"]
+            for event in events
+            if (event["start_date"], event["end_date"])
+            == tuple(day.isoformat() for day in failed_window)
+        ]
+        self.assertEqual(["started", "started", "completed"], failed_window_events)
+
+    async def test_deferred_recovery_exhaustion_stays_failed_without_looping(self) -> None:
+        failed_window = (date(2022, 9, 9), date(2023, 3, 9))
+        calls = 0
+        events: list[dict] = []
+
+        async def fake_fetch_window(
+            storage_state,
+            *,
+            encrypted_id,
+            external_id,
+            start_date,
+            end_date,
+            user_agent,
+            split_depth=0,
+            window_results=None,
+            failure_results=None,
+            refresh_context=None,
+            max_attempts_override=None,
+        ):
+            nonlocal calls
+            del storage_state, encrypted_id, external_id, user_agent, split_depth, refresh_context
+            del max_attempts_override
+            calls += 1
+            window_results.append((start_date, end_date, [], False))
+            failure_results.append(
+                (start_date, end_date, rbc.RBC_CC_SEARCH_FAILURE_HTTP_500)
+            )
+            return None, False
+
+        async def recorder(event):
+            events.append(event)
+
+        with (
+            patch.object(rbc, "_fetch_rbc_cc_search_window_direct", side_effect=fake_fetch_window),
+            patch.object(rbc, "_warm_rbc_cc_account_context_direct", new=AsyncMock()),
+            patch.object(rbc.asyncio, "sleep", new=AsyncMock()),
+        ):
+            transactions, succeeded = await rbc._collect_rbc_cc_backward_history_direct(
+                {"cookies": []},
+                account={
+                    "encrypted_id": "encrypted",
+                    "external_id": "rbc:V001",
+                    "category": "creditCards",
+                },
+                encrypted_id="encrypted",
+                external_id="rbc:V001",
+                backfill_days=365,
+                user_agent="ua",
+                windows=[failed_window],
+                transaction_window_recorder=recorder,
+            )
+
+        self.assertEqual([], transactions)
+        self.assertFalse(succeeded)
+        self.assertEqual(4, calls)
+        self.assertEqual(
+            ["started", "started", "started", "started", "failed"],
+            [event["event"] for event in events],
+        )
+
+    async def test_deferred_recovery_is_round_robin_across_exact_http_500_windows(self) -> None:
+        stubborn_window = (date(2021, 9, 9), date(2022, 9, 8))
+        recoverable_window = (date(2022, 9, 9), date(2023, 9, 8))
+        calls: list[tuple[date, date]] = []
+        events: list[dict] = []
+
+        async def fake_fetch_window(
+            storage_state,
+            *,
+            encrypted_id,
+            external_id,
+            start_date,
+            end_date,
+            user_agent,
+            split_depth=0,
+            window_results=None,
+            failure_results=None,
+            refresh_context=None,
+            max_attempts_override=None,
+        ):
+            del storage_state, encrypted_id, external_id, user_agent, split_depth, refresh_context
+            del max_attempts_override
+            current_window = (start_date, end_date)
+            calls.append(current_window)
+            if current_window == recoverable_window and calls.count(recoverable_window) == 2:
+                transaction = {
+                    "transactionId": "recovered",
+                    "bookingDate": start_date.isoformat(),
+                    "amount": 1,
+                    "description": ["recovered"],
+                    "creditDebitIndicator": "DEBIT",
+                }
+                window_results.append((start_date, end_date, [transaction], True))
+                return [transaction], True
+            window_results.append((start_date, end_date, [], False))
+            failure_results.append(
+                (start_date, end_date, rbc.RBC_CC_SEARCH_FAILURE_HTTP_500)
+            )
+            return None, False
+
+        async def recorder(event):
+            events.append(event)
+
+        with (
+            patch.object(rbc, "_fetch_rbc_cc_search_window_direct", side_effect=fake_fetch_window),
+            patch.object(rbc, "_warm_rbc_cc_account_context_direct", new=AsyncMock()),
+            patch.object(rbc.asyncio, "sleep", new=AsyncMock()),
+        ):
+            transactions, succeeded = await rbc._collect_rbc_cc_backward_history_direct(
+                {"cookies": []},
+                account={
+                    "encrypted_id": "encrypted",
+                    "external_id": "rbc:V001",
+                    "category": "creditCards",
+                },
+                encrypted_id="encrypted",
+                external_id="rbc:V001",
+                backfill_days=730,
+                user_agent="ua",
+                windows=[stubborn_window, recoverable_window],
+                transaction_window_recorder=recorder,
+            )
+
+        self.assertFalse(succeeded)
+        self.assertEqual(["recovered"], [transaction["transactionId"] for transaction in transactions])
+        self.assertEqual(
+            [
+                stubborn_window,
+                recoverable_window,
+                stubborn_window,
+                recoverable_window,
+                stubborn_window,
+                stubborn_window,
+            ],
+            calls,
+        )
+        recoverable_events = [
+            event["event"]
+            for event in events
+            if (event["start_date"], event["end_date"])
+            == tuple(day.isoformat() for day in recoverable_window)
+        ]
+        self.assertEqual(["started", "started", "completed"], recoverable_events)
+
+    async def test_deferred_recovery_budget_exhaustion_preserves_retryable_window(self) -> None:
+        failed_window = (date(2022, 9, 9), date(2023, 3, 9))
+        now = 0.0
+        calls = 0
+        events: list[dict] = []
+
+        async def fake_fetch_window(
+            storage_state,
+            *,
+            encrypted_id,
+            external_id,
+            start_date,
+            end_date,
+            user_agent,
+            split_depth=0,
+            window_results=None,
+            failure_results=None,
+            refresh_context=None,
+            max_attempts_override=None,
+        ):
+            nonlocal calls
+            del storage_state, encrypted_id, external_id, user_agent, split_depth, refresh_context
+            del max_attempts_override
+            calls += 1
+            window_results.append((start_date, end_date, [], False))
+            failure_results.append(
+                (start_date, end_date, rbc.RBC_CC_SEARCH_FAILURE_HTTP_500)
+            )
+            return None, False
+
+        async def fake_sleep(seconds):
+            nonlocal now
+            now += seconds
+
+        async def recorder(event):
+            events.append(event)
+
+        with (
+            patch.object(rbc, "RBC_CC_SEARCH_DEFERRED_RECOVERY_BUDGET_SECONDS", 10),
+            patch.object(rbc, "_rbc_monotonic_seconds", side_effect=lambda: now),
+            patch.object(rbc, "_fetch_rbc_cc_search_window_direct", side_effect=fake_fetch_window),
+            patch.object(rbc, "_warm_rbc_cc_account_context_direct", new=AsyncMock()),
+            patch.object(rbc.asyncio, "sleep", side_effect=fake_sleep),
+        ):
+            transactions, succeeded = await rbc._collect_rbc_cc_backward_history_direct(
+                {"cookies": []},
+                account={
+                    "encrypted_id": "encrypted",
+                    "external_id": "rbc:V001",
+                    "category": "creditCards",
+                },
+                encrypted_id="encrypted",
+                external_id="rbc:V001",
+                backfill_days=365,
+                user_agent="ua",
+                windows=[failed_window],
+                transaction_window_recorder=recorder,
+            )
+
+        self.assertEqual([], transactions)
+        self.assertFalse(succeeded)
+        self.assertEqual(1, calls)
+        self.assertEqual(["started", "failed"], [event["event"] for event in events])
+
+    async def test_cancellation_during_deferred_recovery_cooldown_propagates(self) -> None:
+        failed_window = (date(2022, 9, 9), date(2023, 3, 9))
+
+        async def fake_fetch_window(
+            storage_state,
+            *,
+            encrypted_id,
+            external_id,
+            start_date,
+            end_date,
+            user_agent,
+            split_depth=0,
+            window_results=None,
+            failure_results=None,
+            refresh_context=None,
+            max_attempts_override=None,
+        ):
+            del storage_state, encrypted_id, external_id, user_agent, split_depth, refresh_context
+            del max_attempts_override
+            window_results.append((start_date, end_date, [], False))
+            failure_results.append(
+                (start_date, end_date, rbc.RBC_CC_SEARCH_FAILURE_HTTP_500)
+            )
+            return None, False
+
+        with (
+            patch.object(rbc, "_fetch_rbc_cc_search_window_direct", side_effect=fake_fetch_window),
+            patch.object(rbc.asyncio, "sleep", side_effect=asyncio.CancelledError),
+        ):
+            with self.assertRaises(asyncio.CancelledError):
+                await rbc._collect_rbc_cc_backward_history_direct(
+                    {"cookies": []},
+                    account={
+                        "encrypted_id": "encrypted",
+                        "external_id": "rbc:V001",
+                        "category": "creditCards",
+                    },
+                    encrypted_id="encrypted",
+                    external_id="rbc:V001",
+                    backfill_days=365,
+                    user_agent="ua",
+                    windows=[failed_window],
+                )
+
+    async def test_deferred_child_recovery_completes_split_parent(self) -> None:
+        parent = (date(2022, 9, 9), date(2023, 9, 8))
+        left = (date(2022, 9, 9), date(2023, 3, 9))
+        right = (date(2023, 3, 10), date(2023, 9, 8))
+        events: list[dict] = []
+        calls: list[tuple[date, date]] = []
+        right_txn = {
+            "transactionId": "right",
+            "bookingDate": right[0].isoformat(),
+            "amount": 1,
+            "description": ["right"],
+            "creditDebitIndicator": "DEBIT",
+        }
+        left_txn = {
+            "transactionId": "left",
+            "bookingDate": left[0].isoformat(),
+            "amount": 1,
+            "description": ["left"],
+            "creditDebitIndicator": "DEBIT",
+        }
+
+        async def fake_fetch_window(
+            storage_state,
+            *,
+            encrypted_id,
+            external_id,
+            start_date,
+            end_date,
+            user_agent,
+            split_depth=0,
+            window_results=None,
+            failure_results=None,
+            refresh_context=None,
+            max_attempts_override=None,
+        ):
+            del storage_state, encrypted_id, external_id, user_agent, split_depth, refresh_context
+            del max_attempts_override
+            calls.append((start_date, end_date))
+            if (start_date, end_date) == parent:
+                window_results.append((*left, [], False))
+                window_results.append((*right, [right_txn], True))
+                failure_results.append((*left, rbc.RBC_CC_SEARCH_FAILURE_HTTP_500))
+                return [right_txn], False
+            window_results.append((*left, [left_txn], True))
+            return [left_txn], True
+
+        async def recorder(event):
+            events.append(event)
+
+        with (
+            patch.object(rbc, "_fetch_rbc_cc_search_window_direct", side_effect=fake_fetch_window),
+            patch.object(rbc, "_warm_rbc_cc_account_context_direct", new=AsyncMock()),
+            patch.object(rbc.asyncio, "sleep", new=AsyncMock()),
+        ):
+            transactions, succeeded = await rbc._collect_rbc_cc_backward_history_direct(
+                {"cookies": []},
+                account={
+                    "encrypted_id": "encrypted",
+                    "external_id": "rbc:V001",
+                    "category": "creditCards",
+                },
+                encrypted_id="encrypted",
+                external_id="rbc:V001",
+                backfill_days=365,
+                user_agent="ua",
+                windows=[parent],
+                transaction_window_recorder=recorder,
+            )
+
+        self.assertTrue(succeeded)
+        self.assertEqual([parent, left], calls)
+        self.assertEqual({"left", "right"}, {txn["transactionId"] for txn in transactions})
+        parent_events = [
+            event["event"]
+            for event in events
+            if (event["start_date"], event["end_date"])
+            == tuple(day.isoformat() for day in parent)
+        ]
+        self.assertEqual(["started", "completed"], parent_events)
 
     async def test_backfill_closes_split_parent_window_when_children_succeed(self) -> None:
         events: list[dict] = []
@@ -511,10 +933,11 @@ class RBCCreditCardBackfillTests(unittest.IsolatedAsyncioTestCase):
             user_agent,
             split_depth=0,
             window_results=None,
+            failure_results=None,
             refresh_context=None,
         ):
             del storage_state, encrypted_id, external_id, start_date, end_date, user_agent
-            del split_depth, refresh_context
+            del split_depth, failure_results, refresh_context
             window_results.append((*left, [left_txn], True))
             window_results.append((*right, [right_txn], True))
             return [left_txn, right_txn], True
@@ -549,7 +972,7 @@ class RBCCreditCardBackfillTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(tuple(day.isoformat() for day in right), completed_ranges)
         self.assertIn(tuple(day.isoformat() for day in parent), completed_ranges)
 
-    async def test_backfill_windows_honor_search_concurrency_limit(self) -> None:
+    async def test_backfill_windows_are_searched_serially(self) -> None:
         active_requests = 0
         max_active_requests = 0
 
@@ -563,9 +986,11 @@ class RBCCreditCardBackfillTests(unittest.IsolatedAsyncioTestCase):
             user_agent,
             split_depth=0,
             window_results=None,
+            failure_results=None,
             refresh_context=None,
         ):
-            del storage_state, encrypted_id, external_id, start_date, end_date, user_agent, split_depth, window_results, refresh_context
+            del storage_state, encrypted_id, external_id, start_date, end_date, user_agent
+            del split_depth, window_results, failure_results, refresh_context
             nonlocal active_requests, max_active_requests
             active_requests += 1
             max_active_requests = max(max_active_requests, active_requests)
@@ -589,7 +1014,7 @@ class RBCCreditCardBackfillTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(succeeded)
         self.assertEqual([], transactions)
-        self.assertLessEqual(max_active_requests, rbc.RBC_CC_SEARCH_CONCURRENCY)
+        self.assertEqual(1, max_active_requests)
 
     async def test_backfill_uses_search_only_and_keeps_partial_rows_retryable(self) -> None:
         calls: list[str] = []
@@ -818,7 +1243,7 @@ class RBCCreditCardBackfillTests(unittest.IsolatedAsyncioTestCase):
             del storage_state, encrypted_id, external_id, user_agent, attempt, max_attempts
             calls.append((from_date, to_date))
             if len(calls) < 3:
-                return None, False
+                return None, False, rbc.RBC_CC_SEARCH_FAILURE_OTHER
             return [
                 {
                     "transactionId": "retry-success-1",
@@ -827,7 +1252,7 @@ class RBCCreditCardBackfillTests(unittest.IsolatedAsyncioTestCase):
                     "description": ["retry success"],
                     "creditDebitIndicator": "DEBIT",
                 }
-            ], True
+            ], True, None
 
         start = date.today() - timedelta(days=31)
         end = date.today()
@@ -853,6 +1278,262 @@ class RBCCreditCardBackfillTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(succeeded)
         self.assertEqual(["retry-success-1"], [txn["transactionId"] for txn in transactions])
 
+    async def test_credit_card_chunk_classifies_exact_http_500(self) -> None:
+        response = {
+            "__breaktwenty_rbc_debug": {
+                "http_non_ok": True,
+                "http_status": 500,
+                "parse_failed": True,
+            }
+        }
+        with patch.object(rbc, "_post_rbc_json_direct", new=AsyncMock(return_value=response)):
+            transactions, succeeded, failure_kind = await rbc._fetch_rbc_cc_search_chunk_direct(
+                {"cookies": []},
+                encrypted_id="encrypted",
+                external_id="rbc:V001",
+                from_date="2022-09-08",
+                to_date="2023-03-08",
+                user_agent="ua",
+            )
+
+        self.assertIsNone(transactions)
+        self.assertFalse(succeeded)
+        self.assertEqual(rbc.RBC_CC_SEARCH_FAILURE_HTTP_500, failure_kind)
+
+    async def test_three_exact_http_500_failures_get_one_delayed_final_attempt(self) -> None:
+        calls: list[tuple[str, str]] = []
+        sleeps: list[float] = []
+
+        async def fake_fetch_chunk(
+            storage_state,
+            *,
+            encrypted_id,
+            external_id,
+            from_date,
+            to_date,
+            user_agent,
+            attempt=1,
+            max_attempts=1,
+        ):
+            del storage_state, encrypted_id, external_id, user_agent, attempt, max_attempts
+            calls.append((from_date, to_date))
+            if len(calls) <= 3:
+                return None, False, rbc.RBC_CC_SEARCH_FAILURE_HTTP_500
+            return [
+                {
+                    "transactionId": "delayed-success",
+                    "bookingDate": from_date,
+                    "amount": 1,
+                    "description": ["delayed success"],
+                    "creditDebitIndicator": "DEBIT",
+                }
+            ], True, None
+
+        async def fake_sleep(seconds):
+            sleeps.append(seconds)
+
+        start = date(2022, 9, 8)
+        end = date(2023, 3, 8)
+        with (
+            patch.object(rbc, "_fetch_rbc_cc_search_chunk_direct", side_effect=fake_fetch_chunk),
+            patch.object(rbc.asyncio, "sleep", side_effect=fake_sleep),
+        ):
+            transactions, succeeded = await rbc._fetch_rbc_cc_search_window_direct(
+                {"cookies": []},
+                encrypted_id="encrypted",
+                external_id="rbc:V001",
+                start_date=start,
+                end_date=end,
+                user_agent="ua",
+            )
+
+        self.assertTrue(succeeded)
+        self.assertEqual(["delayed-success"], [txn["transactionId"] for txn in transactions])
+        self.assertEqual([(start.isoformat(), end.isoformat())] * 4, calls)
+        self.assertEqual([2, 4, 15], sleeps)
+
+    async def test_mixed_failures_do_not_get_http_500_final_attempt(self) -> None:
+        failures = iter(
+            (
+                rbc.RBC_CC_SEARCH_FAILURE_HTTP_500,
+                rbc.RBC_CC_SEARCH_FAILURE_OTHER,
+                rbc.RBC_CC_SEARCH_FAILURE_HTTP_500,
+            )
+        )
+        calls = 0
+
+        async def fake_fetch_chunk(*args, **kwargs):
+            nonlocal calls
+            del args, kwargs
+            calls += 1
+            return None, False, next(failures)
+
+        sleep = AsyncMock()
+        with (
+            patch.object(rbc, "_fetch_rbc_cc_search_chunk_direct", side_effect=fake_fetch_chunk),
+            patch.object(rbc.asyncio, "sleep", new=sleep),
+        ):
+            transactions, succeeded = await rbc._fetch_rbc_cc_search_window_direct(
+                {"cookies": []},
+                encrypted_id="encrypted",
+                external_id="rbc:V001",
+                start_date=date(2022, 9, 8),
+                end_date=date(2023, 3, 8),
+                user_agent="ua",
+            )
+
+        self.assertEqual(3, calls)
+        self.assertEqual([], transactions)
+        self.assertFalse(succeeded)
+        self.assertEqual([2, 4], [call.args[0] for call in sleep.await_args_list])
+
+    async def test_http_500_final_attempt_respects_total_window_deadline(self) -> None:
+        now = 0.0
+        calls = 0
+        sleeps: list[float] = []
+
+        async def fake_fetch_chunk(*args, **kwargs):
+            nonlocal calls
+            del args, kwargs
+            calls += 1
+            return None, False, rbc.RBC_CC_SEARCH_FAILURE_HTTP_500
+
+        async def fake_sleep(seconds):
+            nonlocal now
+            sleeps.append(seconds)
+            now += seconds
+
+        with (
+            patch.object(rbc, "RBC_CC_SEARCH_WINDOW_DEADLINE_SECONDS", 10),
+            patch.object(rbc, "_rbc_monotonic_seconds", side_effect=lambda: now),
+            patch.object(rbc, "_fetch_rbc_cc_search_chunk_direct", side_effect=fake_fetch_chunk),
+            patch.object(rbc.asyncio, "sleep", side_effect=fake_sleep),
+        ):
+            transactions, succeeded = await rbc._fetch_rbc_cc_search_window_direct(
+                {"cookies": []},
+                encrypted_id="encrypted",
+                external_id="rbc:V001",
+                start_date=date(2022, 9, 8),
+                end_date=date(2023, 3, 8),
+                user_agent="ua",
+            )
+
+        self.assertEqual([], transactions)
+        self.assertFalse(succeeded)
+        self.assertEqual(3, calls)
+        self.assertEqual([2, 4, 4], sleeps)
+
+    async def test_four_exact_http_500_failures_leave_window_retryable(self) -> None:
+        calls = 0
+        window_results: list[rbc.RBCCreditCardSearchWindow] = []
+        failure_results: list[rbc.RBCCreditCardSearchFailure] = []
+
+        async def fake_fetch_chunk(*args, **kwargs):
+            nonlocal calls
+            del args, kwargs
+            calls += 1
+            return None, False, rbc.RBC_CC_SEARCH_FAILURE_HTTP_500
+
+        with (
+            patch.object(rbc, "_fetch_rbc_cc_search_chunk_direct", side_effect=fake_fetch_chunk),
+            patch.object(rbc.asyncio, "sleep", new=AsyncMock()),
+        ):
+            transactions, succeeded = await rbc._fetch_rbc_cc_search_window_direct(
+                {"cookies": []},
+                encrypted_id="encrypted",
+                external_id="rbc:V001",
+                start_date=date(2022, 9, 8),
+                end_date=date(2023, 3, 8),
+                user_agent="ua",
+                window_results=window_results,
+                failure_results=failure_results,
+            )
+
+        self.assertEqual(4, calls)
+        self.assertEqual([], transactions)
+        self.assertFalse(succeeded)
+        self.assertEqual(
+            [(date(2022, 9, 8), date(2023, 3, 8), [], False)],
+            window_results,
+        )
+        self.assertEqual(
+            [
+                (
+                    date(2022, 9, 8),
+                    date(2023, 3, 8),
+                    rbc.RBC_CC_SEARCH_FAILURE_HTTP_500,
+                )
+            ],
+            failure_results,
+        )
+
+    async def test_deferred_exact_http_500_probe_is_one_request_without_inner_backoff(self) -> None:
+        calls = 0
+        failures: list[rbc.RBCCreditCardSearchFailure] = []
+
+        async def fake_fetch_chunk(*args, **kwargs):
+            nonlocal calls
+            del args, kwargs
+            calls += 1
+            return None, False, rbc.RBC_CC_SEARCH_FAILURE_HTTP_500
+
+        sleep = AsyncMock()
+        with (
+            patch.object(rbc, "_fetch_rbc_cc_search_chunk_direct", side_effect=fake_fetch_chunk),
+            patch.object(rbc.asyncio, "sleep", new=sleep),
+        ):
+            transactions, succeeded = await rbc._fetch_rbc_cc_search_window_direct(
+                {"cookies": []},
+                encrypted_id="encrypted",
+                external_id="rbc:V001",
+                start_date=date(2022, 9, 8),
+                end_date=date(2023, 3, 8),
+                user_agent="ua",
+                failure_results=failures,
+                max_attempts_override=1,
+            )
+
+        self.assertEqual(1, calls)
+        self.assertEqual([], transactions)
+        self.assertFalse(succeeded)
+        self.assertEqual(
+            [(date(2022, 9, 8), date(2023, 3, 8), rbc.RBC_CC_SEARCH_FAILURE_HTTP_500)],
+            failures,
+        )
+        sleep.assert_not_awaited()
+
+    async def test_cancellation_during_http_500_delay_propagates(self) -> None:
+        calls = 0
+        window_results: list[rbc.RBCCreditCardSearchWindow] = []
+
+        async def fake_fetch_chunk(*args, **kwargs):
+            nonlocal calls
+            del args, kwargs
+            calls += 1
+            return None, False, rbc.RBC_CC_SEARCH_FAILURE_HTTP_500
+
+        async def fake_sleep(seconds):
+            if seconds == rbc.RBC_CC_SEARCH_HTTP_500_FINAL_WAIT_SECONDS:
+                raise asyncio.CancelledError
+
+        with (
+            patch.object(rbc, "_fetch_rbc_cc_search_chunk_direct", side_effect=fake_fetch_chunk),
+            patch.object(rbc.asyncio, "sleep", side_effect=fake_sleep),
+        ):
+            with self.assertRaises(asyncio.CancelledError):
+                await rbc._fetch_rbc_cc_search_window_direct(
+                    {"cookies": []},
+                    encrypted_id="encrypted",
+                    external_id="rbc:V001",
+                    start_date=date(2022, 9, 8),
+                    end_date=date(2023, 3, 8),
+                    user_agent="ua",
+                    window_results=window_results,
+                )
+
+        self.assertEqual(3, calls)
+        self.assertEqual([], window_results)
+
     async def test_persistently_failed_credit_card_window_splits_after_retries(self) -> None:
         calls: list[tuple[str, str]] = []
 
@@ -870,7 +1551,7 @@ class RBCCreditCardBackfillTests(unittest.IsolatedAsyncioTestCase):
             del storage_state, encrypted_id, external_id, user_agent, attempt, max_attempts
             calls.append((from_date, to_date))
             if len(calls) == 1:
-                return None, False
+                return None, False, rbc.RBC_CC_SEARCH_FAILURE_OTHER
             return [
                 {
                     "transactionId": f"split-{from_date}",
@@ -879,7 +1560,7 @@ class RBCCreditCardBackfillTests(unittest.IsolatedAsyncioTestCase):
                     "description": ["split child"],
                     "creditDebitIndicator": "DEBIT",
                 }
-            ], True
+            ], True, None
 
         start = date.today() - timedelta(days=31)
         end = date.today()
@@ -919,7 +1600,7 @@ class RBCCreditCardBackfillTests(unittest.IsolatedAsyncioTestCase):
         ):
             del storage_state, encrypted_id, external_id, user_agent, attempt, max_attempts
             calls.append((from_date, to_date))
-            return None, False
+            return None, False, rbc.RBC_CC_SEARCH_FAILURE_OTHER
 
         start = date.today() - timedelta(days=rbc.RBC_CC_MIN_SEARCH_WINDOW_DAYS - 1)
         end = date.today()

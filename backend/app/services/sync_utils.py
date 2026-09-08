@@ -907,6 +907,9 @@ async def persist_result_sync_status(
         severity=new_severity,
         updated_at=updated_at,
     )
+    # Provider/institution leases serialize writers for this row. Preserve only
+    # the latest terminal result: an intermediate retry failure must not pin a
+    # later successful (or otherwise authoritative) final result behind it.
     await db.execute(
         insert_pending.on_conflict_do_update(
             index_elements=(
@@ -919,7 +922,6 @@ async def persist_result_sync_status(
                 "severity": insert_pending.excluded.severity,
                 "updated_at": insert_pending.excluded.updated_at,
             },
-            where=insert_pending.excluded.severity >= PendingSyncStatus.severity,
         )
     )
     existing = (

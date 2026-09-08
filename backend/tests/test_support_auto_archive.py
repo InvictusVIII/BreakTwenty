@@ -411,10 +411,22 @@ class SupportAutoArchiveTests(unittest.IsolatedAsyncioTestCase):
                     "_user_timezone_info",
                     new=AsyncMock(return_value=None),
                 ),
+                patch.object(
+                    support_auto_archive,
+                    "_backend_api_version",
+                    return_value="0.1.0-api",
+                ),
                 patch.object(support_diagnostics, "_collect_state_snapshots", collector),
                 patch(
                     "app.services.support_logging.get_support_capture_level",
                     return_value="developer_local",
+                ),
+                patch.dict(
+                    os.environ,
+                    {
+                        "BREAKTWENTY_DESKTOP_APP_VERSION": "1.0.1-rc.2",
+                        "BREAKTWENTY_DESKTOP_PLATFORM": "linux",
+                    },
                 ),
             ):
                 run_dir = await support_auto_archive.archive_run(
@@ -449,6 +461,11 @@ class SupportAutoArchiveTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("sync_attempt", trigger["export_scope"]["kind"])
         self.assertEqual("developer_local", trigger["capture_level"])
         self.assertEqual("developer_local", context["capture_level"])
+        self.assertEqual(3, context["schema_version"])
+        self.assertEqual("1.0.1-rc.2", context["desktop_app_version"])
+        self.assertEqual("linux", context["desktop_platform"])
+        self.assertEqual("0.1.0-api", context["backend_api_version"])
+        self.assertNotIn("app_version", context)
         self.assertEqual("bmo-attempt-a", context["sync_id"])
         self.assertEqual("popup-a", context["attempt_id"])
         self.assertEqual("developer_local", export_manifest["capture_level"])

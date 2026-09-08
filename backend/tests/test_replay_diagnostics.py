@@ -213,6 +213,35 @@ class ReplayDiagnosticsTests(unittest.TestCase):
         self.assertEqual("ACTIVE", sample["acc_status"])
         self.assertEqual("REAL", sample["trd_env"])
 
+    def test_redacted_rich_baseline_redacts_nested_rbc_link_identifiers(self) -> None:
+        payload = {
+            "link_params": {
+                "ACCOUNT_DISPLAY": "CAD Demo Savings 12345-6789012",
+                "acctNum": "123456789012",
+                "encodedAccountNumber": "V001opaque-account-reference",
+                "CARD_ACTV_ID": "11111111-2222-3333-4444-555555555555",
+                "PLOAN": "opaque-legacy-routing-material",
+                "ACCOUNT_TYPE": "Visa",
+                "REQUEST": "AcctTransactionInquiry",
+            }
+        }
+
+        sanitized = replay_diagnostics.sanitize_payload(payload)
+        text = json.dumps(sanitized)
+        for sensitive_value in payload["link_params"].values():
+            if sensitive_value in {"Visa", "AcctTransactionInquiry"}:
+                continue
+            self.assertNotIn(sensitive_value, text)
+
+        link_params = sanitized["link_params"]
+        self.assertTrue(str(link_params["ACCOUNT_DISPLAY"]).startswith("<redacted:"))
+        self.assertTrue(str(link_params["acctNum"]).startswith("<redacted:"))
+        self.assertTrue(str(link_params["encodedAccountNumber"]).startswith("<redacted:"))
+        self.assertTrue(str(link_params["CARD_ACTV_ID"]).startswith("<redacted:"))
+        self.assertEqual("<redacted>", link_params["PLOAN"])
+        self.assertEqual("Visa", link_params["ACCOUNT_TYPE"])
+        self.assertEqual("AcctTransactionInquiry", link_params["REQUEST"])
+
     def test_moomoo_route_names_remain_readable_while_ids_are_redacted(self) -> None:
         summary = replay_diagnostics._url_summary(
             "https://webapi.moomoo.com/api/v1.0/accounts/authorized_trd_accs/1234567890123456/orders_history",

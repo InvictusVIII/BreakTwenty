@@ -16,6 +16,9 @@ const { generateLaunchTokenBundle, readLaunchTokenFile } = require('./launchAuth
 const { runMigrationsSafely } = require('./migrationSafety');
 
 const DEFAULT_EMBEDDED_BACKEND_PORT = 8765;
+const EMBEDDED_BACKEND_LISTENING_PREFIX = 'BREAKTWENTY_EMBEDDED_BACKEND_LISTENING ';
+const EMBEDDED_BACKEND_BIND_ERROR_PREFIX = 'BREAKTWENTY_EMBEDDED_BACKEND_BIND_ERROR ';
+const EMBEDDED_BACKEND_LISTEN_TIMEOUT_MS = 10000;
 const KEY_BOOTSTRAP_ENV = 'BREAKTWENTY_KEY_BOOTSTRAP';
 const KEY_BOOTSTRAP_STDIN_V2 = 'stdin-v2';
 const DATABASE_KEY_ENV = 'BREAKTWENTY_DATABASE_ENCRYPTION_KEY';
@@ -117,6 +120,7 @@ class BackendManager {
     backendMode,
     backendApiUrl,
     frontendOrigin,
+    dynamicBackendPort = false,
   }) {
     this.app = app;
     this.appRoot = appRoot;
@@ -125,6 +129,11 @@ class BackendManager {
     this.mode = normalizeBackendMode(
       backendMode || process.env.BREAKTWENTY_BACKEND_MODE || (this.app.isPackaged ? 'embedded' : 'docker'),
     );
+    this.dynamicBackendPort = this.mode === 'embedded' && dynamicBackendPort === true;
+    this.backendHost = new URL(this.backendApiUrl).hostname.replace(/^\[|\]$/g, '');
+    this.backendPort = this.dynamicBackendPort
+      ? 0
+      : numericPort(new URL(this.backendApiUrl).port, DEFAULT_EMBEDDED_BACKEND_PORT);
     this.process = null;
     this.startPromise = null;
     this.restartPromise = null;
@@ -149,12 +158,24 @@ class BackendManager {
   describe() {
     return {
       ...this.status,
+      backendApiUrl: this.backendApiUrl,
       running: Boolean(this.process && this.process.exitCode === null),
     };
   }
 
   getRuntimeEnv() {
     return { ...this.runtimeEnv };
+  }
+
+  getBackendApiUrl() {
+    return this.backendApiUrl;
+  }
+
+  setFrontendOrigin(frontendOrigin) {
+    if (this.process && this.process.exitCode === null) {
+      throw new Error('Frontend origin cannot change while the embedded backend is running.');
+    }
+    this.frontendOrigin = normalizeLocalFrontendUrl(frontendOrigin);
   }
 
   getLaunchAuthTokens() {
@@ -243,12 +264,17 @@ class BackendManager {
       if (!this.acceptingStarts) {
         throw new Error(`${APP_BRAND_NAME} backend startup was cancelled during shutdown.`);
       }
-      this.spawnBackend(runtime);
+      await this.spawnBackend(runtime);
       this.status.state = 'running';
       this.status.message = `Embedded ${APP_BRAND_NAME} backend is starting.`;
       this.status.pid = this.process.pid;
       return this.describe();
     } catch (error) {
+      const child = this.process;
+      if (child && child.exitCode === null) {
+        await terminateChildProcess(child, { graceMs: 1000, forceWaitMs: 1000 });
+      }
+      if (this.process === child) this.process = null;
       if (this.keyManager) {
         this.keyManager.clear();
       }
@@ -312,7 +338,21 @@ class BackendManager {
         }
       }
       if (this.process === child) this.process = null;
-      return await this.start({ recoveryRestart: true });
+      try {
+        return await this.start({ recoveryRestart: true });
+      } catch (error) {
+        if (
+          !this.dynamicBackendPort
+          || this.backendPort === 0
+          || error.code !== 'BACKEND_BIND_FAILED'
+        ) throw error;
+        appendLine(
+          this.status.logPath,
+          'embedded backend could not reclaim its prior port; retrying with a new OS-assigned port',
+        );
+        this.backendPort = 0;
+        return await this.start({ recoveryRestart: true });
+      }
     } finally {
       this.recovering = false;
     }
@@ -530,6 +570,8 @@ class BackendManager {
       BREAKTWENTY_BROWSER_RUNTIME_DIR: browserRuntimeDir,
       BREAKTWENTY_LOG_DIR: logDir,
       BREAKTWENTY_DB_PATH: dbPath,
+      BREAKTWENTY_DESKTOP_APP_VERSION: String(this.app.getVersion()),
+      BREAKTWENTY_DESKTOP_PLATFORM: process.platform,
       BREAKTWENTY_VISIBLE_AUTH_PYTHON: pythonPath,
       BREAKTWENTY_EMBEDDED_BACKEND_PYTHON: pythonPath,
       DATABASE_URL: sqliteUrl(dbPath),
@@ -579,12 +621,11 @@ class BackendManager {
   }
 
   resolveBackendHost() {
-    const hostname = new URL(this.backendApiUrl).hostname;
-    return hostname === '[::1]' ? '::1' : hostname;
+    return this.backendHost;
   }
 
   resolveBackendPort() {
-    return numericPort(new URL(this.backendApiUrl).port, DEFAULT_EMBEDDED_BACKEND_PORT);
+    return this.backendPort;
   }
 
   runMigrations(runtime, { databaseExisted }) {
@@ -664,18 +705,19 @@ class BackendManager {
   }
 
   spawnBackend(runtime) {
-    appendLine(runtime.processLogPath, `starting uvicorn on ${runtime.host}:${runtime.port}`);
+    appendLine(
+      runtime.processLogPath,
+      `starting embedded backend on ${runtime.host}:${runtime.port || 'dynamic'}`,
+    );
     const child = spawn(
       runtime.pythonPath,
       [
         '-m',
-        'uvicorn',
-        'app.main:app',
+        'app.desktop_server',
         '--host',
         runtime.host,
         '--port',
         String(runtime.port),
-        '--no-access-log',
       ],
       {
         cwd: runtime.backendRoot,
@@ -694,14 +736,72 @@ class BackendManager {
     };
     child.stdin.once('error', clearKeyMaterial);
     child.stdin.end(payload, clearKeyMaterial);
+    let stdoutBuffer = '';
+    let endpointSettled = false;
+    let endpointTimer = null;
+    let resolveEndpoint;
+    let rejectEndpoint;
+    const endpointPromise = new Promise((resolve, reject) => {
+      resolveEndpoint = resolve;
+      rejectEndpoint = reject;
+    });
+    const settleEndpoint = (error = null) => {
+      if (endpointSettled) return;
+      endpointSettled = true;
+      if (endpointTimer) clearTimeout(endpointTimer);
+      if (error) rejectEndpoint(error);
+      else resolveEndpoint();
+    };
+    const acceptEndpoint = (line) => {
+      if (line.startsWith(EMBEDDED_BACKEND_BIND_ERROR_PREFIX)) {
+        const error = new Error('Embedded backend could not bind its loopback endpoint.');
+        error.code = 'BACKEND_BIND_FAILED';
+        settleEndpoint(error);
+        return;
+      }
+      if (!line.startsWith(EMBEDDED_BACKEND_LISTENING_PREFIX)) return;
+      try {
+        const endpoint = JSON.parse(line.slice(EMBEDDED_BACKEND_LISTENING_PREFIX.length));
+        const host = String(endpoint?.host || '');
+        const port = Number(endpoint?.port || 0);
+        if (
+          host !== runtime.host
+          || !Number.isInteger(port)
+          || port < 1
+          || port > 65535
+          || (runtime.port > 0 && port !== runtime.port)
+        ) {
+          throw new Error('Embedded backend reported an invalid loopback endpoint.');
+        }
+        this.backendHost = host;
+        this.backendPort = port;
+        this.backendApiUrl = normalizeLocalBackendApiUrl(
+          `http://${host.includes(':') ? `[${host}]` : host}:${port}/api`,
+        );
+        this.runtimeEnv = {
+          ...this.runtimeEnv,
+          BREAKTWENTY_BACKEND_API_URL: this.backendApiUrl,
+        };
+        appendLine(runtime.processLogPath, `embedded backend reserved ${host}:${port}`);
+        settleEndpoint();
+      } catch (error) {
+        settleEndpoint(error);
+      }
+    };
     child.stdout.on('data', (chunk) => {
-      appendLine(runtime.processLogPath, `stdout ${String(chunk || '').trim()}`);
+      const output = String(chunk || '');
+      appendLine(runtime.processLogPath, `stdout ${output.trim()}`);
+      stdoutBuffer += output;
+      const lines = stdoutBuffer.split(/\r?\n/);
+      stdoutBuffer = lines.pop() || '';
+      lines.forEach(acceptEndpoint);
     });
     child.stderr.on('data', (chunk) => {
       appendLine(runtime.processLogPath, `stderr ${String(chunk || '').trim()}`);
     });
     child.on('exit', (code, signal) => {
       if (this.process !== child) return;
+      settleEndpoint(new Error(`Embedded backend exited before reserving its loopback endpoint (code ${code}).`));
       this.status.state = this.shuttingDown || this.recovering || code === 0 ? 'stopped' : 'failed';
       this.status.message = `Embedded backend exited with code ${code} signal ${signal || ''}`.trim();
       this.status.pid = null;
@@ -709,14 +809,20 @@ class BackendManager {
     });
     child.on('error', (error) => {
       if (this.process !== child) return;
+      settleEndpoint(error);
       this.status.state = 'failed';
       this.status.message = error.message;
       appendLine(runtime.processLogPath, `process error: ${error.message}`);
     });
+    endpointTimer = setTimeout(() => {
+      settleEndpoint(new Error('Embedded backend did not reserve a loopback endpoint in time.'));
+    }, Number(process.env.BREAKTWENTY_EMBEDDED_LISTEN_TIMEOUT_MS || EMBEDDED_BACKEND_LISTEN_TIMEOUT_MS));
+    return endpointPromise;
   }
 }
 
 module.exports = {
   BackendManager,
+  EMBEDDED_BACKEND_LISTENING_PREFIX,
   normalizeBackendMode,
 };

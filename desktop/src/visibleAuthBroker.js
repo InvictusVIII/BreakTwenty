@@ -61,6 +61,10 @@ class VisibleAuthBroker {
     this.applyRuntimeEnv(this.runtimeEnv);
   }
 
+  setBackendApiUrl(backendApiUrl) {
+    this.backendApiUrl = normalizeLocalBackendApiUrl(backendApiUrl);
+  }
+
   quiesce() {
     this.acceptingLaunches = false;
   }

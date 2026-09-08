@@ -8,7 +8,7 @@ import sys
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 from app.services.connection_auth_storage import is_scraper_username_placeholder
 
@@ -39,6 +39,9 @@ if not hasattr(patchright_module, "async_api"):
 import national_visible_auth  # noqa: E402
 import rbc_visible_auth  # noqa: E402
 import bmo_visible_auth  # noqa: E402
+import amex_visible_auth  # noqa: E402
+import scotiabank_visible_auth  # noqa: E402
+import td_visible_auth  # noqa: E402
 
 
 class FakeResponse:
@@ -64,6 +67,54 @@ class VisibleAuthCredentialLoadTests(unittest.TestCase):
 
     def tearDown(self):
         visible_auth._runner_session_token = None
+
+    def test_provider_origin_helpers_require_exact_dns_boundaries(self):
+        cases = (
+            (
+                "amex",
+                amex_visible_auth._amex_origin_from_url,
+                "americanexpress.com",
+                "www.americanexpress.com",
+                "evilamericanexpress.com",
+                amex_visible_auth.AMEX_LOGIN_URL,
+                "https://www.americanexpress.com",
+            ),
+            (
+                "scotiabank",
+                scotiabank_visible_auth._scotia_origin_from_url,
+                "scotiabank.com",
+                "secure.scotiabank.com",
+                "evilscotiabank.com",
+                scotiabank_visible_auth.SCOTIA_ACCOUNTS_URL,
+                scotiabank_visible_auth.SCOTIA_SECURE_ORIGIN,
+            ),
+            (
+                "td",
+                td_visible_auth._td_origin_from_url,
+                "td.com",
+                "authentication.td.com",
+                "eviltd.com",
+                td_visible_auth.TD_AUTH_UI_URL,
+                "https://authentication.td.com",
+            ),
+        )
+
+        for name, origin_from_url, root, subdomain, lookalike, expected_url, expected_origin in cases:
+            with self.subTest(provider=name, case="exact root"):
+                self.assertEqual(origin_from_url(f"https://{root}/login"), f"https://{root}")
+            with self.subTest(provider=name, case="valid subdomain and port"):
+                self.assertEqual(
+                    origin_from_url(f"http://{subdomain}:8443/login"),
+                    f"http://{subdomain}:8443",
+                )
+            with self.subTest(provider=name, case="deceptive suffix"):
+                self.assertIsNone(origin_from_url(f"https://{lookalike}/login"))
+            with self.subTest(provider=name, case="unrelated hostname"):
+                self.assertIsNone(origin_from_url("https://example.com/login"))
+            with self.subTest(provider=name, case="malformed URL"):
+                self.assertIsNone(origin_from_url("https://[invalid"))
+            with self.subTest(provider=name, case="expected provider URL"):
+                self.assertEqual(origin_from_url(expected_url), expected_origin)
 
     def test_username_placeholder_contract_matches_backend(self):
         samples = (
@@ -668,6 +719,13 @@ class VisibleAuthCredentialLoadTests(unittest.TestCase):
 class RBCVisibleAuthCredentialMappingTests(unittest.TestCase):
     GENERATED_RBC_SECRET = "8,eyJ" + ("A" * 120)
 
+    def test_observed_rbc_login_post_path_is_classified_as_login(self):
+        self.assertTrue(
+            rbc_visible_auth._rbc_is_login_request_url(
+                "https://www1.royalbank.com/cgi-bin/rbaccess/rbcgi3m01"
+            )
+        )
+
     def test_request_mapping_uses_q1_when_qq_is_masked(self):
         self.assertEqual(
             rbc_visible_auth._credentials_from_mapping(
@@ -712,6 +770,394 @@ class RBCVisibleAuthCredentialMappingTests(unittest.TestCase):
                 }
             )
         )
+
+class RBCVisibleAuthCaptureLifecycleTests(unittest.IsolatedAsyncioTestCase):
+    async def test_raw_input_scan_groups_selectors_into_one_browser_query(self):
+        class FakeInput:
+            def __init__(self, value, *, visible):
+                self.value = value
+                self.visible = visible
+
+            async def is_visible(self, *, timeout):
+                del timeout
+                return self.visible
+
+            async def input_value(self, *, timeout):
+                del timeout
+                return self.value
+
+        class FakeLocator:
+            def __init__(self):
+                self.inputs = [
+                    FakeInput("******", visible=True),
+                    FakeInput("real-password", visible=False),
+                ]
+
+            async def count(self):
+                return len(self.inputs)
+
+            def nth(self, index):
+                return self.inputs[index]
+
+        class FakePage:
+            def __init__(self):
+                self.main_frame = object()
+                self.frames = []
+                self.selector_queries = []
+
+            def locator(self, selector):
+                self.selector_queries.append(selector)
+                return FakeLocator()
+
+        page = FakePage()
+
+        value = await rbc_visible_auth._rbc_first_input_value(
+            page,
+            rbc_visible_auth.RBC_PASSWORD_SELECTORS,
+            reject_transformed=True,
+        )
+
+        self.assertEqual("real-password", value)
+        self.assertEqual(1, len(page.selector_queries))
+        self.assertIn("input#QQ[name='QQ']", page.selector_queries[0])
+        self.assertIn("input#Q1", page.selector_queries[0])
+
+    async def test_hidden_fallback_prioritizes_raw_password_before_username(self):
+        credentials = {"username": "", "password": ""}
+        calls = []
+
+        async def input_value(_page, selectors, **_kwargs):
+            calls.append(selectors)
+            if selectors is rbc_visible_auth.RBC_PASSWORD_SELECTORS:
+                return "real-password"
+            return "client-card"
+
+        with (
+            patch.object(rbc_visible_auth, "_rbc_first_input_value", side_effect=input_value),
+            patch.object(rbc_visible_auth, "_rbc_first_visible_input_value", new=AsyncMock()) as visible_scan,
+        ):
+            await rbc_visible_auth._capture_rbc_raw_input_credentials(
+                object(),
+                credentials,
+                include_hidden_fallback=True,
+            )
+
+        self.assertEqual(
+            [
+                rbc_visible_auth.RBC_PASSWORD_SELECTORS,
+                rbc_visible_auth.RBC_USERNAME_SELECTORS,
+            ],
+            calls,
+        )
+        visible_scan.assert_not_awaited()
+        self.assertEqual("client-card", credentials["username"])
+        self.assertEqual("real-password", credentials["password"])
+
+    async def test_transformed_password_candidates_do_not_hide_later_raw_value(self):
+        class FakeInput:
+            def __init__(self, value):
+                self.value = value
+
+            async def input_value(self, *, timeout):
+                del timeout
+                return self.value
+
+        class FakeLocator:
+            def __init__(self):
+                self.inputs = [
+                    FakeInput("******"),
+                    FakeInput(self_generated_secret),
+                    FakeInput("real-password"),
+                ]
+
+            async def count(self):
+                return len(self.inputs)
+
+            def nth(self, index):
+                return self.inputs[index]
+
+        class FakePage:
+            def __init__(self):
+                self.main_frame = object()
+                self.frames = []
+
+            def locator(self, _selector):
+                return FakeLocator()
+
+        self_generated_secret = RBCVisibleAuthCredentialMappingTests.GENERATED_RBC_SECRET
+        value = await rbc_visible_auth._rbc_first_input_value(
+            FakePage(),
+            rbc_visible_auth.RBC_PASSWORD_SELECTORS,
+            reject_transformed=True,
+        )
+
+        self.assertEqual("real-password", value)
+
+    async def test_windows_login_route_captures_live_fields_before_request_continues(self):
+        credentials = {"username": "", "password": ""}
+        capture_state = rbc_visible_auth.RBCCredentialCaptureState()
+        page = types.SimpleNamespace(is_closed=Mock(return_value=False))
+
+        class FakeContext:
+            def __init__(self):
+                self.pattern = ""
+                self.handler = None
+
+            async def route(self, pattern, handler):
+                self.pattern = pattern
+                self.handler = handler
+
+        class FakeRoute:
+            def __init__(self):
+                self.continued = False
+
+            async def continue_(self):
+                self.assert_live_capture_complete()
+                self.continued = True
+
+            def assert_live_capture_complete(self):
+                if credentials.get("password") != "real-password":
+                    raise AssertionError("login request continued before live credential capture")
+
+        async def capture_live_fields(_page, captured_credentials, **_kwargs):
+            self.assertIs(page, _page)
+            rbc_visible_auth._capture_rbc_username(
+                captured_credentials,
+                "client-card",
+                source="raw",
+            )
+            rbc_visible_auth._capture_rbc_password(
+                captured_credentials,
+                "real-password",
+                source="raw",
+            )
+
+        context = FakeContext()
+        route = FakeRoute()
+        request = types.SimpleNamespace(
+            method="POST",
+            url="https://www1.royalbank.com/cgi-bin/rbaccess/rbcgi3m01",
+            post_data="K1=client-card&QQ=******&Q1=",
+            frame=types.SimpleNamespace(page=page),
+        )
+
+        with (
+            patch.object(rbc_visible_auth, "RBC_WINDOWS_FLOW", True),
+            patch.object(
+                rbc_visible_auth,
+                "_capture_rbc_raw_input_credentials",
+                side_effect=capture_live_fields,
+            ),
+        ):
+            await rbc_visible_auth._install_rbc_windows_login_route_capture(
+                context,
+                credentials,
+                capture_state,
+            )
+            await context.handler(route, request)
+
+        self.assertEqual(rbc_visible_auth.RBC_WINDOWS_LOGIN_ROUTE_PATTERN, context.pattern)
+        self.assertTrue(route.continued)
+        self.assertEqual("client-card", credentials["username"])
+        self.assertEqual("real-password", credentials["password"])
+        summary = capture_state.summary()
+        self.assertEqual(1, summary["route_install_success_count"])
+        self.assertEqual(1, summary["route_login_post_count"])
+        self.assertEqual(["masked"], summary["credential_field_observations"]["route"]["QQ"])
+        self.assertNotIn("client-card", json.dumps(summary))
+        self.assertNotIn("real-password", json.dumps(summary))
+
+    async def test_windows_login_route_keeps_password_captured_before_later_scan_timeout(self):
+        credentials = {"username": "", "password": ""}
+        capture_state = rbc_visible_auth.RBCCredentialCaptureState()
+        page = types.SimpleNamespace(is_closed=Mock(return_value=False))
+
+        class FakeContext:
+            def __init__(self):
+                self.handler = None
+
+            async def route(self, _pattern, handler):
+                self.handler = handler
+
+        class FakeRoute:
+            def __init__(self):
+                self.continued = False
+
+            async def continue_(self):
+                self.continued = True
+
+        async def input_value(_page, selectors, **_kwargs):
+            if selectors is rbc_visible_auth.RBC_PASSWORD_SELECTORS:
+                return "real-password"
+            await asyncio.sleep(1)
+            return ""
+
+        context = FakeContext()
+        route = FakeRoute()
+        request = types.SimpleNamespace(
+            method="POST",
+            url="https://www1.royalbank.com/cgi-bin/rbaccess/rbcgi3m01",
+            post_data="K1=client-card&QQ=******&Q1=",
+            frame=types.SimpleNamespace(page=page),
+        )
+
+        with (
+            patch.object(rbc_visible_auth, "RBC_WINDOWS_FLOW", True),
+            patch.object(rbc_visible_auth, "RBC_WINDOWS_LOGIN_ROUTE_CAPTURE_TIMEOUT_SECONDS", 0.01),
+            patch.object(rbc_visible_auth, "_rbc_first_input_value", side_effect=input_value),
+        ):
+            await rbc_visible_auth._install_rbc_windows_login_route_capture(
+                context,
+                credentials,
+                capture_state,
+            )
+            await context.handler(route, request)
+
+        self.assertTrue(route.continued)
+        self.assertEqual(("client-card", "real-password"), rbc_visible_auth.collect_rbc_credentials(credentials))
+        self.assertEqual(["TimeoutError"], capture_state.summary()["route_capture_error_types"])
+        details = rbc_visible_auth._rbc_credential_capture_details(credentials, capture_state)
+        self.assertGreater(details["unmasked_login_value_capture_count"], 0)
+        self.assertTrue(details["unmasked_login_value_captured"])
+        self.assertNotIn("client-card", json.dumps(details))
+        self.assertNotIn("real-password", json.dumps(details))
+
+    async def test_cdp_request_capture_is_installed_then_drained(self):
+        class FakePage:
+            pass
+
+        class FakeSession:
+            def __init__(self):
+                self.handlers = {}
+
+            async def send(self, method, params=None):
+                del params
+                if method == "Network.getRequestPostData":
+                    await asyncio.sleep(0)
+                    return {"postData": "K1=client-card&QQ=******&Q1=real-password"}
+                return {}
+
+            def on(self, event, callback):
+                self.handlers[event] = callback
+
+        session = FakeSession()
+        context = types.SimpleNamespace(new_cdp_session=AsyncMock(return_value=session))
+        page = FakePage()
+        credentials = {"username": "", "password": ""}
+        capture_state = rbc_visible_auth.RBCCredentialCaptureState()
+
+        with patch.object(rbc_visible_auth, "RBC_WINDOWS_FLOW", True):
+            await rbc_visible_auth._install_rbc_windows_cdp_request_capture(
+                context,
+                page,
+                credentials,
+                capture_state,
+            )
+            session.handlers["Network.requestWillBeSent"](
+                {
+                    "requestId": "request-1",
+                    "request": {
+                        "method": "POST",
+                        "url": rbc_visible_auth.RBC_LOGIN_URL,
+                        "hasPostData": True,
+                    },
+                }
+            )
+            drained = await rbc_visible_auth._drain_rbc_capture_tasks(capture_state)
+
+        self.assertTrue(drained)
+        self.assertTrue(getattr(page, "_rbc_windows_cdp_request_capture_installed", False))
+        self.assertEqual("client-card", credentials["username"])
+        self.assertEqual("real-password", credentials["password"])
+        summary = capture_state.summary()
+        self.assertEqual(1, summary["cdp_install_success_count"])
+        self.assertEqual(1, summary["cdp_login_post_count"])
+        self.assertEqual(1, summary["cdp_post_data_retrieved_count"])
+        cdp_fields = summary["credential_field_observations"]["cdp_request"]
+        self.assertEqual(["raw"], cdp_fields["K1"])
+        self.assertEqual(["masked"], cdp_fields["QQ"])
+        self.assertEqual(["raw"], cdp_fields["Q1"])
+        self.assertEqual(1, summary["capture_task_drain_initial_pending_count"])
+        self.assertNotIn("client-card", json.dumps(summary))
+        self.assertNotIn("real-password", json.dumps(summary))
+
+    async def test_failed_cdp_install_is_not_marked_installed(self):
+        page = types.SimpleNamespace()
+        context = types.SimpleNamespace(
+            new_cdp_session=AsyncMock(side_effect=RuntimeError("sensitive failure text"))
+        )
+        capture_state = rbc_visible_auth.RBCCredentialCaptureState()
+
+        with patch.object(rbc_visible_auth, "RBC_WINDOWS_FLOW", True):
+            await rbc_visible_auth._install_rbc_windows_cdp_request_capture(
+                context,
+                page,
+                {"username": "", "password": ""},
+                capture_state,
+            )
+
+        self.assertFalse(getattr(page, "_rbc_windows_cdp_request_capture_installed", False))
+        self.assertEqual(1, capture_state.cdp_install_failure_count)
+        self.assertEqual(["RuntimeError"], capture_state.summary()["cdp_install_error_types"])
+        self.assertNotIn("sensitive failure text", json.dumps(capture_state.summary()))
+
+    async def test_patchright_request_fallback_task_is_tracked_and_classified(self):
+        class FakePage:
+            def __init__(self):
+                self.handlers = {}
+
+            def on(self, event, callback):
+                self.handlers[event] = callback
+
+        page = FakePage()
+        request = types.SimpleNamespace(
+            method="POST",
+            url=rbc_visible_auth.RBC_LOGIN_URL,
+            post_data="K1=client-card&QQ=******&Q1=",
+        )
+        credentials = {"username": "", "password": ""}
+        capture_state = rbc_visible_auth.RBCCredentialCaptureState()
+
+        with patch.object(
+            rbc_visible_auth,
+            "_capture_rbc_raw_input_credentials_burst",
+            new=AsyncMock(),
+        ) as capture_burst:
+            rbc_visible_auth._install_rbc_request_capture(
+                page,
+                credentials,
+                capture_state,
+            )
+            page.handlers["request"](request)
+            drained = await rbc_visible_auth._drain_rbc_capture_tasks(capture_state)
+
+        self.assertTrue(drained)
+        capture_burst.assert_awaited_once_with(page, credentials)
+        summary = capture_state.summary()
+        self.assertEqual(1, summary["request_login_post_count"])
+        self.assertEqual(1, summary["request_credential_post_count"])
+        request_fields = summary["credential_field_observations"]["request"]
+        self.assertEqual(["raw"], request_fields["K1"])
+        self.assertEqual(["masked"], request_fields["QQ"])
+        self.assertEqual(["missing"], request_fields["Q1"])
+
+    async def test_capture_task_drain_cancels_bounded_pending_work(self):
+        capture_state = rbc_visible_auth.RBCCredentialCaptureState()
+        never_complete = asyncio.Event()
+
+        async def wait_forever():
+            await never_complete.wait()
+
+        rbc_visible_auth._schedule_rbc_capture_task(capture_state, wait_forever())
+        drained = await rbc_visible_auth._drain_rbc_capture_tasks(
+            capture_state,
+            timeout_seconds=0.0,
+        )
+
+        self.assertFalse(drained)
+        self.assertEqual(1, capture_state.task_cancelled_count)
+        self.assertEqual(1, capture_state.drain_timeout_count)
+        self.assertEqual(0, len(capture_state.tasks))
 
 
 class BMOVisibleAuthSessionArtifactTests(unittest.TestCase):

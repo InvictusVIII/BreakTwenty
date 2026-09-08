@@ -1,4 +1,6 @@
 import base64
+import hashlib
+import hmac
 import json
 import os
 import tempfile
@@ -84,6 +86,7 @@ class LaunchAuthIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_health_logo_sse_and_ordinary_api_all_reject_missing_bearer(self) -> None:
         for path in (
             "/api/health",
+            "/api/health/ownership?challenge=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
             "/api/institutions/1/logo",
             "/api/events/stream",
             "/api/accounts",
@@ -92,6 +95,52 @@ class LaunchAuthIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 response = await self.request("GET", path)
                 self.assertEqual(response.status_code, 401)
                 self.assertEqual(response.headers.get("www-authenticate"), "Bearer")
+
+    async def test_embedded_backend_ownership_proof_authenticates_without_bearer(self) -> None:
+        key_material.get_key_material()
+        challenge = base64.urlsafe_b64encode(b"c" * 32).decode("ascii").rstrip("=")
+        expected = base64.urlsafe_b64encode(
+            hmac.new(
+                base64.b64decode(self.desktop_token),
+                (
+                    "breaktwenty-backend-ownership-v1:"
+                    f"http://127.0.0.1:8765:{challenge}"
+                ).encode("ascii"),
+                hashlib.sha256,
+            ).digest()
+        ).decode("ascii").rstrip("=")
+        with mock.patch.dict(
+            os.environ,
+            {
+                "BREAKTWENTY_KEY_BOOTSTRAP": "stdin-v2",
+                "BREAKTWENTY_EMBEDDED_BACKEND_OWNERSHIP_ENDPOINT": (
+                    "http://127.0.0.1:8765"
+                ),
+            },
+        ):
+            response = await self.request(
+                "GET",
+                f"/api/health/ownership?challenge={challenge}",
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"proof": expected})
+
+    async def test_embedded_backend_ownership_rejects_invalid_challenge(self) -> None:
+        key_material.get_key_material()
+        with mock.patch.dict(
+            os.environ,
+            {
+                "BREAKTWENTY_KEY_BOOTSTRAP": "stdin-v2",
+                "BREAKTWENTY_EMBEDDED_BACKEND_OWNERSHIP_ENDPOINT": (
+                    "http://127.0.0.1:8765"
+                ),
+            },
+        ):
+            response = await self.request(
+                "GET",
+                "/api/health/ownership?challenge=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA!",
+            )
+        self.assertEqual(response.status_code, 400)
 
     async def test_only_moomoo_oauth_get_callback_crosses_launch_auth_boundary(self) -> None:
         callback = await self.request(

@@ -45,8 +45,8 @@ jobs:
             exit 1
           fi
           VERSION="$(node -p "require('./desktop/package.json').version")"
-          if [[ ! "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-            echo "::error title=Invalid public version::Public candidates must use stable x.y.z semver."
+          if [[ ! "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc\.([1-9][0-9]*))?$ ]]; then
+            echo "::error title=Invalid public version::Public candidates must use x.y.z or x.y.z-rc.N semver."
             exit 1
           fi
           CANDIDATE_SHA="$(git rev-parse HEAD^{commit})"
@@ -70,7 +70,8 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          NOTES_PATH="release-notes/v${VERSION}.md"
+          NOTES_VERSION="${VERSION%%-rc.*}"
+          NOTES_PATH="release-notes/v${NOTES_VERSION}.md"
           test -s "$NOTES_PATH" || {
             echo "::error title=Release notes missing::Create ${NOTES_PATH} before releasing."
             exit 1

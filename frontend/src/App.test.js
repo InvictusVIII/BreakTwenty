@@ -101,6 +101,49 @@ test('renders the BreakTwenty navigation shell', async () => {
   expect(localStorage.getItem('breaktwenty_last_auto_sync')).toBeNull();
 });
 
+test('saves the time format selected during first-run welcome setup', async () => {
+  const baseFetch = global.fetch.getMockImplementation();
+  const settingsWrites = [];
+  global.fetch.mockImplementation((url, options = {}) => {
+    const endpoint = String(url);
+    const method = options.method || 'GET';
+    if (method === 'GET' && endpoint.includes('/onboarding/status')) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ completed: false }),
+      });
+    }
+    if (method === 'POST' && endpoint.endsWith('/settings')) {
+      settingsWrites.push(JSON.parse(options.body));
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ status: 'ok' }),
+      });
+    }
+    if (method === 'POST' && endpoint.includes('/onboarding/complete')) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ status: 'ok' }),
+      });
+    }
+    return baseFetch(url, options);
+  });
+
+  render(<App />);
+
+  await screen.findByRole('dialog', { name: 'Welcome to BreakTwenty' });
+  fireEvent.click(screen.getByRole('button', { name: 'Time Format' }));
+  fireEvent.click(screen.getByRole('option', { name: '12-hour (AM/PM)' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Skip tour' }));
+
+  await waitFor(() => {
+    expect(settingsWrites).toContainEqual({
+      user_timezone: 'America/Toronto',
+      user_time_format: '12h',
+    });
+  });
+});
+
 test('cleans an interrupted add before loading institutions and starting autosync', async () => {
   localStorage.setItem('breaktwenty_pending_add_provider_moomoo', JSON.stringify({
     provider: 'moomoo',

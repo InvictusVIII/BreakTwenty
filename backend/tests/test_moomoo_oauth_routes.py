@@ -9,7 +9,8 @@ from starlette.requests import Request
 
 from app.api.routes import moomoo_oauth
 from app.auth import CurrentUser
-from app.services.moomoo_cloud import MoomooCloudTokens
+from app.services.connection_auth_storage import ProviderAlreadyConnectedError
+from app.services.moomoo_cloud import MoomooCloudError, MoomooCloudTokens
 
 
 class _Transaction:
@@ -49,6 +50,28 @@ def _request() -> Request:
 
 
 class MoomooOAuthRouteTests(unittest.IsolatedAsyncioTestCase):
+    async def _authorized_flow(self, flow_id: str) -> moomoo_oauth._MoomooOAuthFlow:
+        flow = moomoo_oauth._MoomooOAuthFlow(
+            flow_id=flow_id,
+            user_id=1,
+            sync_id="moomoo-route-test",
+            attempt_id=f"{flow_id}-attempt",
+            add_flow=True,
+            institution_id=None,
+            redirect_uri="http://localhost:8000/api/auth/moomoo/oauth/callback",
+            client_id="public-client",
+            verifier="verifier",
+            state=f"{flow_id}-state",
+            created_at=moomoo_oauth.time.monotonic(),
+            status="authorized",
+            refresh_token="stored-refresh",
+            scope="trade:read accid:123456",
+        )
+        async with moomoo_oauth._flow_lock:
+            moomoo_oauth._flows[flow.flow_id] = flow
+            moomoo_oauth._flow_ids_by_state[flow.state] = flow.flow_id
+        return flow
+
     async def asyncTearDown(self) -> None:
         async with moomoo_oauth._flow_lock:
             moomoo_oauth._flows.clear()
@@ -188,6 +211,97 @@ class MoomooOAuthRouteTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(duplicate.status_code, 200)
         self.assertIn(b"already being processed", duplicate.body)
         exchange.assert_not_awaited()
+
+    async def test_expected_oauth_error_keeps_its_public_message(self) -> None:
+        expected_message = "Moomoo could not register this authorization request."
+        with (
+            patch.object(
+                moomoo_oauth,
+                "register_public_client",
+                AsyncMock(side_effect=MoomooCloudError(expected_message)),
+            ),
+            patch.object(moomoo_oauth, "archive_run_fire_and_forget"),
+            patch.object(moomoo_oauth, "log_connector_event"),
+        ):
+            result = await moomoo_oauth.start_moomoo_oauth(
+                {"add_flow": True, "sync_id": "moomoo-route-test"},
+                _request(),
+                CurrentUser(id=1),
+            )
+
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["message"], expected_message)
+
+    async def test_already_connected_error_keeps_its_public_message(self) -> None:
+        flow = await self._authorized_flow("already-connected")
+        expected_message = "Moomoo is already connected."
+        with (
+            patch.object(moomoo_oauth, "sqlite_write_gate", _write_gate),
+            patch.object(
+                moomoo_oauth,
+                "ensure_connection",
+                AsyncMock(side_effect=ProviderAlreadyConnectedError(expected_message)),
+            ),
+            patch.object(moomoo_oauth, "archive_run_fire_and_forget"),
+            patch.object(moomoo_oauth, "log_connector_event"),
+        ):
+            result = await moomoo_oauth.persist_moomoo_oauth(
+                flow.flow_id,
+                _Database(),
+                CurrentUser(id=1),
+            )
+
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["message"], expected_message)
+        status = await moomoo_oauth.moomoo_oauth_status(flow.flow_id, CurrentUser(id=1))
+        self.assertEqual(status["message"], expected_message)
+
+    async def test_unexpected_persist_error_uses_fixed_public_message(self) -> None:
+        flow = await self._authorized_flow("unexpected-error")
+        internal_details = (
+            "sqlite3.OperationalError at /srv/private/moomoo.db: SELECT * FROM oauth_tokens; "
+            "https://internal.example/debug?token=query-secret Bearer bearer-secret"
+        )
+        database = _Database()
+        database.rollback = AsyncMock()
+        with (
+            patch.object(moomoo_oauth, "sqlite_write_gate", _write_gate),
+            patch.object(
+                moomoo_oauth,
+                "ensure_connection",
+                AsyncMock(side_effect=RuntimeError(internal_details)),
+            ),
+            patch.object(moomoo_oauth, "archive_run_fire_and_forget"),
+            patch.object(moomoo_oauth, "log_connector_event") as log_event,
+        ):
+            result = await moomoo_oauth.persist_moomoo_oauth(
+                flow.flow_id,
+                database,
+                CurrentUser(id=1),
+            )
+
+        expected_message = moomoo_oauth.MOOMOO_OAUTH_PUBLIC_FAILURE_MESSAGE
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["message"], expected_message)
+        status = await moomoo_oauth.moomoo_oauth_status(flow.flow_id, CurrentUser(id=1))
+        self.assertEqual(status["message"], expected_message)
+        exposed = f"{result} {status}"
+        for secret in (
+            "/srv/private/moomoo.db",
+            "SELECT * FROM oauth_tokens",
+            "internal.example",
+            "query-secret",
+            "bearer-secret",
+            "OperationalError",
+            "RuntimeError",
+        ):
+            self.assertNotIn(secret, exposed)
+        database.rollback.assert_awaited_once()
+        diagnostic_message = log_event.call_args.kwargs["message"]
+        self.assertIn("sqlite3.OperationalError", diagnostic_message)
+        self.assertIn("https://internal.example/debug?token=<redacted>", diagnostic_message)
+        self.assertNotIn("query-secret", diagnostic_message)
+        self.assertNotIn("bearer-secret", diagnostic_message)
 
 
 if __name__ == "__main__":

@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import logging
 import unittest
+from unittest.mock import patch
 
 from app.connectors.connector_logging import (
+    CONNECTOR_LOG_INPUT_LIMIT,
     log_connector_event,
     safe_connector_public_message,
     sanitize_connector_log_text,
@@ -12,6 +14,65 @@ from app.connectors.types import SyncResult, SyncStatus
 
 
 class ConnectorLoggingRedactionTests(unittest.TestCase):
+    def test_normal_text_is_preserved(self) -> None:
+        self.assertEqual(
+            sanitize_connector_log_text("ordinary provider message"),
+            "ordinary provider message",
+        )
+
+    def test_complete_private_key_block_is_redacted(self) -> None:
+        begin_marker = "-----BEGIN RSA " + "PRIVATE KEY-----"
+        end_marker = "-----END RSA " + "PRIVATE KEY-----"
+        raw = (
+            f"before {begin_marker}\n"
+            "private-material\n"
+            f"{end_marker} after"
+        )
+
+        self.assertEqual(sanitize_connector_log_text(raw), "before <redacted> after")
+
+    def test_multiple_complete_private_key_blocks_are_redacted(self) -> None:
+        begin_marker = "-----BEGIN " + "PRIVATE KEY-----"
+        end_marker = "-----END " + "PRIVATE KEY-----"
+        raw = (
+            f"first {begin_marker}\nsecret-one\n{end_marker} "
+            "middle -----begin encrypted private key-----\nsecret-two\n"
+            "-----end encrypted private key----- last"
+        )
+
+        self.assertEqual(
+            sanitize_connector_log_text(raw),
+            "first <redacted> middle <redacted> last",
+        )
+
+    def test_unmatched_private_key_begin_redacts_the_remainder(self) -> None:
+        begin_marker = "-----BEGIN " + "PRIVATE KEY-----"
+        raw = f"before {begin_marker}\nprivate-material"
+
+        self.assertEqual(sanitize_connector_log_text(raw), "before <redacted>")
+
+    def test_many_repeated_unmatched_private_key_begins_are_redacted(self) -> None:
+        begin_marker = "-----BEGIN " + "PRIVATE KEY-----"
+        repeated_begins = begin_marker * 500
+
+        self.assertEqual(
+            sanitize_connector_log_text(f"before {repeated_begins}", limit=CONNECTOR_LOG_INPUT_LIMIT),
+            "before <redacted>",
+        )
+
+    def test_input_is_bounded_before_redaction(self) -> None:
+        raw = "x" * (CONNECTOR_LOG_INPUT_LIMIT + 500)
+
+        with patch(
+            "app.connectors.connector_logging._redact_private_key_blocks",
+            side_effect=lambda text: text,
+        ) as redact_private_keys:
+            sanitized = sanitize_connector_log_text(raw, limit=CONNECTOR_LOG_INPUT_LIMIT + 500)
+
+        bounded_input = redact_private_keys.call_args.args[0]
+        self.assertEqual(len(bounded_input), CONNECTOR_LOG_INPUT_LIMIT)
+        self.assertEqual(sanitized, f"{'x' * CONNECTOR_LOG_INPUT_LIMIT}...")
+
     def test_freeform_exception_text_redacts_secret_bearing_material(self) -> None:
         private_key = "-----BEGIN " + "PRIVATE KEY-----\nprivate-material\n-----END PRIVATE KEY-----"
         jwt = "abcdefgh.ijklmnop.qrstuvwx"

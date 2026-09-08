@@ -10,12 +10,122 @@ const { rotateLaunchTokenFile } = require('./launchAuth');
 function packagedApp(userDataDir) {
   return {
     isPackaged: true,
+    getVersion() {
+      return '1.2.3-test.4';
+    },
     getPath(name) {
       assert.equal(name, 'userData');
       return userDataDir;
     },
   };
 }
+
+test('embedded backend receives the authoritative desktop release identity', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'breaktwenty-release-identity-'));
+  const priorPython = process.env.BREAKTWENTY_EMBEDDED_BACKEND_PYTHON;
+  try {
+    fs.mkdirSync(path.join(root, 'backend'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'config'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'backend', 'alembic.ini'), '[alembic]\n', 'utf8');
+    fs.writeFileSync(path.join(root, 'config', 'provider_catalog.json'), '{}\n', 'utf8');
+    process.env.BREAKTWENTY_EMBEDDED_BACKEND_PYTHON = process.execPath;
+    const manager = new BackendManager({
+      app: packagedApp(path.join(root, 'user-data')),
+      appRoot: root,
+      backendMode: 'embedded',
+      backendApiUrl: 'http://127.0.0.1:8765/api',
+      frontendOrigin: 'http://127.0.0.1:32100',
+    });
+
+    const runtime = manager.resolveRuntime();
+
+    assert.equal(runtime.env.BREAKTWENTY_DESKTOP_APP_VERSION, '1.2.3-test.4');
+    assert.equal(runtime.env.BREAKTWENTY_DESKTOP_PLATFORM, process.platform);
+  } finally {
+    if (priorPython === undefined) delete process.env.BREAKTWENTY_EMBEDDED_BACKEND_PYTHON;
+    else process.env.BREAKTWENTY_EMBEDDED_BACKEND_PYTHON = priorPython;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('packaged embedded backend can request an operating-system-assigned port', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'breaktwenty-dynamic-backend-'));
+  const priorPython = process.env.BREAKTWENTY_EMBEDDED_BACKEND_PYTHON;
+  try {
+    fs.mkdirSync(path.join(root, 'backend'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'config'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'backend', 'alembic.ini'), '[alembic]\n', 'utf8');
+    fs.writeFileSync(path.join(root, 'config', 'provider_catalog.json'), '{}\n', 'utf8');
+    process.env.BREAKTWENTY_EMBEDDED_BACKEND_PYTHON = process.execPath;
+    const manager = new BackendManager({
+      app: packagedApp(path.join(root, 'user-data')),
+      appRoot: root,
+      backendMode: 'embedded',
+      backendApiUrl: 'http://127.0.0.1:1/api',
+      frontendOrigin: 'http://127.0.0.1:32100',
+      dynamicBackendPort: true,
+    });
+
+    const runtime = manager.resolveRuntime();
+
+    assert.equal(runtime.host, '127.0.0.1');
+    assert.equal(runtime.port, 0);
+  } finally {
+    if (priorPython === undefined) delete process.env.BREAKTWENTY_EMBEDDED_BACKEND_PYTHON;
+    else process.env.BREAKTWENTY_EMBEDDED_BACKEND_PYTHON = priorPython;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('dynamic embedded backend recovery falls back to a fresh port when reclaim fails', async () => {
+  const manager = Object.create(BackendManager.prototype);
+  manager.acceptingStarts = true;
+  manager.shuttingDown = false;
+  manager.mode = 'embedded';
+  manager.dynamicBackendPort = true;
+  manager.backendPort = 49152;
+  manager.process = null;
+  manager.startPromise = null;
+  manager.restartPromise = null;
+  manager.status = { logPath: '' };
+  const requestedPorts = [];
+  manager.start = async () => {
+    requestedPorts.push(manager.backendPort);
+    if (requestedPorts.length === 1) {
+      const error = new Error('address unavailable');
+      error.code = 'BACKEND_BIND_FAILED';
+      throw error;
+    }
+    return { requestedPort: manager.backendPort };
+  };
+
+  const result = await manager.restart();
+
+  assert.equal(result.requestedPort, 0);
+  assert.deepEqual(requestedPorts, [49152, 0]);
+});
+
+test('dynamic embedded backend recovery does not retry a non-bind startup failure', async () => {
+  const manager = Object.create(BackendManager.prototype);
+  manager.acceptingStarts = true;
+  manager.shuttingDown = false;
+  manager.mode = 'embedded';
+  manager.dynamicBackendPort = true;
+  manager.backendPort = 49152;
+  manager.process = null;
+  manager.startPromise = null;
+  manager.restartPromise = null;
+  manager.status = { logPath: '' };
+  let attempts = 0;
+  manager.start = async () => {
+    attempts += 1;
+    throw new Error('migration failed');
+  };
+
+  await assert.rejects(manager.restart(), /migration failed/);
+  assert.equal(attempts, 1);
+  assert.equal(manager.backendPort, 49152);
+});
 
 function createManager(root) {
   return new BackendManager({

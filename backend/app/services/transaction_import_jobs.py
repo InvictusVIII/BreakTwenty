@@ -36,6 +36,11 @@ from app.services.event_bus import (
     mark_dirty,
 )
 from app.services.provider_keys import provider_status_key
+from app.services.network_preflight import (
+    TEMPORARY_DNS_FAILURE_MARKER,
+    run_provider_dns_resolution,
+    run_sync_network_gate,
+)
 from app.services.sqlite_write_gate import sqlite_write_gate
 from app.services.sync_utils import (
     acquire_sync_lock,
@@ -72,6 +77,7 @@ NON_REVIVABLE_JOB_REASONS = frozenset({"add_connection", "provider_add"})
 TRANSACTION_JOB_CRASH_ERROR_PREFIX = "Transaction import task crashed"
 TRANSACTION_JOB_LEASE_DURATION = timedelta(minutes=5)
 TRANSACTION_JOB_LEASE_RENEW_INTERVAL_SECONDS = 60
+TRANSACTION_IMPORT_NETWORK_RECOVERY_REASONS = frozenset({"autosync", "sync_all"})
 
 _tasks: dict[str, asyncio.Task] = {}
 _watchdog_task: asyncio.Task | None = None
@@ -1173,20 +1179,69 @@ async def _run_claimed_transaction_import_job(
             attempt_id=job.attempt_id,
             lock_provider=lock_provider,
         )
-        async with async_session() as db:
-            source_sync_id = str(job.source_sync_id or job.sync_id or "").strip() or None
-            _result, response = await run_connector_sync(
-                db,
-                job.user_id,
-                job.provider,
-                institution_id=job.institution_id,
-                sync_id=source_sync_id,
-                sync_scope=normalize_sync_scope(SYNC_SCOPE_TRANSACTIONS),
-                transaction_job_id=job_id,
-                transaction_job_lease_token=lease_token,
-                sync_source=str(job.reason or "").strip() or "unspecified",
-                attempt_id=job.attempt_id,
-            )
+        source_sync_id = str(job.source_sync_id or job.sync_id or "").strip() or None
+        normalized_reason = str(job.reason or "").strip().lower()
+        network_recovery_enabled = (
+            normalized_reason in TRANSACTION_IMPORT_NETWORK_RECOVERY_REASONS
+        )
+
+        async def run_transaction_sync(*, include_network_recovery_hint: bool) -> dict:
+            async with async_session() as db:
+                _result, sync_response = await run_connector_sync(
+                    db,
+                    job.user_id,
+                    job.provider,
+                    institution_id=job.institution_id,
+                    sync_id=source_sync_id,
+                    sync_scope=normalize_sync_scope(SYNC_SCOPE_TRANSACTIONS),
+                    transaction_job_id=job_id,
+                    transaction_job_lease_token=lease_token,
+                    sync_source=normalized_reason or "unspecified",
+                    attempt_id=job.attempt_id,
+                    include_network_recovery_hint=include_network_recovery_hint,
+                )
+            return sync_response
+
+        response = await run_transaction_sync(
+            include_network_recovery_hint=network_recovery_enabled
+        )
+        if (
+            network_recovery_enabled
+            and str(response.get("status") or "").lower() == "network_error"
+        ):
+            dns_result = await run_provider_dns_resolution(job.provider)
+            if (
+                response.get(TEMPORARY_DNS_FAILURE_MARKER) is True
+                or dns_result.status == "temporary_failure"
+            ):
+                await _touch_job_progress(
+                    job_id,
+                    "Waiting for internet connection to recover.",
+                    expected_lease_token=lease_token,
+                )
+                recovery_gate = await run_sync_network_gate(
+                    [job.provider],
+                    user_id=job.user_id,
+                    flow="transaction_import_recovery",
+                    mode=normalized_reason,
+                    batch_id=job_id,
+                )
+                if recovery_gate.status == "ready":
+                    _log_provider_job_event(
+                        job.provider,
+                        "transaction import temporary DNS recovery retry",
+                        user_id=job.user_id,
+                        sync_id=source_sync_id,
+                        job_id=job_id,
+                        reason=normalized_reason,
+                        source_sync_id=job.source_sync_id,
+                        attempt_id=job.attempt_id,
+                        error_name=dns_result.error_name,
+                    )
+                    response = await run_transaction_sync(
+                        include_network_recovery_hint=False
+                    )
+        response.pop(TEMPORARY_DNS_FAILURE_MARKER, None)
         response_status = str(response.get("status") or "")
         sync_id = str(response.get("sync_id") or "") or None
         _log_provider_job_event(

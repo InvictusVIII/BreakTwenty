@@ -594,7 +594,7 @@ function Settings({
       return 'Private release token: loading.';
     }
     if (auth.feed?.private === false) {
-      return 'Public BreakTwenty release feed: no GitHub token needed.';
+      return '';
     }
     if (auth.hasToken) {
       return auth.source === 'environment'
@@ -717,9 +717,11 @@ function Settings({
                 </div>
               </div>
             )}
-            <p className="settings-note">
-              {updateFeedPrivate ? `${updateAuthCopy} Use this only for private release testing.` : updateAuthCopy}
-            </p>
+            {updateAuthCopy && (
+              <p className="settings-note">
+                {updateFeedPrivate ? `${updateAuthCopy} Use this only for private release testing.` : updateAuthCopy}
+              </p>
+            )}
             {showUpdateTokenControls && updateStatus?.auth?.error && (
               <div className="settings-message error">
                 {updateStatus.auth.error}

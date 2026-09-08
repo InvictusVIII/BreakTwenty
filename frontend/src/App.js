@@ -544,7 +544,7 @@ function brandAssetVersionsEqual(a, b) {
 const brandAssetVersionListeners = new Set();
 
 if (import.meta.hot) {
-  import.meta.hot.accept('./generatedBrandAssets', (nextModule) => {
+  void import.meta.hot.accept('./generatedBrandAssets', (nextModule) => {
     const normalized = normalizeBrandAssetVersions(nextModule?.brandAssetVersions);
     brandAssetVersionListeners.forEach((listener) => listener(normalized));
   });
@@ -3038,25 +3038,38 @@ function ShellContent({
       .catch(() => {});
     return () => { cancelled = true; };
   }, []);
-  const saveWelcomeDefaults = useCallback(async ({ timezone, primaryCurrency: nextPrimaryCurrency } = {}) => {
+  const saveWelcomeDefaults = useCallback(async ({
+    timezone,
+    timeFormat,
+    primaryCurrency: nextPrimaryCurrency,
+  } = {}) => {
     const normalizedTimezone = String(timezone || '').trim() || DEFAULT_USER_TIMEZONE;
+    const normalizedTimeFormat = normalizeUserTimeFormat(timeFormat || userTimeFormat);
     const normalizedCurrency = String(nextPrimaryCurrency || '').trim().toUpperCase();
 
-    if (normalizedTimezone && (normalizedTimezone !== userTimezone || !userTimezoneConfigured)) {
+    if (
+      normalizedTimezone
+      && (
+        normalizedTimezone !== userTimezone
+        || normalizedTimeFormat !== userTimeFormat
+        || !userTimezoneConfigured
+      )
+    ) {
       const resp = await fetch(`${API}/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_timezone: normalizedTimezone,
-          user_time_format: userTimeFormat,
+          user_time_format: normalizedTimeFormat,
         }),
       });
       if (!resp.ok) {
         const payload = await resp.json().catch(() => ({}));
-        throw new Error(payload?.message || 'Failed to save timezone.');
+        throw new Error(payload?.message || 'Failed to save time preferences.');
       }
       setUserTimezone(normalizedTimezone);
       setUserTimezoneConfigured(true);
+      setUserTimeFormat(normalizedTimeFormat);
     }
 
     if (normalizedCurrency && normalizedCurrency !== primaryCurrency) {
@@ -3065,6 +3078,7 @@ function ShellContent({
   }, [
     primaryCurrency,
     setPrimaryCurrency,
+    setUserTimeFormat,
     setUserTimezone,
     setUserTimezoneConfigured,
     userTimeFormat,
@@ -3937,6 +3951,7 @@ function ShellContent({
           primaryCurrency={primaryCurrency}
           currencyOptions={currencyOptions}
           userTimezone={userTimezone}
+          userTimeFormat={userTimeFormat}
           onSaveDefaults={saveWelcomeDefaults}
           onComplete={async () => { setShowWelcome(false); await fetchData({ forceDataRefreshId: true }); }}
           onAddAccount={() => setShowAddModal(true)}

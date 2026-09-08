@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import binascii
 import hashlib
+import hmac
 import json
 import logging
 import os
@@ -23,6 +24,10 @@ from app.key_material import get_key_material
 
 AUTHORIZATION_HEADER = "authorization"
 BEARER_PREFIX = "Bearer "
+BACKEND_OWNERSHIP_PATH = "/api/health/ownership"
+BACKEND_OWNERSHIP_CONTEXT = b"breaktwenty-backend-ownership-v1:"
+BACKEND_OWNERSHIP_CHALLENGE_BYTES = 32
+BACKEND_OWNERSHIP_ENDPOINT_ENV = "BREAKTWENTY_EMBEDDED_BACKEND_OWNERSHIP_ENDPOINT"
 LAUNCH_TOKEN_FILE_ENV = "BREAKTWENTY_LAUNCH_TOKEN_FILE"
 TOKEN_BYTES = 32
 MAX_TOKEN_FILE_BYTES = 512
@@ -209,6 +214,38 @@ def validate_token(value: str, *, label: str = "token") -> str:
 
 def _token_digest(token: str) -> bytes:
     return hashlib.sha256(token.encode("ascii")).digest()
+
+
+def prove_backend_ownership(challenge: str) -> str:
+    challenge_text = str(challenge or "")
+    try:
+        challenge_bytes = base64.urlsafe_b64decode(f"{challenge_text}=")
+    except (binascii.Error, UnicodeEncodeError, ValueError) as exc:
+        raise ValueError("Backend ownership challenge is invalid") from exc
+    if (
+        len(challenge_bytes) != BACKEND_OWNERSHIP_CHALLENGE_BYTES
+        or base64.urlsafe_b64encode(challenge_bytes).decode("ascii").rstrip("=")
+        != challenge_text
+    ):
+        raise ValueError("Backend ownership challenge is invalid")
+    launch_tokens = _launch_token_source.read()
+    desktop_token = base64.b64decode(launch_tokens.desktop.encode("ascii"), validate=True)
+    ownership_endpoint = str(os.getenv(BACKEND_OWNERSHIP_ENDPOINT_ENV) or "").strip()
+    if not ownership_endpoint:
+        raise RuntimeError("Backend ownership endpoint is unavailable")
+    try:
+        ownership_endpoint_bytes = ownership_endpoint.encode("ascii")
+    except UnicodeEncodeError as exc:
+        raise RuntimeError("Backend ownership endpoint is invalid") from exc
+    proof = hmac.new(
+        desktop_token,
+        BACKEND_OWNERSHIP_CONTEXT
+        + ownership_endpoint_bytes
+        + b":"
+        + challenge_text.encode("ascii"),
+        hashlib.sha256,
+    ).digest()
+    return base64.urlsafe_b64encode(proof).decode("ascii").rstrip("=")
 
 
 def _purge_expired_locked(now: float) -> None:
@@ -537,6 +574,14 @@ class LaunchAuthMiddleware:
         # which cannot carry the renderer bearer token. A high-entropy, one-use,
         # short-lived state value authenticates this exact callback instead.
         if path == "/api/auth/moomoo/oauth/callback" and method == "GET":
+            await self.app(scope, receive, send)
+            return
+        if (
+            path == BACKEND_OWNERSHIP_PATH
+            and method == "GET"
+            and str(os.getenv("BREAKTWENTY_KEY_BOOTSTRAP") or "").strip().lower()
+            == "stdin-v2"
+        ):
             await self.app(scope, receive, send)
             return
         if scope.get("type") != "http" or not path.startswith("/api") or method == "OPTIONS":

@@ -2,7 +2,7 @@
   "name": "breaktwenty",
   "productName": "BreakTwenty",
   "desktopName": "app.breaktwenty.desktop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Electron shell and desktop auth coordinator for the local BreakTwenty app.",
   "homepage": "https://github.com/InvictusVIII/BreakTwenty",

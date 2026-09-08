@@ -118,18 +118,32 @@ const FRONTEND_BUILD_DIR = path.resolve(
 const RAW_BUILD_FRONTEND_HOST = String(
   process.env.BREAKTWENTY_DESKTOP_BUILD_HOST || '127.0.0.1',
 ).trim();
-const BUILD_FRONTEND_PORT = Number(process.env.BREAKTWENTY_DESKTOP_BUILD_PORT || 32100);
-const BUILD_FRONTEND_URL = normalizeLocalFrontendUrl(
-  `http://${RAW_BUILD_FRONTEND_HOST.includes(':') && !RAW_BUILD_FRONTEND_HOST.startsWith('[')
-    ? `[${RAW_BUILD_FRONTEND_HOST}]`
-    : RAW_BUILD_FRONTEND_HOST}:${BUILD_FRONTEND_PORT}`,
-  { expectedPort: BUILD_FRONTEND_PORT },
+const BUILD_FRONTEND_HOST = RAW_BUILD_FRONTEND_HOST.replace(/^\[|\]$/g, '');
+const HAS_BUILD_FRONTEND_PORT_OVERRIDE = String(
+  process.env.BREAKTWENTY_DESKTOP_BUILD_PORT || '',
+).trim() !== '';
+const USE_PACKAGED_DYNAMIC_FRONTEND_PORT = (
+  app.isPackaged
+  && BACKEND_MODE === 'embedded'
+  && FRONTEND_MODE === 'build'
+  && !HAS_BUILD_FRONTEND_PORT_OVERRIDE
 );
-const BUILD_FRONTEND_HOST = new URL(BUILD_FRONTEND_URL).hostname.replace(/^\[|\]$/g, '');
+const BUILD_FRONTEND_PORT = USE_PACKAGED_DYNAMIC_FRONTEND_PORT
+  ? 0
+  : numericPort(process.env.BREAKTWENTY_DESKTOP_BUILD_PORT, 32100);
+let activeBuildFrontendPort = BUILD_FRONTEND_PORT;
 const EMBEDDED_BACKEND_PORT = numericPort(process.env.BREAKTWENTY_EMBEDDED_BACKEND_PORT, 8765);
+const USE_PACKAGED_DYNAMIC_BACKEND_PORT = (
+  app.isPackaged
+  && BACKEND_MODE === 'embedded'
+  && !String(process.env.BREAKTWENTY_BACKEND_API_URL || '').trim()
+  && !String(process.env.BREAKTWENTY_EMBEDDED_BACKEND_PORT || '').trim()
+);
 const DEFAULT_BACKEND_API_URL = BACKEND_MODE === 'embedded' ? `http://127.0.0.1:${EMBEDDED_BACKEND_PORT}/api` : 'http://localhost:8000/api';
-const BACKEND_API_URL = normalizeLocalBackendApiUrl(
-  process.env.BREAKTWENTY_BACKEND_API_URL || DEFAULT_BACKEND_API_URL,
+let backendApiUrl = normalizeLocalBackendApiUrl(
+  USE_PACKAGED_DYNAMIC_BACKEND_PORT
+    ? 'http://127.0.0.1:1/api'
+    : process.env.BREAKTWENTY_BACKEND_API_URL || DEFAULT_BACKEND_API_URL,
 );
 const DESKTOP_AUTH_DIR = path.resolve(
   process.env.BREAKTWENTY_DESKTOP_AUTH_DIR || path.join(APP_ROOT, '.desktop-auth'),
@@ -259,7 +273,7 @@ let backendManager = null;
 let appDiagnostics = null;
 let visibleAuthBroker = null;
 let appUpdater = null;
-let frontendUrl = DEV_FRONTEND_URL;
+let frontendUrl = FRONTEND_MODE === 'build' ? buildFrontendUrl() : DEV_FRONTEND_URL;
 let frontendBuildServer = null;
 let browserRuntimePrewarm = null;
 let mainWindowZoomPreferenceWasStored = false;
@@ -812,7 +826,7 @@ function getMainWindowBounds() {
 }
 
 function apiUrl(pathname) {
-  return new URL(pathname, BACKEND_API_URL).toString();
+  return new URL(pathname, backendApiUrl).toString();
 }
 
 function sleep(ms) {
@@ -851,6 +865,9 @@ async function getBackendHealth({ timeoutMs = BACKEND_HEALTH_PROBE_TIMEOUT_MS } 
   return probeBackendHealth({
     url: apiUrl('/api/health'),
     authorization: `Bearer ${backendManager.getDesktopLaunchAuthToken()}`,
+    ownershipToken: BACKEND_MODE === 'embedded'
+      ? backendManager.getDesktopLaunchAuthToken()
+      : '',
     expectedAppName: APP_BRAND_NAME,
     timeoutMs: Math.max(250, Number(timeoutMs) || BACKEND_HEALTH_PROBE_TIMEOUT_MS),
   });
@@ -938,10 +955,11 @@ async function recoverEmbeddedBackend({ trigger, failedHealth = null } = {}) {
       appDiagnostics.refreshLogs?.(incident.incidentId, { suffix: '.pre-recovery' });
     }
     const startedAt = new Date().toISOString();
+    const previousBackendApiUrl = backendApiUrl;
     log.warn(`Controlled embedded backend recovery started trigger=${trigger || 'backend_unresponsive'}`);
     try {
       await backendManager.restart();
-      visibleAuthBroker?.setRuntimeEnv(backendManager.getRuntimeEnv());
+      synchronizeBackendEndpoint();
       const health = await waitForBackend({ timeoutMs: BACKEND_READY_TIMEOUT_MS, source: 'recovery' });
       const completedAt = new Date().toISOString();
       const recovered = Boolean(health.ok);
@@ -955,25 +973,39 @@ async function recoverEmbeddedBackend({ trigger, failedHealth = null } = {}) {
       if (recovered) {
         backendHealthFailureCount = 0;
         log.info('Controlled embedded backend recovery completed successfully.');
-        const rendererCompletion = await completeBackendRecoveryHandoff({
-          handoff: backendRecoveryHandoff,
-          webContents: mainWindow?.webContents,
+        const finalizeRecovered = (completion) => finalizeRecoveryIncident(incident, {
+          outcome: 'recovered',
+          rendererCompletion: completion,
           recovery: {
-            recoveryId: randomUUID(),
-            backendRecoveredAt: completedAt,
+            attempted: true,
+            recovered: true,
+            startedAt,
+            completedAt,
+            finalHealth: health,
           },
-          finalize: (completion) => finalizeRecoveryIncident(incident, {
-            outcome: 'recovered',
-            rendererCompletion: completion,
-            recovery: {
-              attempted: true,
-              recovered: true,
-              startedAt,
-              completedAt,
-              finalHealth: health,
-            },
-          }),
         });
+        let rendererCompletion;
+        if (backendApiUrl !== previousBackendApiUrl) {
+          const webContents = mainWindow?.webContents;
+          rendererCompletion = webContents && !webContents.isDestroyed()
+            ? await backendRecoveryHandoff.waitForDidFinishLoad(webContents)
+            : {
+                ok: false,
+                completion: 'renderer_unavailable',
+                message: 'The renderer was unavailable for backend recovery.',
+              };
+          finalizeRecovered(rendererCompletion);
+        } else {
+          rendererCompletion = await completeBackendRecoveryHandoff({
+            handoff: backendRecoveryHandoff,
+            webContents: mainWindow?.webContents,
+            recovery: {
+              recoveryId: randomUUID(),
+              backendRecoveredAt: completedAt,
+            },
+            finalize: finalizeRecovered,
+          });
+        }
         lastBackendRecovery = {
           ...lastBackendRecovery,
           rendererCompletion,
@@ -1142,7 +1174,10 @@ function stopBackendHealthSupervisor() {
 }
 
 function buildFrontendUrl() {
-  return BUILD_FRONTEND_URL;
+  const host = BUILD_FRONTEND_HOST.includes(':')
+    ? `[${BUILD_FRONTEND_HOST}]`
+    : BUILD_FRONTEND_HOST;
+  return normalizeLocalFrontendUrl(`http://${host}:${activeBuildFrontendPort || 1}`);
 }
 
 function frontendBuildIndexPath() {
@@ -1189,7 +1224,7 @@ function serveBuildFile(request, response, filePath) {
 
 function buildRuntimeConfigScript() {
   const json = JSON.stringify({
-    backendApiUrl: BACKEND_API_URL,
+    backendApiUrl,
     backendMode: BACKEND_MODE,
     frontendMode: FRONTEND_MODE,
   })
@@ -1304,6 +1339,17 @@ function ensureBuildFrontendServer() {
         });
         return;
       }
+      const address = server.address();
+      const assignedPort = Number(address && typeof address === 'object' ? address.port : 0);
+      if (!Number.isInteger(assignedPort) || assignedPort < 1 || assignedPort > 65535) {
+        void closeHttpServer(server);
+        resolve({
+          ok: false,
+          message: `${APP_BRAND_NAME} could not determine its frontend loopback port.`,
+        });
+        return;
+      }
+      activeBuildFrontendPort = assignedPort;
       frontendBuildServer = server;
       frontendUrl = buildFrontendUrl();
       resolve({
@@ -1401,12 +1447,19 @@ function ensureBrowserRuntimePrewarm() {
   return browserRuntimePrewarm;
 }
 
+function synchronizeBackendEndpoint() {
+  backendApiUrl = backendManager.getBackendApiUrl();
+  visibleAuthBroker?.setBackendApiUrl(backendApiUrl);
+  visibleAuthBroker?.setRuntimeEnv(backendManager.getRuntimeEnv());
+}
+
 async function prepareBackend() {
   if (lifecycleCoordinator.isShuttingDown()) {
     return { ok: false, message: `${APP_BRAND_NAME} is shutting down.` };
   }
   try {
     await backendManager.start();
+    synchronizeBackendEndpoint();
     if (lifecycleCoordinator.isShuttingDown()) {
       await backendManager.shutdown();
       return { ok: false, message: `${APP_BRAND_NAME} is shutting down.` };
@@ -1446,6 +1499,19 @@ async function loadBreakTwentyApp(window) {
   if (lifecycleCoordinator.isShuttingDown() || window.isDestroyed()) return;
   await window.loadURL(loadingDataUrl());
   if (lifecycleCoordinator.isShuttingDown() || window.isDestroyed()) return;
+  let frontendHealth = null;
+  if (USE_PACKAGED_DYNAMIC_FRONTEND_PORT) {
+    frontendHealth = await prepareFrontend();
+    if (lifecycleCoordinator.isShuttingDown() || window.isDestroyed()) return;
+    if (!frontendHealth.ok) {
+      await window.loadURL(loadingDataUrl(
+        `${APP_BRAND_NAME} frontend build is not ready`,
+        frontendHealth.message || `Last frontend status: ${frontendHealth.status || 'unavailable'}`,
+      ));
+      return;
+    }
+    backendManager.setFrontendOrigin(frontendUrl);
+  }
   const backendHealth = await prepareBackend();
   if (lifecycleCoordinator.isShuttingDown() || window.isDestroyed()) return;
   if (!backendHealth.ok) {
@@ -1455,7 +1521,7 @@ async function loadBreakTwentyApp(window) {
     ));
     return;
   }
-  const frontendHealth = await prepareFrontend();
+  frontendHealth = frontendHealth || await prepareFrontend();
   if (lifecycleCoordinator.isShuttingDown() || window.isDestroyed()) return;
   if (frontendHealth.ok) {
     await window.loadURL(frontendUrl);
@@ -1896,7 +1962,7 @@ function registerIpcHandlers() {
   handle('breaktwenty:main-window-zoom', () => getMainWindowZoomStatus());
 
   handle('breaktwenty:launch-auth', () => ({
-    backendApiUrl: BACKEND_API_URL,
+    backendApiUrl,
     accessToken: backendManager.getRendererLaunchAuthToken(),
     tokenType: 'Bearer',
   }));
@@ -1907,7 +1973,7 @@ function registerIpcHandlers() {
     backendMode: BACKEND_MODE,
     frontendMode: FRONTEND_MODE,
     frontendUrl,
-    backendApiUrl: BACKEND_API_URL,
+    backendApiUrl,
     frontendHealth: await getFrontendHealth(),
     backendHealth: await getBackendHealth(),
     backendProcess: backendManager.describe(),
@@ -1977,8 +2043,9 @@ app.whenReady().then(() => {
     app,
     appRoot: APP_ROOT,
     backendMode: BACKEND_MODE,
-    backendApiUrl: BACKEND_API_URL,
+    backendApiUrl,
     frontendOrigin: FRONTEND_MODE === 'build' ? buildFrontendUrl() : DEV_FRONTEND_URL,
+    dynamicBackendPort: USE_PACKAGED_DYNAMIC_BACKEND_PORT,
   });
   try {
     backendManager.prepareRuntimeEnv();
@@ -2011,7 +2078,7 @@ app.whenReady().then(() => {
   }
   visibleAuthBroker = new VisibleAuthBroker({
     appRoot: APP_ROOT,
-    backendApiUrl: BACKEND_API_URL,
+    backendApiUrl,
     backendMode: BACKEND_MODE,
     runtimeEnv: backendManager.getRuntimeEnv(),
     getLaunchAuthToken: () => backendManager.getDesktopLaunchAuthToken(),

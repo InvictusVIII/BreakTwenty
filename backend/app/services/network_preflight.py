@@ -25,6 +25,7 @@ SYNC_DNS_CANARY_PROVIDER = "internet_canary"
 SYNC_NETWORK_SUPPORT_PROVIDER = "network"
 SYNC_NETWORK_SUPPORT_TRIGGER = "sync_dns_gate_blocked"
 SYNC_NETWORK_BLOCKED_CODE = "dns_resolution_temporarily_unavailable"
+TEMPORARY_DNS_FAILURE_MARKER = "_temporary_dns_failure"
 SYNC_NETWORK_BLOCKED_MESSAGE = (
     f"{APP_BRAND_NAME} couldn't reach your financial providers because of a temporary "
     "connection problem. Check your internet connection and try again."
@@ -114,6 +115,16 @@ class SyncNetworkGateResult:
             "status": "network_blocked",
             **self.blocker_payload(),
         }
+
+
+def is_temporary_dns_preflight_result(
+    result: DnsResolutionResult | NetworkPreflightResult | None,
+) -> bool:
+    if result is None:
+        return False
+    if result.status == "temporary_failure":
+        return True
+    return result.status == "dns_failed" and result.error_name in {"EAI_AGAIN", "TIMEOUT"}
 
 
 def provider_preflight_host(provider: str) -> str | None:

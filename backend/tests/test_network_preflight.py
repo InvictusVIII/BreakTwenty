@@ -13,6 +13,7 @@ from app.services.network_preflight import (
     _run_dns_resolution_sync,
     _run_network_preflight_sync,
     collect_sanitized_resolver_facts,
+    is_temporary_dns_preflight_result,
     provider_preflight_host,
     run_provider_dns_resolution,
     run_provider_network_preflight,
@@ -31,6 +32,7 @@ class _FakeConnection:
 class NetworkPreflightTests(unittest.IsolatedAsyncioTestCase):
     async def test_known_provider_resolves_preflight_host(self) -> None:
         self.assertEqual("secure.scotiabank.com", provider_preflight_host("scotiabank"))
+        self.assertEqual("webapi.moomoo.com", provider_preflight_host("moomoo"))
 
     async def test_unknown_provider_skips_preflight(self) -> None:
         result = await run_provider_network_preflight("demo")
@@ -65,6 +67,29 @@ class NetworkPreflightTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual("failed", result.status)
         self.assertEqual("dns_lookup_failed_from_backend_runtime", result.diagnosis)
+
+    async def test_only_temporary_dns_preflight_failures_enable_recovery(self) -> None:
+        temporary = NetworkPreflightResult(
+            provider="rbc",
+            host="www1.royalbank.com",
+            port=443,
+            status="dns_failed",
+            diagnosis="dns_lookup_failed_from_backend_runtime",
+            duration_ms=1,
+            error_name="EAI_AGAIN",
+        )
+        provider_timeout = NetworkPreflightResult(
+            provider="rbc",
+            host="www1.royalbank.com",
+            port=443,
+            status="tcp_failed",
+            diagnosis="dns_resolved_but_tcp_connect_failed_from_backend_runtime",
+            duration_ms=1,
+            error_name="ETIMEDOUT",
+        )
+
+        self.assertTrue(is_temporary_dns_preflight_result(temporary))
+        self.assertFalse(is_temporary_dns_preflight_result(provider_timeout))
 
     async def test_dns_resolution_returns_addresses_without_connecting(self) -> None:
         with patch(

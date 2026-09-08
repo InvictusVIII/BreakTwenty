@@ -54,7 +54,11 @@ from app.services.connection_auth_storage import (
     ensure_connection,
     get_scraper_credentials,
 )
-from app.services.network_preflight import run_sync_network_gate
+from app.services.network_preflight import (
+    TEMPORARY_DNS_FAILURE_MARKER,
+    run_provider_dns_resolution,
+    run_sync_network_gate,
+)
 from app.services.sync_utils import (
     acquire_sync_lock,
     is_network_error,
@@ -90,6 +94,7 @@ MAX_VISIBLE_AUTH_RUNTIME_ARTIFACT_BYTES = 25 * 1024 * 1024
 MAX_VISIBLE_AUTH_CREDENTIAL_LENGTH = 16_384
 MAX_SYNC_BATCH_CONNECTIONS = 64
 SYNC_BATCH_API_MODES = frozenset({"auto", "manual"})
+SYNC_ROUTE_NETWORK_RECOVERY_SOURCES = frozenset({"autosync", "sync_all"})
 TRANSACTION_IMPORT_ENQUEUE_TIMEOUT_SECONDS = 10.0
 SYNC_INITIATION_SOURCES = frozenset(
     {
@@ -376,6 +381,7 @@ async def _run_connector_sync(
     ]
     | None = None,
     attempt_id: str | None = None,
+    include_network_recovery_hint: bool = False,
 ):
     from app.connectors.orchestration import run_connector_sync
 
@@ -390,6 +396,7 @@ async def _run_connector_sync(
         sync_source=sync_source,
         success_precommit_hook=success_precommit_hook,
         attempt_id=attempt_id,
+        include_network_recovery_hint=include_network_recovery_hint,
     )
     return response
 
@@ -729,7 +736,54 @@ async def _sync_connector_route(
                 sync_source=sync_source,
                 success_precommit_hook=success_precommit_hook,
                 attempt_id=attempt_id if visible_auth_scoped else None,
+                include_network_recovery_hint=(
+                    not add_flow
+                    and not attempt_id
+                    and sync_source in SYNC_ROUTE_NETWORK_RECOVERY_SOURCES
+                ),
             )
+            if (
+                not add_flow
+                and not attempt_id
+                and sync_source in SYNC_ROUTE_NETWORK_RECOVERY_SOURCES
+                and str(response.get("status") or "").lower() == "network_error"
+            ):
+                dns_result = await run_provider_dns_resolution(provider)
+                if (
+                    response.get(TEMPORARY_DNS_FAILURE_MARKER) is True
+                    or dns_result.status == "temporary_failure"
+                ):
+                    recovery_gate = await run_sync_network_gate(
+                        [provider],
+                        user_id=user_id,
+                        flow="single_sync_recovery",
+                        mode=sync_source,
+                    )
+                    if recovery_gate.status == "ready":
+                        log_connector_event(
+                            get_connector_logger(provider),
+                            provider=provider,
+                            stage="temporary DNS recovery retry",
+                            user_id=user_id,
+                            sync_id=sync_id,
+                            institution_id=institution_id,
+                            sync_source=sync_source,
+                            error_name=dns_result.error_name,
+                        )
+                        response = await _run_connector_sync(
+                            db,
+                            user_id,
+                            provider,
+                            sync_id=sync_id,
+                            add_flow=add_flow,
+                            sync_scope=sync_scope,
+                            institution_id=institution_id,
+                            sync_source=sync_source,
+                            success_precommit_hook=success_precommit_hook,
+                            attempt_id=attempt_id if visible_auth_scoped else None,
+                            include_network_recovery_hint=False,
+                        )
+            response.pop(TEMPORARY_DNS_FAILURE_MARKER, None)
             retain_visible_auth_attempt = False
             if add_flow and _add_flow_response_requires_cleanup(response):
                 await _cleanup_incomplete_institution_add(db, user_id, provider, institution_id)

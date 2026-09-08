@@ -303,8 +303,9 @@ def _td_origin_from_url(url: str | None) -> str | None:
         return None
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         return None
-    host = parsed.hostname or ""
-    if not host.endswith("td.com"):
+    host = (parsed.hostname or "").lower()
+    root = "td.com"
+    if host != root and not host.endswith("." + root):
         return None
     return f"{parsed.scheme}://{parsed.netloc}"
 

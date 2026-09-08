@@ -608,12 +608,22 @@ async def _user_timezone_info(user_id: int | None) -> ZoneInfo | None:
         return None
 
 
-def _app_version() -> str:
+def _backend_api_version() -> str:
     try:
         from app.main import app as fastapi_app
         return str(getattr(fastapi_app, "version", "") or "")
     except Exception:
         return ""
+
+
+def _desktop_runtime_identity() -> tuple[str | None, str | None]:
+    app_version = str(os.getenv("BREAKTWENTY_DESKTOP_APP_VERSION") or "").strip()
+    platform = str(os.getenv("BREAKTWENTY_DESKTOP_PLATFORM") or "").strip().lower()
+    if not re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z.+-]{0,63}", app_version):
+        app_version = None
+    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,31}", platform):
+        platform = None
+    return app_version, platform
 
 
 def _scrub_state_last_errors(snapshots: dict[str, dict[str, Any]]) -> None:
@@ -978,10 +988,13 @@ async def archive_run(
         logger.warning("auto-archive trigger.json write failed provider=%s: %s", normalized_provider, exc)
 
     timezone_label = str(user_tz) if user_tz is not None else None
+    desktop_app_version, desktop_platform = _desktop_runtime_identity()
     context_payload = {
-        "schema_version": 2,
+        "schema_version": 3,
         "generated_at": now.isoformat(),
-        "app_version": _app_version(),
+        "desktop_app_version": desktop_app_version,
+        "desktop_platform": desktop_platform,
+        "backend_api_version": _backend_api_version(),
         "user_id": user_id,
         "user_timezone": timezone_label,
         "sync_id": str(sync_id or "") or None,

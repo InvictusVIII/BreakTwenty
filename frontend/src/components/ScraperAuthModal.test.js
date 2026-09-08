@@ -42,6 +42,79 @@ function deferred() {
 }
 
 describe('ScraperAuthModal provider flow boundaries', () => {
+  it('keeps RBC add credential entry inside the bank browser', async () => {
+    const launch = vi.fn().mockResolvedValue({
+      requestStatus: 'launched',
+      status: 'running',
+      attemptId: 'attempt-rbc',
+    });
+    window.breaktwentyDesktop = {
+      visibleAuth: {
+        cancel: vi.fn(),
+        launch,
+        status: vi.fn().mockResolvedValue({ status: 'running' }),
+      },
+    };
+    vi.stubGlobal('fetch', vi.fn((url) => {
+      if (String(url).endsWith('/settings/dev-diagnostics/capture-level')) {
+        return Promise.resolve(response({ status: 'ok', capture_level: 'redacted_rich' }));
+      }
+      if (String(url).endsWith('/sync/visible-auth-attempt-cleanup')) {
+        return Promise.resolve(response({ status: 'ok' }));
+      }
+      throw new Error(`Unexpected request: GET ${url}`);
+    }));
+
+    render(
+      <ScraperAuthModal
+        institution={{ name: 'RBC', provider: 'rbc', isNew: true }}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(launch).toHaveBeenCalledOnce());
+    expect(launch.mock.calls[0][0]).not.toHaveProperty('credentials');
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add RBC' })).not.toBeInTheDocument();
+  });
+
+  it('does not suppress a desktop browser relaunch because of a stale skip marker', async () => {
+    sessionStorage.setItem('breaktwenty_skip_autologin_once_bmo', '1');
+    const launch = vi.fn().mockResolvedValue({
+      requestStatus: 'launched',
+      status: 'running',
+      attemptId: 'attempt-reopen',
+    });
+    window.breaktwentyDesktop = {
+      visibleAuth: {
+        cancel: vi.fn(),
+        launch,
+        status: vi.fn().mockResolvedValue({ status: 'running' }),
+      },
+    };
+    vi.stubGlobal('fetch', vi.fn((url) => {
+      if (String(url).endsWith('/settings/dev-diagnostics/capture-level')) {
+        return Promise.resolve(response({ status: 'ok', capture_level: 'redacted_rich' }));
+      }
+      if (String(url).endsWith('/sync/visible-auth-attempt-cleanup')) {
+        return Promise.resolve(response({ status: 'ok' }));
+      }
+      throw new Error(`Unexpected request: GET ${url}`);
+    }));
+
+    render(
+      <ScraperAuthModal
+        institution={{ id: 17, name: 'BMO', provider: 'bmo' }}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(launch).toHaveBeenCalledOnce());
+    expect(sessionStorage.getItem('breaktwenty_skip_autologin_once_bmo')).toBeNull();
+  });
+
   it('does not fall back to backend credential routes when desktop visible auth is unavailable', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,

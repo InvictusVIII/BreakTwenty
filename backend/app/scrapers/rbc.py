@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import re
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from html.parser import HTMLParser
 from typing import Any, Awaitable, Callable
@@ -49,8 +50,12 @@ RBC_CC_SEARCH_RETRY_ATTEMPTS = 3
 RBC_CC_SEARCH_MIN_WINDOW_RETRY_ATTEMPTS = 3
 RBC_CC_SEARCH_RETRY_WAIT_SECONDS = 2
 RBC_CC_SEARCH_RETRY_WAIT_MAX_SECONDS = 5
+RBC_CC_SEARCH_HTTP_500_FINAL_WAIT_SECONDS = 15
+RBC_CC_SEARCH_WINDOW_DEADLINE_SECONDS = 150
+RBC_CC_SEARCH_DEFERRED_RECOVERY_DELAYS_SECONDS = (20, 45, 90)
+RBC_CC_SEARCH_DEFERRED_RECOVERY_BUDGET_SECONDS = 480
 RBC_CC_SEARCH_REWARM_EVERY_FAILURES = 0
-RBC_CC_SEARCH_CONCURRENCY = 3
+RBC_CC_SEARCH_CONCURRENCY = 1
 RBC_LOC_HISTORY_DAYS = 548
 RBC_DIRECT_TIMEOUT_SECONDS = 30
 RBC_ACCOUNT_CATEGORY_KEYS = ("depositAccounts", "creditCards", "linesLoans", "mortgages", "investments")
@@ -59,10 +64,29 @@ ModeResolver = Callable[[list[dict]], Awaitable[dict[str, str | dict[str, Any]]]
 AccountSyncCallback = Callable[[list[dict]], Awaitable[None]]
 TransactionWindowRecorder = Callable[[dict[str, Any]], Awaitable[None]]
 RBCCreditCardSearchWindow = tuple[date, date, list[dict], bool]
+RBCCreditCardSearchChunkResult = tuple[list[dict] | None, bool, str | None]
+RBCCreditCardSearchFailure = tuple[date, date, str]
+RBC_CC_SEARCH_FAILURE_HTTP_500 = "http_500"
+RBC_CC_SEARCH_FAILURE_OTHER = "other"
+RBC_CC_SEARCH_FAILURE_DEADLINE = "deadline"
 
 
 class RBCAuthRequired(PermissionError):
     pass
+
+
+@dataclass
+class RBCCreditCardBackfillResult:
+    start_date: date
+    end_date: date
+    transactions: list[dict]
+    succeeded: bool
+    leaf_windows: list[RBCCreditCardSearchWindow]
+    leaf_failures: list[RBCCreditCardSearchFailure]
+
+
+def _rbc_monotonic_seconds() -> float:
+    return asyncio.get_running_loop().time()
 
 
 def _rbc_debug_logs_enabled() -> bool:
@@ -1175,7 +1199,7 @@ async def _fetch_rbc_cc_search_chunk_direct(
     user_agent: str,
     attempt: int = 1,
     max_attempts: int = 1,
-) -> tuple[list[dict] | None, bool]:
+) -> RBCCreditCardSearchChunkResult:
     search_url = f"{RBC_TXN_CC_SEARCH_URL}/{_rbc_encoded_account_id(encrypted_id)}"
     search_payload = {
         "transactionFromDate": from_date,
@@ -1203,7 +1227,7 @@ async def _fetch_rbc_cc_search_chunk_direct(
             max_attempts=max_attempts,
             error=_rbc_sanitize_log_text(str(e), limit=140),
         )
-        return None, False
+        return None, False, RBC_CC_SEARCH_FAILURE_OTHER
 
     chunk_txns = _rbc_cc_transaction_list(search_result)
     search_debug = _rbc_result_debug(search_result)
@@ -1229,9 +1253,16 @@ async def _fetch_rbc_cc_search_chunk_direct(
             parse_text_kind=search_debug.get("parse_text_kind"),
             fetch_error=_rbc_sanitize_log_text(search_debug.get("fetch_error"), limit=140),
         )
-        return None, False
+        exact_http_500 = bool(search_debug.get("http_non_ok")) and str(
+            search_debug.get("http_status") or ""
+        ) == "500"
+        return (
+            None,
+            False,
+            RBC_CC_SEARCH_FAILURE_HTTP_500 if exact_http_500 else RBC_CC_SEARCH_FAILURE_OTHER,
+        )
 
-    return chunk_txns, True
+    return chunk_txns, True, None
 
 
 async def _fetch_rbc_cc_search_window_direct(
@@ -1244,35 +1275,77 @@ async def _fetch_rbc_cc_search_window_direct(
     user_agent: str,
     split_depth: int = 0,
     window_results: list[RBCCreditCardSearchWindow] | None = None,
+    failure_results: list[RBCCreditCardSearchFailure] | None = None,
     refresh_context: Callable[[], Awaitable[None]] | None = None,
+    max_attempts_override: int | None = None,
 ) -> tuple[list[dict] | None, bool]:
     span_days = (end_date - start_date).days + 1
-    max_attempts = (
+    max_attempts = max_attempts_override or (
         RBC_CC_SEARCH_MIN_WINDOW_RETRY_ATTEMPTS
         if span_days <= RBC_CC_MIN_SEARCH_WINDOW_DAYS
         else RBC_CC_SEARCH_RETRY_ATTEMPTS
     )
+    window_deadline = _rbc_monotonic_seconds() + RBC_CC_SEARCH_WINDOW_DEADLINE_SECONDS
     chunk_txns: list[dict] | None = None
     chunk_succeeded = False
-    for attempt in range(1, max_attempts + 1):
-        chunk_txns, chunk_succeeded = await _fetch_rbc_cc_search_chunk_direct(
-            storage_state,
-            encrypted_id=encrypted_id,
-            external_id=external_id,
-            from_date=start_date.isoformat(),
-            to_date=end_date.isoformat(),
-            user_agent=user_agent,
-            attempt=attempt,
-            max_attempts=max_attempts,
-        )
+    failure_kinds: list[str] = []
+    planned_attempts = max_attempts
+    attempt = 0
+    while attempt < planned_attempts:
+        remaining_seconds = window_deadline - _rbc_monotonic_seconds()
+        if remaining_seconds <= 0:
+            failure_kinds.append(RBC_CC_SEARCH_FAILURE_DEADLINE)
+            break
+        attempt += 1
+        try:
+            async with asyncio.timeout(remaining_seconds):
+                chunk_txns, chunk_succeeded, failure_kind = await _fetch_rbc_cc_search_chunk_direct(
+                    storage_state,
+                    encrypted_id=encrypted_id,
+                    external_id=external_id,
+                    from_date=start_date.isoformat(),
+                    to_date=end_date.isoformat(),
+                    user_agent=user_agent,
+                    attempt=attempt,
+                    max_attempts=planned_attempts,
+                )
+        except TimeoutError:
+            chunk_txns = None
+            chunk_succeeded = False
+            failure_kind = RBC_CC_SEARCH_FAILURE_DEADLINE
+            _rbc_log_event(
+                "credit card search window_deadline_exhausted",
+                level="warning",
+                account=external_id,
+                start=start_date.isoformat(),
+                end=end_date.isoformat(),
+                attempt=attempt,
+                split_depth=split_depth,
+                deadline_seconds=RBC_CC_SEARCH_WINDOW_DEADLINE_SECONDS,
+            )
         if chunk_succeeded and chunk_txns is not None:
             break
+        failure_kinds.append(failure_kind or RBC_CC_SEARCH_FAILURE_OTHER)
         if attempt >= max_attempts:
+            if (
+                attempt == max_attempts
+                and max_attempts_override is None
+                and len(failure_kinds) == max_attempts
+                and all(kind == RBC_CC_SEARCH_FAILURE_HTTP_500 for kind in failure_kinds)
+            ):
+                planned_attempts = max_attempts + 1
+                retry_wait_seconds = RBC_CC_SEARCH_HTTP_500_FINAL_WAIT_SECONDS
+            else:
+                break
+        else:
+            retry_wait_seconds = min(
+                RBC_CC_SEARCH_RETRY_WAIT_SECONDS * (2 ** (attempt - 1)),
+                RBC_CC_SEARCH_RETRY_WAIT_MAX_SECONDS,
+            )
+        remaining_seconds = window_deadline - _rbc_monotonic_seconds()
+        if remaining_seconds <= 0:
             break
-        retry_wait_seconds = min(
-            RBC_CC_SEARCH_RETRY_WAIT_SECONDS * (2 ** (attempt - 1)),
-            RBC_CC_SEARCH_RETRY_WAIT_MAX_SECONDS,
-        )
+        bounded_wait_seconds = min(retry_wait_seconds, remaining_seconds)
         _rbc_log_event(
             "credit card search retry_same_window",
             level="warning",
@@ -1280,9 +1353,10 @@ async def _fetch_rbc_cc_search_window_direct(
             start=start_date.isoformat(),
             end=end_date.isoformat(),
             attempt=attempt,
-            max_attempts=max_attempts,
+            max_attempts=planned_attempts,
             split_depth=split_depth,
-            retry_wait_seconds=retry_wait_seconds,
+            failure_kind=failure_kinds[-1],
+            retry_wait_seconds=bounded_wait_seconds,
         )
         if (
             refresh_context is not None
@@ -1290,7 +1364,10 @@ async def _fetch_rbc_cc_search_window_direct(
             and attempt % RBC_CC_SEARCH_REWARM_EVERY_FAILURES == 0
         ):
             await refresh_context()
-        await asyncio.sleep(retry_wait_seconds)
+        await asyncio.sleep(bounded_wait_seconds)
+        if bounded_wait_seconds < retry_wait_seconds:
+            failure_kinds.append(RBC_CC_SEARCH_FAILURE_DEADLINE)
+            break
     if not chunk_succeeded or chunk_txns is None:
         if (
             span_days > RBC_CC_MIN_SEARCH_WINDOW_DAYS
@@ -1319,7 +1396,9 @@ async def _fetch_rbc_cc_search_window_direct(
                 user_agent=user_agent,
                 split_depth=split_depth + 1,
                 window_results=window_results,
+                failure_results=failure_results,
                 refresh_context=refresh_context,
+                max_attempts_override=max_attempts_override,
             )
             right_txns, right_succeeded = await _fetch_rbc_cc_search_window_direct(
                 storage_state,
@@ -1330,7 +1409,9 @@ async def _fetch_rbc_cc_search_window_direct(
                 user_agent=user_agent,
                 split_depth=split_depth + 1,
                 window_results=window_results,
+                failure_results=failure_results,
                 refresh_context=refresh_context,
+                max_attempts_override=max_attempts_override,
             )
             combined_txns = _deduplicate_rbc_raw_transactions(
                 (left_txns or []) + (right_txns or [])
@@ -1349,6 +1430,15 @@ async def _fetch_rbc_cc_search_window_direct(
         deduped_chunk_txns = _deduplicate_rbc_raw_transactions(chunk_txns or [])
         if window_results is not None:
             window_results.append((start_date, end_date, deduped_chunk_txns, False))
+        if failure_results is not None:
+            terminal_failure_kind = (
+                RBC_CC_SEARCH_FAILURE_HTTP_500
+                if failure_kinds
+                and len(failure_kinds) == planned_attempts
+                and all(kind == RBC_CC_SEARCH_FAILURE_HTTP_500 for kind in failure_kinds)
+                else (failure_kinds[-1] if failure_kinds else RBC_CC_SEARCH_FAILURE_OTHER)
+            )
+            failure_results.append((start_date, end_date, terminal_failure_kind))
         return deduped_chunk_txns, chunk_succeeded
 
     deduped_chunk_txns = _deduplicate_rbc_raw_transactions(chunk_txns)
@@ -1368,6 +1458,8 @@ async def _fetch_rbc_cc_search_window_direct(
         )
         if window_results is not None:
             window_results.append((start_date, end_date, [], False))
+        if failure_results is not None:
+            failure_results.append((start_date, end_date, RBC_CC_SEARCH_FAILURE_OTHER))
         return None, False
 
     if len(deduped_chunk_txns) < RBC_CC_SEARCH_LIMIT:
@@ -1413,6 +1505,7 @@ async def _fetch_rbc_cc_search_window_direct(
         user_agent=user_agent,
         split_depth=split_depth + 1,
         window_results=window_results,
+        failure_results=failure_results,
         refresh_context=refresh_context,
     )
     right_txns, right_succeeded = await _fetch_rbc_cc_search_window_direct(
@@ -1424,6 +1517,7 @@ async def _fetch_rbc_cc_search_window_direct(
         user_agent=user_agent,
         split_depth=split_depth + 1,
         window_results=window_results,
+        failure_results=failure_results,
         refresh_context=refresh_context,
     )
     combined_txns = _deduplicate_rbc_raw_transactions((left_txns or []) + (right_txns or []))
@@ -1528,9 +1622,12 @@ async def _collect_rbc_cc_backward_history_direct(
     if not windows:
         return [], True
 
-    async def fetch_window(window: tuple[date, date]) -> tuple[date, date, list[dict], bool]:
+    async def fetch_window(
+        window: tuple[date, date],
+    ) -> RBCCreditCardBackfillResult:
         current_start, current_end = window
         leaf_windows: list[RBCCreditCardSearchWindow] = []
+        leaf_failures: list[RBCCreditCardSearchFailure] = []
         window_storage_state = copy.deepcopy(storage_state)
 
         async def refresh_window_context() -> None:
@@ -1558,11 +1655,17 @@ async def _collect_rbc_cc_backward_history_direct(
                 end_date=current_end,
                 user_agent=user_agent,
                 window_results=leaf_windows,
+                failure_results=leaf_failures,
                 refresh_context=refresh_window_context,
             )
         deduped_chunk_txns = _deduplicate_rbc_raw_transactions(chunk_txns or [])
         if not leaf_windows:
             leaf_windows = [(current_start, current_end, deduped_chunk_txns, chunk_succeeded)]
+        deferred_failure_ranges = {
+            (failed_start, failed_end)
+            for failed_start, failed_end, failure_kind in leaf_failures
+            if failure_kind == RBC_CC_SEARCH_FAILURE_HTTP_500
+        }
 
         split_into_leaf_windows = any(
             (leaf_start, leaf_end) != (current_start, current_end)
@@ -1588,7 +1691,7 @@ async def _collect_rbc_cc_backward_history_direct(
                     end_date=leaf_end,
                     transactions=leaf_txns,
                 )
-            else:
+            elif (leaf_start, leaf_end) not in deferred_failure_ranges:
                 await _record_rbc_transaction_window(
                     transaction_window_recorder,
                     event="failed",
@@ -1598,6 +1701,14 @@ async def _collect_rbc_cc_backward_history_direct(
                     end_date=leaf_end,
                     transactions=leaf_txns,
                     error="RBC credit-card search window failed or returned unusable data.",
+                )
+            else:
+                _rbc_log_event(
+                    "credit card search deferred_recovery_candidate",
+                    level="warning",
+                    account=external_id,
+                    start=leaf_start.isoformat(),
+                    end=leaf_end.isoformat(),
                 )
             _rbc_log_event(
                 "credit card backfill window",
@@ -1610,7 +1721,7 @@ async def _collect_rbc_cc_backward_history_direct(
                 transactions=len(leaf_txns),
                 succeeded=bool(leaf_succeeded),
             )
-        if split_into_leaf_windows:
+        if split_into_leaf_windows and not deferred_failure_ranges:
             await _record_rbc_transaction_window(
                 transaction_window_recorder,
                 event="completed" if chunk_succeeded else "failed",
@@ -1621,17 +1732,249 @@ async def _collect_rbc_cc_backward_history_direct(
                 transactions=deduped_chunk_txns,
                 error=None if chunk_succeeded else "RBC credit-card split search window failed or returned unusable data.",
             )
-        return current_start, current_end, deduped_chunk_txns, chunk_succeeded
+        return RBCCreditCardBackfillResult(
+            start_date=current_start,
+            end_date=current_end,
+            transactions=deduped_chunk_txns,
+            succeeded=chunk_succeeded,
+            leaf_windows=leaf_windows,
+            leaf_failures=leaf_failures,
+        )
 
-    window_results = await asyncio.gather(*(fetch_window(window) for window in windows))
+    window_results = list(await asyncio.gather(*(fetch_window(window) for window in windows)))
+    recovery_candidates: list[tuple[RBCCreditCardBackfillResult, date, date]] = []
+    for result in window_results:
+        exact_http_500_failures = {
+            (failed_start, failed_end)
+            for failed_start, failed_end, failure_kind in result.leaf_failures
+            if failure_kind == RBC_CC_SEARCH_FAILURE_HTTP_500
+        }
+        for leaf_start, leaf_end, _leaf_txns, leaf_succeeded in result.leaf_windows:
+            if not leaf_succeeded and (leaf_start, leaf_end) in exact_http_500_failures:
+                recovery_candidates.append((result, leaf_start, leaf_end))
+
+    recovered_parent_results: set[tuple[date, date]] = set()
+    pending_recovery_candidates = recovery_candidates
+    if pending_recovery_candidates:
+        recovery_deadline = (
+            _rbc_monotonic_seconds() + RBC_CC_SEARCH_DEFERRED_RECOVERY_BUDGET_SECONDS
+        )
+        _rbc_log_event(
+            "credit card search deferred_recovery_queued",
+            level="warning",
+            account=external_id,
+            windows=len(pending_recovery_candidates),
+            cooldown_schedule_seconds=RBC_CC_SEARCH_DEFERRED_RECOVERY_DELAYS_SECONDS,
+            max_rounds=len(RBC_CC_SEARCH_DEFERRED_RECOVERY_DELAYS_SECONDS),
+            budget_seconds=RBC_CC_SEARCH_DEFERRED_RECOVERY_BUDGET_SECONDS,
+        )
+        recovery_storage_state = copy.deepcopy(storage_state)
+
+        for recovery_round, cooldown_seconds in enumerate(
+            RBC_CC_SEARCH_DEFERRED_RECOVERY_DELAYS_SECONDS,
+            start=1,
+        ):
+            if not pending_recovery_candidates:
+                break
+            remaining_seconds = recovery_deadline - _rbc_monotonic_seconds()
+            if remaining_seconds <= 0:
+                break
+            await asyncio.sleep(min(cooldown_seconds, remaining_seconds))
+            remaining_seconds = recovery_deadline - _rbc_monotonic_seconds()
+            if remaining_seconds <= 0:
+                break
+            try:
+                async with asyncio.timeout(remaining_seconds):
+                    await _warm_rbc_cc_account_context_direct(
+                        recovery_storage_state,
+                        encrypted_id=encrypted_id,
+                        external_id=external_id,
+                        user_agent=user_agent,
+                    )
+            except TimeoutError:
+                break
+
+            round_candidates = pending_recovery_candidates
+            pending_recovery_candidates = []
+            _rbc_log_event(
+                "credit card search deferred_recovery_round",
+                level="warning",
+                account=external_id,
+                recovery_round=recovery_round,
+                windows=len(round_candidates),
+                cooldown_seconds=cooldown_seconds,
+            )
+            for candidate_index, (parent_result, candidate_start, candidate_end) in enumerate(
+                round_candidates
+            ):
+                remaining_seconds = recovery_deadline - _rbc_monotonic_seconds()
+                if remaining_seconds <= 0:
+                    pending_recovery_candidates.extend(round_candidates[candidate_index:])
+                    break
+
+                await _record_rbc_transaction_window(
+                    transaction_window_recorder,
+                    event="started",
+                    account=account,
+                    mode="backfill",
+                    start_date=candidate_start,
+                    end_date=candidate_end,
+                )
+                recovery_leaf_windows: list[RBCCreditCardSearchWindow] = []
+                recovery_failures: list[RBCCreditCardSearchFailure] = []
+                try:
+                    async with asyncio.timeout(remaining_seconds):
+                        recovered_txns, recovered_succeeded = await _fetch_rbc_cc_search_window_direct(
+                            recovery_storage_state,
+                            encrypted_id=encrypted_id,
+                            external_id=external_id,
+                            start_date=candidate_start,
+                            end_date=candidate_end,
+                            user_agent=user_agent,
+                            window_results=recovery_leaf_windows,
+                            failure_results=recovery_failures,
+                            max_attempts_override=1,
+                        )
+                except TimeoutError:
+                    recovered_txns = []
+                    recovered_succeeded = False
+                    recovery_failures.append(
+                        (candidate_start, candidate_end, RBC_CC_SEARCH_FAILURE_DEADLINE)
+                    )
+
+                deduped_recovered_txns = _deduplicate_rbc_raw_transactions(recovered_txns or [])
+                if not recovery_leaf_windows:
+                    recovery_leaf_windows = [
+                        (
+                            candidate_start,
+                            candidate_end,
+                            deduped_recovered_txns,
+                            recovered_succeeded,
+                        )
+                    ]
+                exact_http_500_ranges = {
+                    (failed_start, failed_end)
+                    for failed_start, failed_end, failure_kind in recovery_failures
+                    if failure_kind == RBC_CC_SEARCH_FAILURE_HTTP_500
+                }
+                for leaf_start, leaf_end, leaf_txns, leaf_succeeded in recovery_leaf_windows:
+                    if (leaf_start, leaf_end) != (candidate_start, candidate_end):
+                        await _record_rbc_transaction_window(
+                            transaction_window_recorder,
+                            event="started",
+                            account=account,
+                            mode="backfill",
+                            start_date=leaf_start,
+                            end_date=leaf_end,
+                        )
+                    if leaf_succeeded:
+                        await _record_rbc_transaction_window(
+                            transaction_window_recorder,
+                            event="completed",
+                            account=account,
+                            mode="backfill",
+                            start_date=leaf_start,
+                            end_date=leaf_end,
+                            transactions=leaf_txns,
+                        )
+                    elif (leaf_start, leaf_end) in exact_http_500_ranges:
+                        pending_recovery_candidates.append(
+                            (parent_result, leaf_start, leaf_end)
+                        )
+                    else:
+                        await _record_rbc_transaction_window(
+                            transaction_window_recorder,
+                            event="failed",
+                            account=account,
+                            mode="backfill",
+                            start_date=leaf_start,
+                            end_date=leaf_end,
+                            transactions=leaf_txns,
+                            error="RBC credit-card deferred recovery failed or returned unusable data.",
+                        )
+
+                parent_result.leaf_windows = [
+                    leaf
+                    for leaf in parent_result.leaf_windows
+                    if (leaf[0], leaf[1]) != (candidate_start, candidate_end)
+                ] + recovery_leaf_windows
+                parent_result.transactions = _deduplicate_rbc_raw_transactions(
+                    [
+                        transaction
+                        for _leaf_start, _leaf_end, leaf_txns, _leaf_succeeded in parent_result.leaf_windows
+                        for transaction in leaf_txns
+                    ]
+                )
+                parent_result.succeeded = bool(parent_result.leaf_windows) and all(
+                    leaf_succeeded
+                    for _leaf_start, _leaf_end, _leaf_txns, leaf_succeeded in parent_result.leaf_windows
+                )
+                recovered_parent_results.add((parent_result.start_date, parent_result.end_date))
+                _rbc_log_event(
+                    "credit card search deferred_recovery_result",
+                    level="info" if recovered_succeeded else "warning",
+                    account=external_id,
+                    start=candidate_start.isoformat(),
+                    end=candidate_end.isoformat(),
+                    recovery_round=recovery_round,
+                    transactions=len(deduped_recovered_txns),
+                    succeeded=bool(recovered_succeeded),
+                    retry_needed=bool(exact_http_500_ranges),
+                )
+
+        if pending_recovery_candidates:
+            _rbc_log_event(
+                "credit card search deferred_recovery_exhausted",
+                level="warning",
+                account=external_id,
+                remaining_windows=len(pending_recovery_candidates),
+                max_rounds=len(RBC_CC_SEARCH_DEFERRED_RECOVERY_DELAYS_SECONDS),
+                budget_seconds=RBC_CC_SEARCH_DEFERRED_RECOVERY_BUDGET_SECONDS,
+            )
+            for parent_result, candidate_start, candidate_end in pending_recovery_candidates:
+                await _record_rbc_transaction_window(
+                    transaction_window_recorder,
+                    event="failed",
+                    account=account,
+                    mode="backfill",
+                    start_date=candidate_start,
+                    end_date=candidate_end,
+                    transactions=[],
+                    error="RBC credit-card exact HTTP 500 recovery was exhausted; retry is still needed.",
+                )
+                recovered_parent_results.add((parent_result.start_date, parent_result.end_date))
+
+        for result in window_results:
+            if (result.start_date, result.end_date) not in recovered_parent_results:
+                continue
+            if not any(
+                (leaf_start, leaf_end) != (result.start_date, result.end_date)
+                for leaf_start, leaf_end, _leaf_txns, _leaf_succeeded in result.leaf_windows
+            ):
+                continue
+            await _record_rbc_transaction_window(
+                transaction_window_recorder,
+                event="completed" if result.succeeded else "failed",
+                account=account,
+                mode="backfill",
+                start_date=result.start_date,
+                end_date=result.end_date,
+                transactions=result.transactions,
+                error=(
+                    None
+                    if result.succeeded
+                    else "RBC credit-card split search recovery failed or returned unusable data."
+                ),
+            )
+
     search_backfill_succeeded = bool(window_results) and all(
-        chunk_succeeded for _start, _end, _txns, chunk_succeeded in window_results
+        result.succeeded for result in window_results
     )
 
     collected: list[dict] = []
-    for _start, _end, deduped_chunk_txns, _chunk_succeeded in window_results:
-        if deduped_chunk_txns:
-            collected.extend(deduped_chunk_txns)
+    for result in window_results:
+        if result.transactions:
+            collected.extend(result.transactions)
 
     return _deduplicate_rbc_raw_transactions(collected), search_backfill_succeeded
 

@@ -58,18 +58,28 @@ SENSITIVE_KEY_FRAGMENTS = (
     "x-device-id",
     "xsrf",
 )
+SENSITIVE_KEYS = frozenset(
+    {
+        "ploan",
+    }
+)
 ACCOUNT_IDENTIFIER_KEYS = frozenset(
     {
         "acc_id",
+        "account_display",
         "accountid",
         "account_id",
         "accountkey",
         "account_key",
         "accountnumber",
         "account_number",
+        "acct_num",
         "card_num",
+        "card_actv_id",
+        "card_activation_id",
         "cardnumber",
         "card_number",
+        "encoded_account_number",
         "external_id",
         "externalid",
         "number",
@@ -319,7 +329,9 @@ def _normalized_key(key: Any) -> str:
 
 def _is_sensitive_key(key: Any) -> bool:
     normalized = _normalized_key(key)
-    return any(_normalized_key(fragment) in normalized for fragment in SENSITIVE_KEY_FRAGMENTS)
+    return normalized in {_normalized_key(item) for item in SENSITIVE_KEYS} or any(
+        _normalized_key(fragment) in normalized for fragment in SENSITIVE_KEY_FRAGMENTS
+    )
 
 
 def _developer_local_safe_key(key: Any) -> bool:

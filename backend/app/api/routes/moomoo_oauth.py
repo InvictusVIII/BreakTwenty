@@ -40,6 +40,7 @@ router = APIRouter()
 logger = get_connector_logger("moomoo")
 MOOMOO_OAUTH_FLOW_TTL_SECONDS = 10 * 60
 MOOMOO_OAUTH_SESSION_SCHEMA = "breaktwenty.moomoo-cloud-oauth.v1"
+MOOMOO_OAUTH_PUBLIC_FAILURE_MESSAGE = "Moomoo authorization did not finish."
 
 
 @dataclass
@@ -178,11 +179,52 @@ def _archive_oauth_handoff(flow: _MoomooOAuthFlow, institution_id: int) -> None:
     )
 
 
-async def _fail_flow(flow: _MoomooOAuthFlow, error: Exception, *, stage: str) -> None:
+async def _fail_flow(
+    flow: _MoomooOAuthFlow,
+    error: Exception,
+    *,
+    stage: str,
+) -> None:
     public_error = safe_connector_public_message(
         error,
-        fallback="Moomoo authorization did not finish.",
+        fallback=MOOMOO_OAUTH_PUBLIC_FAILURE_MESSAGE,
     )
+    await _record_flow_failure(
+        flow,
+        public_error=public_error,
+        diagnostic_error=public_error,
+        error=error,
+        stage=stage,
+    )
+
+
+async def _fail_unexpected_flow(
+    flow: _MoomooOAuthFlow,
+    error: Exception,
+    *,
+    stage: str,
+) -> None:
+    diagnostic_error = safe_connector_public_message(
+        error,
+        fallback=MOOMOO_OAUTH_PUBLIC_FAILURE_MESSAGE,
+    )
+    await _record_flow_failure(
+        flow,
+        public_error=MOOMOO_OAUTH_PUBLIC_FAILURE_MESSAGE,
+        diagnostic_error=diagnostic_error,
+        error=error,
+        stage=stage,
+    )
+
+
+async def _record_flow_failure(
+    flow: _MoomooOAuthFlow,
+    *,
+    public_error: str,
+    diagnostic_error: str,
+    error: Exception,
+    stage: str,
+) -> None:
     error_code = str(getattr(error, "provider_code", "") or type(error).__name__)[:100]
     async with _flow_lock:
         if flow.status in {"error", "complete"}:
@@ -201,7 +243,7 @@ async def _fail_flow(flow: _MoomooOAuthFlow, error: Exception, *, stage: str) ->
         flow="add" if flow.add_flow else "existing",
         status_code=getattr(error, "status_code", None),
         error_code=flow.error_code,
-        message=flow.error,
+        message=diagnostic_error,
     )
     _archive_oauth_failure(flow, f"moomoo_cloud_oauth_{stage.replace(' ', '_')}")
 
@@ -555,7 +597,11 @@ async def persist_moomoo_oauth(
         }
     except Exception as exc:
         await db.rollback()
-        await _fail_flow(flow, exc, stage="oauth token persist failed")
+        await _fail_unexpected_flow(
+            flow,
+            exc,
+            stage="oauth token persist failed",
+        )
         return {
             "status": "error",
             "message": flow.error,
