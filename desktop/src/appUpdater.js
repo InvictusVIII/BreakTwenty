@@ -16,6 +16,8 @@ const { createSanitizingLogger, sanitizeLogText } = require('./appDiagnostics');
 const { registerPrivilegedIpcHandler } = require('./ipcAuthorization');
 const {
   buildStampedGithubFeed,
+  displayedAppVersion,
+  prereleaseToStableFallbackAllowed,
   prereleaseUpdatesEnabled,
   readStampedUpdateConfiguration,
   stateAfterUpdateFeedChange,
@@ -264,7 +266,10 @@ class BreakTwentyAppUpdater {
       enabled: this.enabled,
       isPackaged: app.isPackaged,
       platform: process.platform,
-      currentVersion: app.getVersion(),
+      currentVersion: displayedAppVersion({
+        appVersion: app.getVersion(),
+        isPackaged: app.isPackaged,
+      }),
       status: this.enabled ? 'idle' : 'unavailable',
       message: this.enabled ? 'Ready to check for updates.' : this.disabledMessage,
       checkedAt: null,
@@ -403,7 +408,10 @@ class BreakTwentyAppUpdater {
   getStatus() {
     return {
       ...this.state,
-      currentVersion: this.app.getVersion(),
+      currentVersion: displayedAppVersion({
+        appVersion: this.app.getVersion(),
+        isPackaged: this.app.isPackaged,
+      }),
       auth: this.getAuthStatus(),
     };
   }
@@ -414,7 +422,10 @@ class BreakTwentyAppUpdater {
       ...patch,
       enabled: this.enabled,
       isPackaged: this.app.isPackaged,
-      currentVersion: this.app.getVersion(),
+      currentVersion: displayedAppVersion({
+        appVersion: this.app.getVersion(),
+        isPackaged: this.app.isPackaged,
+      }),
       auth: this.getAuthStatus(),
       updatedAt: isoNow(),
     };
@@ -734,7 +745,30 @@ class BreakTwentyAppUpdater {
       if (!feedReady) {
         throw new Error(this.authError || 'Could not configure the packaged update feed.');
       }
-      await autoUpdater.checkForUpdates();
+      try {
+        await autoUpdater.checkForUpdates();
+      } catch (error) {
+        if (!prereleaseToStableFallbackAllowed({
+          error,
+          appVersion: this.app.getVersion(),
+          allowPrerelease: autoUpdater.allowPrerelease,
+          privateFeed: this.updateFeed.private === true,
+          explicitChannel: Boolean(process.env.BREAKTWENTY_UPDATE_CHANNEL),
+        })) {
+          throw error;
+        }
+        autoUpdater.allowPrerelease = false;
+        autoUpdater.updateInfoAndProvider = null;
+        this.updateState({
+          status: 'checking',
+          message: 'Prerelease testing is complete. Checking the stable release.',
+          progress: null,
+          error: null,
+          canDownload: false,
+          canInstall: false,
+        });
+        await autoUpdater.checkForUpdates();
+      }
     } catch (error) {
       const exactSecrets = [this.authToken];
       const message = formatUpdateErrorMessage(error, exactSecrets);

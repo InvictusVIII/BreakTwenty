@@ -7,9 +7,10 @@ import asyncio
 import json
 import os
 import uuid
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Coroutine
 from urllib.parse import urlencode, urlsplit
 
 from browser_timezone import DEFAULT_USER_TIMEZONE, normalize_browser_timezone
@@ -56,6 +57,12 @@ SCOTIA_SECURE_ORIGIN = "https://secure.scotiabank.com"
 SCOTIA_ACCOUNTS_URL = f"{SCOTIA_SECURE_ORIGIN}/accounts?lng=en"
 SCOTIA_SUMMARY_PATH = "/api/accounts/summary"
 SCOTIA_SUMMARY_URL = f"{SCOTIA_SECURE_ORIGIN}{SCOTIA_SUMMARY_PATH}?isAccountSummaryPage=true"
+SCOTIA_SUMMARY_PATHS = frozenset(
+    {
+        SCOTIA_SUMMARY_PATH,
+        "/my-accounts/api/summary",
+    }
+)
 SCOTIA_PAGE_URL_MARKERS = (
     "scotiabank.com",
     "scotiaonline.scotiabank.com",
@@ -63,6 +70,16 @@ SCOTIA_PAGE_URL_MARKERS = (
 SCOTIA_AUTHENTICATIONS_PATH = "/v2/authentications"
 SCOTIA_USERNAME_SELECTOR = "#usernameInput-input"
 SCOTIA_PASSWORD_SELECTOR = "#password-input"
+SCOTIA_USERNAME_CAPTURE_SELECTORS = (
+    SCOTIA_USERNAME_SELECTOR,
+    "input[autocomplete='username']",
+    "input[name='username']",
+)
+SCOTIA_PASSWORD_CAPTURE_SELECTORS = (
+    SCOTIA_PASSWORD_SELECTOR,
+    "input[autocomplete='current-password']",
+    "input[name='password']",
+)
 SCOTIA_OTP_INPUT_SELECTORS = (
     'input[autocomplete="one-time-code"]',
     'input[inputmode="numeric"]',
@@ -97,6 +114,14 @@ SCOTIA_BOOTSTRAP_AUTH_LOCAL_STORAGE_PREFIXES = (
 )
 SCOTIA_CREDENTIAL_LOCK_GRACE_SECONDS = 8.0
 SCOTIA_WAIT_POLL_SECONDS = 0.35
+SCOTIA_CREDENTIAL_CAPTURE_BACKGROUND_POLL_SECONDS = 0.2
+SCOTIA_CREDENTIAL_CAPTURE_BACKGROUND_IDLE_POLL_SECONDS = 0.4
+SCOTIA_CREDENTIAL_CAPTURE_FAST_TIMEOUT_MS = 75
+SCOTIA_CREDENTIAL_CAPTURE_REQUEST_BURST_SECONDS = 1.5 if SCOTIA_WINDOWS_FLOW else 0.45
+SCOTIA_CREDENTIAL_CAPTURE_REQUEST_BURST_POLL_SECONDS = 0.03 if SCOTIA_WINDOWS_FLOW else 0.05
+SCOTIA_CREDENTIAL_CAPTURE_TASK_DRAIN_SECONDS = 2.0
+SCOTIA_WINDOWS_AUTH_ROUTE_CAPTURE_TIMEOUT_SECONDS = 1.0
+SCOTIA_WINDOWS_AUTH_ROUTE_PATTERN = "**/v2/authentications**"
 SCOTIA_PAGE_REPLACEMENT_RETRY_SECONDS = 5
 SCOTIA_PAGE_REPLACEMENT_POLL_SECONDS = 0.25
 SCOTIA_GENERIC_ERROR_RECOVERY_RETRY_LIMIT = 2
@@ -124,6 +149,120 @@ SCOTIA_HAR_SAFE_RESPONSE_KEYS = frozenset(
         "type",
     }
 )
+
+
+@dataclass
+class ScotiaCredentialCaptureState:
+    tasks: set[asyncio.Task[Any]] = field(default_factory=set)
+    accepting_tasks: bool = True
+    task_scheduled_count: int = 0
+    task_completed_count: int = 0
+    task_failed_count: int = 0
+    task_cancelled_count: int = 0
+    task_rejected_count: int = 0
+    task_error_types: set[str] = field(default_factory=set)
+    request_auth_post_count: int = 0
+    request_value_present_count: int = 0
+    request_value_missing_count: int = 0
+    request_capture_error_types: set[str] = field(default_factory=set)
+    route_install_attempt_count: int = 0
+    route_install_success_count: int = 0
+    route_install_failure_count: int = 0
+    route_install_error_types: set[str] = field(default_factory=set)
+    route_auth_post_count: int = 0
+    route_value_present_count: int = 0
+    route_value_missing_count: int = 0
+    route_capture_error_types: set[str] = field(default_factory=set)
+    drain_started_count: int = 0
+    drain_completed_count: int = 0
+    drain_timeout_count: int = 0
+    drain_initial_pending_count: int = 0
+
+    def summary(self) -> dict[str, Any]:
+        return {
+            "capture_task_scheduled_count": self.task_scheduled_count,
+            "capture_task_completed_count": self.task_completed_count,
+            "capture_task_failed_count": self.task_failed_count,
+            "capture_task_cancelled_count": self.task_cancelled_count,
+            "capture_task_rejected_count": self.task_rejected_count,
+            "capture_task_pending_count": len(self.tasks),
+            "capture_task_error_types": sorted(self.task_error_types),
+            "capture_task_drain_started_count": self.drain_started_count,
+            "capture_task_drain_completed_count": self.drain_completed_count,
+            "capture_task_drain_timeout_count": self.drain_timeout_count,
+            "capture_task_drain_initial_pending_count": self.drain_initial_pending_count,
+            "request_auth_post_count": self.request_auth_post_count,
+            "request_value_present_count": self.request_value_present_count,
+            "request_value_missing_count": self.request_value_missing_count,
+            "request_capture_error_types": sorted(self.request_capture_error_types),
+            "route_install_attempt_count": self.route_install_attempt_count,
+            "route_install_success_count": self.route_install_success_count,
+            "route_install_failure_count": self.route_install_failure_count,
+            "route_install_error_types": sorted(self.route_install_error_types),
+            "route_auth_post_count": self.route_auth_post_count,
+            "route_value_present_count": self.route_value_present_count,
+            "route_value_missing_count": self.route_value_missing_count,
+            "route_capture_error_types": sorted(self.route_capture_error_types),
+            "windows_auth_route_listener_installed": self.route_install_success_count > 0,
+        }
+
+
+def _schedule_scotia_capture_task(
+    capture_state: ScotiaCredentialCaptureState,
+    coroutine: Coroutine[Any, Any, Any],
+) -> asyncio.Task[Any] | None:
+    if not capture_state.accepting_tasks:
+        capture_state.task_rejected_count += 1
+        coroutine.close()
+        return None
+    try:
+        task = asyncio.create_task(coroutine)
+    except RuntimeError:
+        capture_state.task_rejected_count += 1
+        coroutine.close()
+        return None
+    capture_state.task_scheduled_count += 1
+    capture_state.tasks.add(task)
+
+    def capture_done(completed_task: asyncio.Task[Any]) -> None:
+        capture_state.tasks.discard(completed_task)
+        if completed_task.cancelled():
+            capture_state.task_cancelled_count += 1
+            return
+        error = completed_task.exception()
+        if error is None:
+            capture_state.task_completed_count += 1
+            return
+        capture_state.task_failed_count += 1
+        capture_state.task_error_types.add(type(error).__name__)
+
+    task.add_done_callback(capture_done)
+    return task
+
+
+async def _drain_scotia_capture_tasks(
+    capture_state: ScotiaCredentialCaptureState,
+    *,
+    timeout_seconds: float = SCOTIA_CREDENTIAL_CAPTURE_TASK_DRAIN_SECONDS,
+) -> bool:
+    capture_state.accepting_tasks = False
+    capture_state.drain_started_count += 1
+    capture_state.drain_initial_pending_count = len(capture_state.tasks)
+    if not capture_state.tasks:
+        capture_state.drain_completed_count += 1
+        return True
+    _done, pending = await asyncio.wait(
+        set(capture_state.tasks),
+        timeout=max(0.0, timeout_seconds),
+    )
+    if not pending:
+        capture_state.drain_completed_count += 1
+        return True
+    capture_state.drain_timeout_count += 1
+    for task in pending:
+        task.cancel()
+    await asyncio.gather(*pending, return_exceptions=True)
+    return False
 SCOTIA_HAR_SENSITIVE_HEADER_NAMES = frozenset(
     {
         "authorization",
@@ -513,7 +652,57 @@ def _scotia_authenticated_accounts_route(url: str | None) -> bool:
         parsed = urlsplit(str(url or ""))
     except ValueError:
         return False
-    return (parsed.hostname or "").lower() == "secure.scotiabank.com" and (parsed.path or "").lower().startswith("/accounts")
+    path = (parsed.path or "").lower()
+    return (parsed.hostname or "").lower() == "secure.scotiabank.com" and (
+        path.startswith("/accounts") or path.startswith("/my-accounts")
+    )
+
+
+def _scotia_is_authentication_request(method: str | None, url: str | None) -> bool:
+    if str(method or "").upper() != "POST":
+        return False
+    try:
+        parsed = urlsplit(str(url or ""))
+    except ValueError:
+        return False
+    return (
+        (parsed.hostname or "").lower() == "auth.scotiaonline.scotiabank.com"
+        and (parsed.path or "").startswith(SCOTIA_AUTHENTICATIONS_PATH)
+    )
+
+
+def _scotia_authentication_value_counts(post_data: str | None) -> tuple[int, int]:
+    parsed = _parse_scotia_json_body(post_data)
+    records = parsed if isinstance(parsed, list) else [parsed]
+    present = 0
+    missing = 0
+    for record in records:
+        if not isinstance(record, dict) or "value" not in record:
+            continue
+        value = record.get("value")
+        if value is None or value == "":
+            missing += 1
+        else:
+            present += 1
+    return present, missing
+
+
+def _record_scotia_authentication_request(
+    capture_state: ScotiaCredentialCaptureState,
+    *,
+    post_data: str | None,
+    source: str,
+) -> bool:
+    present, missing = _scotia_authentication_value_counts(post_data)
+    if source == "route":
+        capture_state.route_auth_post_count += 1
+        capture_state.route_value_present_count += present
+        capture_state.route_value_missing_count += missing
+    else:
+        capture_state.request_auth_post_count += 1
+        capture_state.request_value_present_count += present
+        capture_state.request_value_missing_count += missing
+    return present > 0
 
 
 async def _fetch_scotia_summary_payload(page) -> dict[str, Any] | None:
@@ -597,26 +786,102 @@ def describe_scotia_state(state: dict[str, Any]) -> str:
     return "Waiting for Scotiabank secure login to advance."
 
 
-def _install_scotia_request_capture(page, captured_credentials: dict[str, str]) -> None:
+def _install_scotia_request_capture(
+    page,
+    captured_credentials: dict[str, str],
+    capture_state: ScotiaCredentialCaptureState | None = None,
+) -> None:
     if getattr(page, "_scotia_request_capture_installed", False):
         return
     setattr(page, "_scotia_request_capture_installed", True)
 
     def on_request(request) -> None:
         try:
-            path = urlsplit(str(getattr(request, "url", "") or "")).path
-        except ValueError:
+            method = str(getattr(request, "method", "") or "")
+            url = str(getattr(request, "url", "") or "")
+            if not _scotia_is_authentication_request(method, url):
+                return
+            post_data = visible_auth.safe_request_post_data(request)
+            credential_request = (
+                _record_scotia_authentication_request(
+                    capture_state,
+                    post_data=post_data,
+                    source="request",
+                )
+                if capture_state is not None
+                else _scotia_authentication_value_counts(post_data)[0] > 0
+            )
+            if not credential_request:
+                return
+            capture = _capture_scotia_raw_input_credentials_burst(page, captured_credentials)
+            if capture_state is not None:
+                _schedule_scotia_capture_task(capture_state, capture)
+            else:
+                try:
+                    asyncio.create_task(capture)
+                except RuntimeError:
+                    capture.close()
+        except Exception as exc:
+            if capture_state is not None:
+                capture_state.request_capture_error_types.add(type(exc).__name__)
             return
-        if not path.startswith(SCOTIA_AUTHENTICATIONS_PATH):
-            return
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-        if loop is not None:
-            loop.create_task(_capture_scotia_raw_input_credentials(page, captured_credentials))
 
     page.on("request", on_request)
+
+
+async def _install_scotia_windows_auth_route_capture(
+    context,
+    captured_credentials: dict[str, str],
+    capture_state: ScotiaCredentialCaptureState,
+) -> None:
+    if not SCOTIA_WINDOWS_FLOW or getattr(context, "_scotia_windows_auth_route_capture_installed", False):
+        return
+    capture_state.route_install_attempt_count += 1
+
+    async def capture_auth_route(route, request) -> None:
+        try:
+            method = str(getattr(request, "method", "") or "")
+            url = str(getattr(request, "url", "") or "")
+            if not _scotia_is_authentication_request(method, url):
+                return
+            post_data = visible_auth.safe_request_post_data(request)
+            credential_request = _record_scotia_authentication_request(
+                capture_state,
+                post_data=post_data,
+                source="route",
+            )
+            if not credential_request:
+                return
+            request_frame = getattr(request, "frame", None)
+            request_page = getattr(request_frame, "page", None)
+            if request_page is None or visible_auth.is_page_closed(request_page):
+                return
+            try:
+                async with asyncio.timeout(SCOTIA_WINDOWS_AUTH_ROUTE_CAPTURE_TIMEOUT_SECONDS):
+                    await _capture_scotia_raw_input_credentials(
+                        request_page,
+                        captured_credentials,
+                        timeout_ms=SCOTIA_CREDENTIAL_CAPTURE_FAST_TIMEOUT_MS,
+                        include_hidden_fallback=True,
+                    )
+            except Exception as exc:
+                capture_state.route_capture_error_types.add(type(exc).__name__)
+        except Exception as exc:
+            capture_state.route_capture_error_types.add(type(exc).__name__)
+        finally:
+            try:
+                await route.continue_()
+            except Exception as exc:
+                capture_state.route_capture_error_types.add(type(exc).__name__)
+
+    try:
+        await context.route(SCOTIA_WINDOWS_AUTH_ROUTE_PATTERN, capture_auth_route)
+    except Exception as exc:
+        capture_state.route_install_failure_count += 1
+        capture_state.route_install_error_types.add(type(exc).__name__)
+        return
+    setattr(context, "_scotia_windows_auth_route_capture_installed", True)
+    capture_state.route_install_success_count += 1
 
 
 def _install_scotia_response_capture(page) -> None:
@@ -641,7 +906,7 @@ def _install_scotia_response_capture(page) -> None:
                 if parsed.path.startswith(SCOTIA_AUTHENTICATIONS_PATH):
                     setattr(page, "_scotia_auth_status", status)
                     return
-                if parsed.path != SCOTIA_SUMMARY_PATH or status != 200:
+                if parsed.path not in SCOTIA_SUMMARY_PATHS or status != 200:
                     return
                 payload = _parse_scotia_json_body(await response.text())
                 if _scotia_summary_payload_has_accounts(payload):
@@ -654,7 +919,11 @@ def _install_scotia_response_capture(page) -> None:
     page.on("response", on_response)
 
 
-def bind_scotia_page_watcher(page, captured_credentials: dict[str, str]) -> None:
+def bind_scotia_page_watcher(
+    page,
+    captured_credentials: dict[str, str],
+    capture_state: ScotiaCredentialCaptureState | None = None,
+) -> None:
     if getattr(page, "_scotia_page_watcher_installed", False):
         return
     setattr(page, "_scotia_page_watcher_installed", True)
@@ -670,7 +939,7 @@ def bind_scotia_page_watcher(page, captured_credentials: dict[str, str]) -> None
             return
 
     page.on("framenavigated", on_frame_navigated)
-    _install_scotia_request_capture(page, captured_credentials)
+    _install_scotia_request_capture(page, captured_credentials, capture_state)
     _install_scotia_response_capture(page)
 
 
@@ -826,6 +1095,50 @@ async def _scotia_input_value(page, selector: str) -> str:
         return ""
 
 
+async def _scotia_input_targets(page) -> list[Any]:
+    targets: list[Any] = [page]
+    try:
+        main_frame = page.main_frame
+    except Exception:
+        main_frame = None
+    for frame in getattr(page, "frames", []) or []:
+        if frame is main_frame:
+            continue
+        targets.append(frame)
+    return targets
+
+
+async def _scotia_first_input_value(
+    page,
+    selectors: tuple[str, ...],
+    *,
+    visible_only: bool = False,
+    timeout_ms: int = SCOTIA_CREDENTIAL_CAPTURE_FAST_TIMEOUT_MS,
+) -> str:
+    selector_group = ", ".join(selectors)
+    for target in await _scotia_input_targets(page):
+        try:
+            locator = target.locator(selector_group)
+            count = min(await locator.count(), 8)
+        except Exception:
+            continue
+        for index in range(count):
+            input_locator = locator.nth(index)
+            if visible_only:
+                try:
+                    if not await input_locator.is_visible(timeout=timeout_ms):
+                        continue
+                except Exception:
+                    continue
+            try:
+                value = str(await input_locator.input_value(timeout=timeout_ms) or "")
+            except Exception:
+                continue
+            if value:
+                return value
+    return ""
+
+
 def _scotia_username_is_masked(value: str) -> bool:
     return "*" in value or "•" in value or "●" in value
 
@@ -867,14 +1180,122 @@ def _capture_scotia_password(captured_credentials: dict[str, str], password: str
     captured_credentials["password"] = normalized
 
 
-async def _capture_scotia_raw_input_credentials(page, captured_credentials: dict[str, str]) -> None:
-    username = str(await _scotia_input_value(page, SCOTIA_USERNAME_SELECTOR) or "").strip()
+async def _capture_scotia_raw_input_credentials(
+    page,
+    captured_credentials: dict[str, str],
+    *,
+    timeout_ms: int = SCOTIA_CREDENTIAL_CAPTURE_FAST_TIMEOUT_MS,
+    include_hidden_fallback: bool = False,
+) -> None:
+    password = str(
+        await _scotia_first_input_value(
+            page,
+            SCOTIA_PASSWORD_CAPTURE_SELECTORS,
+            visible_only=not include_hidden_fallback,
+            timeout_ms=timeout_ms,
+        )
+        or ""
+    )
+    if password:
+        _capture_scotia_password(captured_credentials, password, source="raw")
+
+    username = str(
+        await _scotia_first_input_value(
+            page,
+            SCOTIA_USERNAME_CAPTURE_SELECTORS,
+            visible_only=not include_hidden_fallback,
+            timeout_ms=timeout_ms,
+        )
+        or ""
+    ).strip()
     if username:
         _capture_scotia_username(captured_credentials, username, source="raw")
 
-    password = str(await _scotia_input_value(page, SCOTIA_PASSWORD_SELECTOR) or "")
-    if password:
-        _capture_scotia_password(captured_credentials, password, source="raw")
+
+async def _capture_scotia_context_raw_input_credentials(
+    context,
+    captured_credentials: dict[str, str],
+    *,
+    capture_state: ScotiaCredentialCaptureState | None = None,
+) -> None:
+    try:
+        pages = list(getattr(context, "pages", []) or [])
+    except Exception:
+        return
+    for page in reversed(pages):
+        if visible_auth.is_page_closed(page) or not _scotia_origin_from_url(visible_auth.safe_page_url(page)):
+            continue
+        bind_scotia_page_watcher(page, captured_credentials, capture_state)
+        try:
+            await _capture_scotia_raw_input_credentials(
+                page,
+                captured_credentials,
+                include_hidden_fallback=True,
+            )
+        except Exception:
+            continue
+        if collect_scotia_credentials(captured_credentials):
+            return
+
+
+async def _capture_scotia_raw_input_credentials_burst(
+    page,
+    captured_credentials: dict[str, str],
+) -> None:
+    deadline = asyncio.get_running_loop().time() + SCOTIA_CREDENTIAL_CAPTURE_REQUEST_BURST_SECONDS
+    while visible_auth.visible_auth_deadline_active(deadline):
+        try:
+            await _capture_scotia_raw_input_credentials(
+                page,
+                captured_credentials,
+                include_hidden_fallback=True,
+            )
+        except Exception:
+            return
+        if collect_scotia_credentials(captured_credentials):
+            return
+        await asyncio.sleep(SCOTIA_CREDENTIAL_CAPTURE_REQUEST_BURST_POLL_SECONDS)
+
+
+async def _run_scotia_credential_capture_sampler(
+    context,
+    captured_credentials: dict[str, str],
+    stop_event: asyncio.Event,
+    capture_state: ScotiaCredentialCaptureState,
+) -> None:
+    while not stop_event.is_set():
+        try:
+            await _capture_scotia_context_raw_input_credentials(
+                context,
+                captured_credentials,
+                capture_state=capture_state,
+            )
+        except Exception as exc:
+            if visible_auth.is_browser_closed_error(exc):
+                return
+        interval = (
+            SCOTIA_CREDENTIAL_CAPTURE_BACKGROUND_IDLE_POLL_SECONDS
+            if collect_scotia_credentials(captured_credentials)
+            else SCOTIA_CREDENTIAL_CAPTURE_BACKGROUND_POLL_SECONDS
+        )
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=interval)
+        except asyncio.TimeoutError:
+            continue
+
+
+async def _stop_scotia_credential_capture_sampler(
+    stop_event: asyncio.Event | None,
+    task: asyncio.Task[Any] | None,
+) -> None:
+    if stop_event is None or task is None:
+        return
+    stop_event.set()
+    try:
+        await asyncio.wait_for(task, timeout=1.0)
+    except (asyncio.CancelledError, asyncio.TimeoutError):
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
 
 
 def _scotia_prefill_phase_key(page, state: dict[str, Any]) -> tuple[int, int, str]:
@@ -1029,6 +1450,24 @@ def collect_scotia_credentials(captured_credentials: dict[str, str]) -> tuple[st
     return None
 
 
+def _scotia_credential_capture_details(
+    captured_credentials: dict[str, str],
+    capture_state: ScotiaCredentialCaptureState,
+) -> dict[str, Any]:
+    return {
+        "raw_username_count": int(captured_credentials.get("_raw_username_count") or 0),
+        "prefill_username_count": int(captured_credentials.get("_prefill_username_count") or 0),
+        "saved_prefill_username_count": int(captured_credentials.get("_saved_prefill_username_count") or 0),
+        "masked_username_count": int(captured_credentials.get("_masked_username_count") or 0),
+        "raw_password_count": int(captured_credentials.get("_raw_password_count") or 0),
+        "prefill_password_count": int(captured_credentials.get("_prefill_password_count") or 0),
+        "raw_masked_password_count": int(captured_credentials.get("_raw_masked_password_count") or 0),
+        "username_captured": bool(captured_credentials.get("username")),
+        "password_captured": bool(captured_credentials.get("password")),
+        **capture_state.summary(),
+    }
+
+
 async def recover_generic_error_state(context, page, popup_lock: PopupInteractionLock | None = None):
     await asyncio.sleep(SCOTIA_GENERIC_ERROR_RECOVERY_WAIT_SECONDS)
     page = await get_viable_scotia_page(context, page, popup_lock)
@@ -1157,20 +1596,24 @@ async def wait_for_authenticated_session(
             await popup_lock.set_locked(False)
 
 
-async def _prepare_scotia_context_page(context, captured_credentials: dict[str, str]):
+async def _prepare_scotia_context_page(
+    context,
+    captured_credentials: dict[str, str],
+    capture_state: ScotiaCredentialCaptureState | None = None,
+):
     pages = list(getattr(context, "pages", []) or [])
     if pages:
         page = pages[0]
-        bind_scotia_page_watcher(page, captured_credentials)
+        bind_scotia_page_watcher(page, captured_credentials, capture_state)
         for extra_page in pages[1:]:
-            bind_scotia_page_watcher(extra_page, captured_credentials)
+            bind_scotia_page_watcher(extra_page, captured_credentials, capture_state)
             try:
                 await extra_page.close()
             except Exception:
                 pass
         return page
     page = await context.new_page()
-    bind_scotia_page_watcher(page, captured_credentials)
+    bind_scotia_page_watcher(page, captured_credentials, capture_state)
     return page
 
 
@@ -1181,6 +1624,7 @@ async def run() -> None:
         raise RuntimeError("Visible auth attempt ID is required.")
 
     captured_credentials = {"username": "", "password": ""}
+    capture_state = ScotiaCredentialCaptureState()
     saved_credentials = None
     bootstrap_storage_state = None
     bootstrap_storage_slot = ""
@@ -1222,6 +1666,8 @@ async def run() -> None:
     async with async_playwright() as playwright:
         browser = None
         context = None
+        credential_capture_stop_event: asyncio.Event | None = None
+        credential_capture_task: asyncio.Task[Any] | None = None
         browser_runtime: dict[str, Any] = {}
         browser_timezone = normalize_browser_timezone(VISIBLE_AUTH_TIMEZONE)
         launch_mode = "isolated_context_fresh"
@@ -1323,10 +1769,16 @@ async def run() -> None:
                 },
             )
 
+            await _install_scotia_windows_auth_route_capture(
+                context,
+                captured_credentials,
+                capture_state,
+            )
+
             popup_lock: PopupInteractionLock | None = None
 
             def on_new_page(new_page) -> None:
-                bind_scotia_page_watcher(new_page, captured_credentials)
+                bind_scotia_page_watcher(new_page, captured_credentials, capture_state)
 
                 async def bind_locked_page() -> None:
                     try:
@@ -1338,17 +1790,19 @@ async def run() -> None:
                         return
 
                 if popup_lock is not None:
-                    asyncio.create_task(bind_locked_page())
+                    _schedule_scotia_capture_task(capture_state, bind_locked_page())
 
             context.on("page", on_new_page)
-            page = await _prepare_scotia_context_page(context, captured_credentials)
+            page = await _prepare_scotia_context_page(context, captured_credentials, capture_state)
             await log_support_event(
                 stage="credential capture",
                 debug=True,
                 message="Scotiabank visible-auth credential capture configured.",
                 details={
                     "browser_init_scripts_enabled": False,
-                    "credential_capture_strategy": "bounded_post_load_input_and_structured_response_capture",
+                    "credential_capture_strategy": "bounded_post_load_input_polling_with_structured_request_timing",
+                    "credential_capture_background_poll_seconds": SCOTIA_CREDENTIAL_CAPTURE_BACKGROUND_POLL_SECONDS,
+                    "windows_auth_route_capture_enabled": SCOTIA_WINDOWS_FLOW,
                 },
             )
             if saved_credentials and not VISIBLE_AUTH_ADD_FLOW:
@@ -1359,20 +1813,60 @@ async def run() -> None:
                 except Exception:
                     popup_lock = None
 
-            await open_scotia_login_page(page, entry_url=SCOTIA_ACCOUNTS_URL)
-            page = await wait_for_authenticated_session(
-                context,
-                page,
-                captured_credentials=captured_credentials,
-                prefill_credentials=saved_credentials,
-                popup_lock=popup_lock,
+            credential_capture_stop_event = asyncio.Event()
+            credential_capture_task = asyncio.create_task(
+                _run_scotia_credential_capture_sampler(
+                    context,
+                    captured_credentials,
+                    credential_capture_stop_event,
+                    capture_state,
+                )
             )
+            try:
+                await open_scotia_login_page(page, entry_url=SCOTIA_ACCOUNTS_URL)
+                page = await wait_for_authenticated_session(
+                    context,
+                    page,
+                    captured_credentials=captured_credentials,
+                    prefill_credentials=saved_credentials,
+                    popup_lock=popup_lock,
+                )
+            finally:
+                await _stop_scotia_credential_capture_sampler(
+                    credential_capture_stop_event,
+                    credential_capture_task,
+                )
+                credential_capture_stop_event = None
+                credential_capture_task = None
             await visible_auth.ensure_visible_auth_context_handoff_lock(
                 context,
                 provider_display_name="Scotiabank",
                 log_support_event=log_support_event,
                 reason="authenticated",
             )
+            await _drain_scotia_capture_tasks(capture_state)
+            await _capture_scotia_context_raw_input_credentials(
+                context,
+                captured_credentials,
+                capture_state=capture_state,
+            )
+            captured_pair = collect_scotia_credentials(captured_credentials)
+            credential_capture_details = _scotia_credential_capture_details(
+                captured_credentials,
+                capture_state,
+            )
+            await log_support_event(
+                stage="credential capture summary",
+                message="Scotiabank visible-auth credential capture summary.",
+                details=credential_capture_details,
+            )
+            if not captured_pair:
+                raise RuntimeError(
+                    "Scotiabank credentials could not be confirmed from the secure login form or saved prefill. "
+                    "Start Scotiabank login again."
+                )
+            username, password = captured_pair
+
             active_target = page
             user_agent = await visible_auth.collect_user_agent(active_target)
 
@@ -1393,20 +1887,6 @@ async def run() -> None:
                 "has_accounts_payload": isinstance(session_artifact.get("accounts_payload"), dict),
                 "has_user_agent": bool(session_artifact.get("user_agent")),
             }
-            captured_pair = collect_scotia_credentials(captured_credentials)
-            credential_capture_details = {
-                "raw_username_count": int(captured_credentials.get("_raw_username_count") or 0),
-                "prefill_username_count": int(captured_credentials.get("_prefill_username_count") or 0),
-                "saved_prefill_username_count": int(captured_credentials.get("_saved_prefill_username_count") or 0),
-                "masked_username_count": int(captured_credentials.get("_masked_username_count") or 0),
-                "raw_password_count": int(captured_credentials.get("_raw_password_count") or 0),
-                "prefill_password_count": int(captured_credentials.get("_prefill_password_count") or 0),
-                "username_captured": bool(captured_credentials.get("username")),
-                "password_captured": bool(captured_credentials.get("password")),
-            }
-            if not captured_pair:
-                raise RuntimeError("Scotiabank credentials could not be confirmed from the secure login form or saved prefill. Start Scotiabank login again.")
-            username, password = captured_pair
 
             if context is not None:
                 if await visible_auth.close_visible_auth_context_after_capture(
@@ -1437,12 +1917,6 @@ async def run() -> None:
                 debug=True,
                 message="Scotiabank visible-auth session artifact captured.",
                 details=session_artifact_details,
-            )
-            await log_support_event(
-                stage="credential capture summary",
-                debug=True,
-                message="Scotiabank visible-auth credential capture summary.",
-                details=credential_capture_details,
             )
             storage_result = await persist_visible_auth_artifact(
                 artifact_type="storage_state",
@@ -1490,6 +1964,12 @@ async def run() -> None:
             visible_auth.print_status(message)
             raise
         finally:
+            await _stop_scotia_credential_capture_sampler(
+                credential_capture_stop_event,
+                credential_capture_task,
+            )
+            if capture_state.accepting_tasks:
+                await _drain_scotia_capture_tasks(capture_state)
             await visible_auth.close_visible_auth_context_quietly(
                 context,
                 context_close_timeout_seconds=(

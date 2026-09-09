@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api_cache_policy import ApiNoStoreMiddleware
 from app.brand import APP_BRAND_NAME
 from app.database import close_database_connections, verify_database_connection
 from app.logging_setup import configure_breaktwenty_logging
@@ -209,8 +210,9 @@ app = FastAPI(
     openapi_url=None,
 )
 
-# Added before CORS so CORSMiddleware remains the outer wrapper and includes CORS
-# response headers on authentication failures.
+# Middleware is added inside-out. CORS wraps launch auth so its headers are present
+# on authentication failures; the cache policy stays outermost so ordinary,
+# rejected, and CORS-preflight API responses cannot enter Chromium's cache.
 app.add_middleware(LaunchAuthMiddleware)
 app.add_middleware(
     CORSMiddleware,
@@ -222,5 +224,6 @@ app.add_middleware(
     # cross-origin; otherwise the frontend must fall back to a local name.
     expose_headers=["Content-Disposition"],
 )
+app.add_middleware(ApiNoStoreMiddleware)
 
 app.include_router(router)

@@ -18,9 +18,15 @@ from app.database import Base
 from app.models import Account, Institution, TransactionImportJob, TransactionImportWindow, User
 from app.services import support_auto_archive, support_diagnostics
 from app.services.log_buffer import ProviderLogRingBuffer
+from app.services.transaction_import_jobs import TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE
 
 
 class SupportAutoArchiveTests(unittest.IsolatedAsyncioTestCase):
+    def test_diagnostic_job_message_fields_preserve_real_errors(self) -> None:
+        fields = support_diagnostics._diagnostic_job_message_fields("provider timeout")
+
+        self.assertEqual({"last_error": "provider timeout"}, fields)
+
     async def test_attempt_state_excludes_older_provider_jobs_and_windows(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             engine = create_async_engine(f"sqlite+aiosqlite:///{temp_dir}/support-state.db")
@@ -60,6 +66,7 @@ class SupportAutoArchiveTests(unittest.IsolatedAsyncioTestCase):
                             status="running",
                             sync_id="bmo-transaction-phase",
                             source_sync_id="bmo-attempt-a",
+                            last_error=TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE,
                             created_at=now,
                             updated_at=now,
                         ),
@@ -164,6 +171,11 @@ class SupportAutoArchiveTests(unittest.IsolatedAsyncioTestCase):
             ["bmo-current-job"],
             [row["job_id"] for row in snapshots["jobs.json"]["jobs"]],
         )
+        self.assertIsNone(snapshots["jobs.json"]["jobs"][0]["last_error"])
+        self.assertEqual(
+            TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE,
+            snapshots["jobs.json"]["jobs"][0]["recovery_message"],
+        )
         self.assertEqual(
             ["bmo-attempt-a"],
             [row["sync_id"] for row in snapshots["windows.json"]["windows"]],
@@ -237,6 +249,7 @@ class SupportAutoArchiveTests(unittest.IsolatedAsyncioTestCase):
                         reason="autosync",
                         sync_id="ibkr-attempt-a",
                         source_sync_id="ibkr-attempt-a",
+                        last_error=TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE,
                         created_at=now,
                         updated_at=now,
                     )
@@ -258,6 +271,15 @@ class SupportAutoArchiveTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             "autosync",
             snapshot["providers"]["ibkr"]["latest_transaction_import_job"]["reason"],
+        )
+        self.assertIsNone(
+            snapshot["providers"]["ibkr"]["latest_transaction_import_job"]["last_error"]
+        )
+        self.assertEqual(
+            TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE,
+            snapshot["providers"]["ibkr"]["latest_transaction_import_job"][
+                "recovery_message"
+            ],
         )
 
     def test_log_buffer_snapshot_requires_matching_user_and_sync_id(self) -> None:
@@ -435,6 +457,7 @@ class SupportAutoArchiveTests(unittest.IsolatedAsyncioTestCase):
                     sync_id="bmo-attempt-a",
                     attempt_id="popup-a",
                     trigger="sync_result_ok",
+                    error=TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE,
                     extra_fields={
                         "sync_scope": "accounts",
                         "sync_source": "sync_all",
@@ -452,6 +475,7 @@ class SupportAutoArchiveTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertIsNotNone(run_dir)
             trigger = json.loads((run_dir / "trigger.json").read_text(encoding="utf-8"))
+            run_summary = support_auto_archive._summarize_run(runs_dir / "bmo", run_dir)
             state = json.loads((run_dir / "state" / "jobs.json").read_text(encoding="utf-8"))
             completion = json.loads(
                 (run_dir / support_auto_archive.RUN_COMPLETION_FILENAME).read_text(encoding="utf-8")
@@ -459,6 +483,16 @@ class SupportAutoArchiveTests(unittest.IsolatedAsyncioTestCase):
             context = json.loads((run_dir / "context.json").read_text(encoding="utf-8"))
 
         self.assertEqual("sync_attempt", trigger["export_scope"]["kind"])
+        self.assertIsNone(trigger["error"])
+        self.assertEqual(
+            TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE,
+            trigger["recovery_message"],
+        )
+        self.assertIsNone(run_summary["error"])
+        self.assertEqual(
+            TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE,
+            run_summary["recovery_message"],
+        )
         self.assertEqual("developer_local", trigger["capture_level"])
         self.assertEqual("developer_local", context["capture_level"])
         self.assertEqual(3, context["schema_version"])

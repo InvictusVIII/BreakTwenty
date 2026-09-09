@@ -68,6 +68,7 @@ import { readCashFlowResponse, readTransactionCollectionResponse } from '../util
 import { getActiveSyncBatchConnectionStates } from '../utils/syncBatch';
 import { resolveCategoryAccentColor } from '../utils/categoryColors';
 import { resolveProviderSyncDisplay } from '../utils/syncDisplayState';
+import { persistentStorage } from '../utils/persistentStorage';
 import {
   filterDashboardNetWorthHistory,
   getDashboardCashFlowDisplayCurrency,
@@ -369,7 +370,7 @@ function moveDashboardWidgetWithinGroup(layout, widgetId, offset) {
 
 function loadDashboardLayout() {
   try {
-    return normalizeDashboardLayout(JSON.parse(localStorage.getItem(DASHBOARD_LAYOUT_STORAGE_KEY) || 'null'));
+    return normalizeDashboardLayout(JSON.parse(persistentStorage.getItem(DASHBOARD_LAYOUT_STORAGE_KEY) || 'null'));
   } catch (_) {
     return normalizeDashboardLayout(null);
   }
@@ -377,7 +378,7 @@ function loadDashboardLayout() {
 
 function persistDashboardLayout(layout) {
   try {
-    localStorage.setItem(DASHBOARD_LAYOUT_STORAGE_KEY, JSON.stringify(normalizeDashboardLayout(layout)));
+    persistentStorage.setItem(DASHBOARD_LAYOUT_STORAGE_KEY, JSON.stringify(normalizeDashboardLayout(layout)));
   } catch (_) {
   }
 }
@@ -512,7 +513,7 @@ function normalizeCachedMarketStripPayload(payload, status = 'cached') {
 function loadCachedMarketStripPayload() {
   if (getAppClockOverride()) return null;
   try {
-    const cached = JSON.parse(localStorage.getItem(MARKET_STRIP_CACHE_STORAGE_KEY) || 'null');
+    const cached = JSON.parse(persistentStorage.getItem(MARKET_STRIP_CACHE_STORAGE_KEY) || 'null');
     return normalizeCachedMarketStripPayload(cached);
   } catch (_) {
     return null;
@@ -524,7 +525,7 @@ function persistMarketStripPayload(payload) {
   const cacheablePayload = normalizeCachedMarketStripPayload(payload, 'ok');
   if (!cacheablePayload) return;
   try {
-    localStorage.setItem(MARKET_STRIP_CACHE_STORAGE_KEY, JSON.stringify(cacheablePayload));
+    persistentStorage.setItem(MARKET_STRIP_CACHE_STORAGE_KEY, JSON.stringify(cacheablePayload));
   } catch (_) {
   }
 }
@@ -540,7 +541,7 @@ function normalizeCachedMarketNewsPayload(payload) {
 function loadCachedMarketNewsPayload() {
   if (getAppClockOverride()) return null;
   try {
-    const cached = JSON.parse(localStorage.getItem(MARKET_NEWS_CACHE_STORAGE_KEY) || 'null');
+    const cached = JSON.parse(persistentStorage.getItem(MARKET_NEWS_CACHE_STORAGE_KEY) || 'null');
     return normalizeCachedMarketNewsPayload(cached);
   } catch (_) {
     return null;
@@ -552,7 +553,7 @@ function persistMarketNewsPayload(payload) {
   const cacheablePayload = normalizeCachedMarketNewsPayload(payload);
   if (!cacheablePayload) return;
   try {
-    localStorage.setItem(MARKET_NEWS_CACHE_STORAGE_KEY, JSON.stringify(cacheablePayload));
+    persistentStorage.setItem(MARKET_NEWS_CACHE_STORAGE_KEY, JSON.stringify(cacheablePayload));
   } catch (_) {
   }
 }

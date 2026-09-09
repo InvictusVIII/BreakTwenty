@@ -10,6 +10,7 @@ const {
   APP_INCIDENT_TOTAL_MAX_BYTES,
   AppDiagnostics,
   createSanitizingLogger,
+  formatLocalFilenameTimestamp,
   sanitizeLogText,
 } = require('./appDiagnostics');
 
@@ -32,6 +33,21 @@ function readZipEntries(archive) {
   }
   return entries;
 }
+
+test('application diagnostic filenames use the requested timezone and DST abbreviation', () => {
+  assert.equal(
+    formatLocalFilenameTimestamp('2026-09-08T23:28:41.643Z', 'America/Toronto'),
+    '2026-09-08_19-28-41_EDT',
+  );
+  assert.equal(
+    formatLocalFilenameTimestamp('2026-01-08T23:28:41.643Z', 'America/Toronto'),
+    '2026-01-08_18-28-41_EST',
+  );
+  assert.equal(
+    formatLocalFilenameTimestamp('2026-09-08T23:28:41.643Z', '../invalid'),
+    '2026-09-08_23-28-41_UTC',
+  );
+});
 
 test('application diagnostics redact sensitive lines, bearer values, and local paths', () => {
   const localRoot = path.join(os.tmpdir(), 'private-user-root');

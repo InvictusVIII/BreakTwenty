@@ -5,11 +5,31 @@ const test = require('node:test');
 
 const {
   buildStampedGithubFeed,
+  displayedAppVersion,
+  prereleaseToStableFallbackAllowed,
   prereleaseUpdatesEnabled,
   readStampedUpdateConfiguration,
   stateAfterUpdateFeedChange,
   updateAuthMutationBlocked,
 } = require('./updateFeed');
+
+test('development builds do not present a release-lane version', () => {
+  assert.equal(displayedAppVersion({
+    appVersion: '1.0.1-rc.2',
+    isPackaged: false,
+    sourceCommit: '23c30e61aabbccdd',
+  }), 'Development build (source 23c30e61aabb)');
+  assert.equal(displayedAppVersion({
+    appVersion: '1.0.1-rc.2',
+    isPackaged: false,
+    sourceCommit: '',
+  }), 'Development build');
+  assert.equal(displayedAppVersion({
+    appVersion: '1.0.2-rc.1',
+    isPackaged: true,
+    sourceCommit: '23c30e61aabbccdd',
+  }), '1.0.2-rc.1');
+});
 
 test('prerelease updates require an explicit test launch for stable builds', () => {
   assert.equal(prereleaseUpdatesEnabled({ appVersion: '1.0.0', argv: [], env: {} }), false);
@@ -33,6 +53,29 @@ test('private release feeds use GitHub latest instead of release-list prerelease
     env: { BREAKTWENTY_ALLOW_PRERELEASE_UPDATES: '1' },
     privateFeed: true,
   }), false);
+});
+
+test('public prerelease clients may retry stable after their RC channel is removed', () => {
+  const noPublishedVersions = { code: 'ERR_UPDATER_NO_PUBLISHED_VERSIONS' };
+  assert.equal(prereleaseToStableFallbackAllowed({
+    error: noPublishedVersions,
+    appVersion: '1.0.1-rc.2',
+    allowPrerelease: true,
+  }), true);
+  for (const override of [
+    { appVersion: '1.0.1' },
+    { allowPrerelease: false },
+    { privateFeed: true },
+    { explicitChannel: true },
+    { error: { code: 'ERR_UPDATER_CHANNEL_FILE_NOT_FOUND' } },
+  ]) {
+    assert.equal(prereleaseToStableFallbackAllowed({
+      error: noPublishedVersions,
+      appVersion: '1.0.1-rc.2',
+      allowPrerelease: true,
+      ...override,
+    }), false);
+  }
 });
 
 test('keeps an arbitrary private repository stamped into a test package', () => {

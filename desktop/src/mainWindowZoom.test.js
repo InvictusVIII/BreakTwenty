@@ -120,3 +120,17 @@ test('rapid zoom requests cannot bypass the display-aware floor while saves are 
     /const displaySafeZoomFactor = clampMainWindowZoomFactorToDisplay\([\s\S]*mainWindowWebContents\.setZoomFactor\(displaySafeZoomFactor\);/
   );
 });
+
+test('menu and keyboard zoom changes use the app-owned persistent zoom path', () => {
+  const mainSource = fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8');
+  const adjustStart = mainSource.indexOf('function adjustMainWindowZoom(direction)');
+  const adjustEnd = mainSource.indexOf('function applyAdaptiveMainWindowZoomForCurrentDisplay', adjustStart);
+  const adjustSource = mainSource.slice(adjustStart, adjustEnd);
+
+  assert.ok(adjustStart >= 0);
+  assert.ok(adjustEnd > adjustStart);
+  assert.match(adjustSource, /saveMainWindowZoomFactor\(zoomFactor\);/);
+  assert.match(mainSource, /accelerator: 'CmdOrCtrl\+Plus',[\s\S]*adjustMainWindowZoom\('in'\)/);
+  assert.match(mainSource, /accelerator: 'CmdOrCtrl\+-',[\s\S]*adjustMainWindowZoom\('out'\)/);
+  assert.doesNotMatch(mainSource, /\{ role: 'zoomIn' \}|\{ role: 'zoomOut' \}/);
+});

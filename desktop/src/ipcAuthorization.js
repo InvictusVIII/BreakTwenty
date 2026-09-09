@@ -48,8 +48,26 @@ function registerPrivilegedIpcHandler(ipcMain, authorize, channel, handler) {
   });
 }
 
+function registerPrivilegedIpcListener(ipcMain, authorize, channel, handler) {
+  if (!ipcMain || typeof ipcMain.on !== 'function' || typeof authorize !== 'function') {
+    throw new Error('BreakTwenty privileged desktop IPC authorization is unavailable.');
+  }
+  ipcMain.on(channel, (event, ...args) => {
+    try {
+      authorize(event);
+      event.returnValue = handler(...args);
+    } catch (_error) {
+      event.returnValue = {
+        status: 'error',
+        message: 'BreakTwenty rejected the desktop preference request.',
+      };
+    }
+  });
+}
+
 module.exports = {
   assertMainWindowIpcSender,
   createMainWindowIpcAuthorizer,
   registerPrivilegedIpcHandler,
+  registerPrivilegedIpcListener,
 };

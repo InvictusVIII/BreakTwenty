@@ -150,6 +150,8 @@ test('main and updater keep the single-instance and awaited-install invariants',
   assert.ok(mainSource.indexOf('app.requestSingleInstanceLock()') < mainSource.indexOf('new BackendManager('));
   assert.match(mainSource, /app\.on\('second-instance',[\s\S]*focusRunningAppWindow\(\);/);
   assert.match(mainSource, /app\.on\('before-quit',[\s\S]*event\.preventDefault\(\);[\s\S]*requestApplicationShutdown\('app-quit'\)/);
+  assert.match(mainSource, /app\.on\('window-all-closed',[\s\S]*if \(ownsSingleInstanceLock\) \{[\s\S]*app\.quit\(\);/);
+  assert.doesNotMatch(mainSource, /window-all-closed'[\s\S]*process\.platform !== 'darwin'/);
   assert.ok(updaterSource.indexOf('await this.prepareForInstall()') >= 0);
   assert.ok(updaterSource.indexOf('await this.prepareForInstall()') < updaterSource.indexOf('autoUpdater.quitAndInstall(true, true)'));
   assert.ok(updaterSource.indexOf('installWindow.hide()') > updaterSource.indexOf('await this.prepareForInstall()'));
@@ -184,10 +186,20 @@ test('main and updater keep the single-instance and awaited-install invariants',
   assert.match(mainSource, /probeBackendHealth/);
   assert.match(mainSource, /app\.isPackaged[\s\S]*USE_PACKAGED_DYNAMIC_BACKEND_PORT/);
   assert.match(mainSource, /app\.isPackaged[\s\S]*USE_PACKAGED_DYNAMIC_FRONTEND_PORT/);
+  assert.match(
+    mainSource,
+    /app\.isPackaged && USE_PACKAGED_DYNAMIC_FRONTEND_PORT[\s\S]*partition: PACKAGED_RENDERER_PARTITION/,
+  );
+  assert.doesNotMatch(mainSource, /PACKAGED_RENDERER_PARTITION\s*=\s*['"]persist:/);
+  assert.match(mainSource, /clearLegacyDesktopHttpCaches/);
   assert.match(backendManagerSource, /'app\.desktop_server'/);
   assert.match(mainSource, /backendApiUrl !== previousBackendApiUrl[\s\S]*waitForDidFinishLoad/);
   assert.match(backendHealthProbeSource, /setTimeout[\s\S]*Backend health timed out during/);
   assert.match(mainSource, /breaktwenty:app-diagnostics-list/);
+  assert.match(
+    mainSource,
+    /formatLocalFilenameTimestamp\([\s\S]*incident\.createdAt,[\s\S]*request\.userTimezone/,
+  );
   assert.match(mainSource, /role: 'help'[\s\S]*Check for Updates/);
   assert.match(
     mainSource,

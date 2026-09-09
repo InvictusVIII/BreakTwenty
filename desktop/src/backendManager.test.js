@@ -77,6 +77,74 @@ test('packaged embedded backend can request an operating-system-assigned port', 
   }
 });
 
+test('running backend accepts an unchanged frontend origin idempotently', () => {
+  const manager = Object.create(BackendManager.prototype);
+  manager.frontendOrigin = 'http://127.0.0.1:49152';
+  manager.process = { exitCode: null };
+
+  assert.doesNotThrow(() => manager.setFrontendOrigin('http://127.0.0.1:49152/'));
+  assert.equal(manager.frontendOrigin, 'http://127.0.0.1:49152');
+  assert.throws(
+    () => manager.setFrontendOrigin('http://127.0.0.1:49153'),
+    /Frontend origin cannot change while the embedded backend is running/,
+  );
+});
+
+test('a confirmed prior backend stop enables one-shot recovery until startup is healthy', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'breaktwenty-recovery-marker-'));
+  const priorPython = process.env.BREAKTWENTY_EMBEDDED_BACKEND_PYTHON;
+  try {
+    fs.mkdirSync(path.join(root, 'backend'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'config'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'backend', 'alembic.ini'), '[alembic]\n', 'utf8');
+    fs.writeFileSync(path.join(root, 'config', 'provider_catalog.json'), '{}\n', 'utf8');
+    process.env.BREAKTWENTY_EMBEDDED_BACKEND_PYTHON = process.execPath;
+    const manager = new BackendManager({
+      app: packagedApp(path.join(root, 'user-data')),
+      appRoot: root,
+      backendMode: 'embedded',
+      backendApiUrl: 'http://127.0.0.1:8765/api',
+      frontendOrigin: 'http://127.0.0.1:32100',
+    });
+    manager.process = { exitCode: 0 };
+
+    assert.equal(await manager.shutdown(), true);
+    assert.equal(manager.hasRecoveryRestartMarker(), true);
+    assert.equal(manager.shouldUseRecoveryRestart(false), true);
+    const relaunchedManager = new BackendManager({
+      app: packagedApp(path.join(root, 'user-data')),
+      appRoot: root,
+      backendMode: 'embedded',
+      backendApiUrl: 'http://127.0.0.1:8765/api',
+      frontendOrigin: 'http://127.0.0.1:32100',
+    });
+    let startRequestedRecovery = false;
+    relaunchedManager.resolveRuntime = ({ recoveryRestart }) => {
+      startRequestedRecovery = recoveryRestart;
+      throw new Error('stop after recovery option probe');
+    };
+    await assert.rejects(
+      relaunchedManager.startOnce(),
+      /stop after recovery option probe/,
+    );
+    assert.equal(startRequestedRecovery, true);
+    assert.equal(relaunchedManager.hasRecoveryRestartMarker(), true);
+    assert.equal(
+      manager.resolveRuntime({ recoveryRestart: manager.shouldUseRecoveryRestart(false) })
+        .env.BREAKTWENTY_RECOVERY_RESTART,
+      '1',
+    );
+
+    assert.equal(relaunchedManager.acknowledgeHealthyStartup(), true);
+    assert.equal(relaunchedManager.hasRecoveryRestartMarker(), false);
+    assert.equal(relaunchedManager.shouldUseRecoveryRestart(false), false);
+  } finally {
+    if (priorPython === undefined) delete process.env.BREAKTWENTY_EMBEDDED_BACKEND_PYTHON;
+    else process.env.BREAKTWENTY_EMBEDDED_BACKEND_PYTHON = priorPython;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('dynamic embedded backend recovery falls back to a fresh port when reclaim fails', async () => {
   const manager = Object.create(BackendManager.prototype);
   manager.acceptingStarts = true;

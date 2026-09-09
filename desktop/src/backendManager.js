@@ -24,6 +24,7 @@ const KEY_BOOTSTRAP_STDIN_V2 = 'stdin-v2';
 const DATABASE_KEY_ENV = 'BREAKTWENTY_DATABASE_ENCRYPTION_KEY';
 const APP_ENCRYPTION_KEY_ENV = 'BREAKTWENTY_APP_ENCRYPTION_KEY';
 const RECOVERY_RESTART_ENV = 'BREAKTWENTY_RECOVERY_RESTART';
+const RECOVERY_RESTART_MARKER_FILE = 'embedded-backend-recovery-pending.json';
 const PROCESS_LOG_MAX_BYTES = 2 * 1024 * 1024;
 const PROCESS_LOG_BACKUP_COUNT = 2;
 
@@ -172,10 +173,15 @@ class BackendManager {
   }
 
   setFrontendOrigin(frontendOrigin) {
-    if (this.process && this.process.exitCode === null) {
+    const normalizedFrontendOrigin = normalizeLocalFrontendUrl(frontendOrigin);
+    if (
+      this.process
+      && this.process.exitCode === null
+      && normalizedFrontendOrigin !== this.frontendOrigin
+    ) {
       throw new Error('Frontend origin cannot change while the embedded backend is running.');
     }
-    this.frontendOrigin = normalizeLocalFrontendUrl(frontendOrigin);
+    this.frontendOrigin = normalizedFrontendOrigin;
   }
 
   getLaunchAuthTokens() {
@@ -205,6 +211,53 @@ class BackendManager {
     this.status.logPath = runtime.processLogPath;
     this.status.runtimePaths = runtime.runtimePaths;
     return this.getRuntimeEnv();
+  }
+
+  getRecoveryRestartMarkerPath() {
+    return path.join(this.desktopRuntime.dataDir, RECOVERY_RESTART_MARKER_FILE);
+  }
+
+  hasRecoveryRestartMarker() {
+    return this.mode === 'embedded' && pathExists(this.getRecoveryRestartMarkerPath());
+  }
+
+  shouldUseRecoveryRestart(explicitRecoveryRestart = false) {
+    return explicitRecoveryRestart === true || this.hasRecoveryRestartMarker();
+  }
+
+  markRecoveryRestartPending(reason = 'owned_backend_stopped') {
+    if (this.mode !== 'embedded') return false;
+    const markerPath = this.getRecoveryRestartMarkerPath();
+    try {
+      ensureDir(path.dirname(markerPath));
+      fs.writeFileSync(markerPath, `${JSON.stringify({
+        version: 1,
+        reason,
+        recordedAt: new Date().toISOString(),
+      })}\n`, {
+        encoding: 'utf8',
+        mode: 0o600,
+      });
+      appendLine(this.status.logPath, 'recorded pending embedded backend recovery');
+      return true;
+    } catch (error) {
+      appendLine(this.status.logPath, `could not record pending embedded backend recovery: ${error.message}`);
+      return false;
+    }
+  }
+
+  acknowledgeHealthyStartup() {
+    if (this.mode !== 'embedded') return false;
+    const markerPath = this.getRecoveryRestartMarkerPath();
+    if (!pathExists(markerPath)) return false;
+    try {
+      fs.rmSync(markerPath, { force: true });
+      appendLine(this.status.logPath, 'cleared pending embedded backend recovery after health check');
+      return true;
+    } catch (error) {
+      appendLine(this.status.logPath, `could not clear pending embedded backend recovery: ${error.message}`);
+      return false;
+    }
   }
 
   async start(options = {}) {
@@ -238,7 +291,9 @@ class BackendManager {
       return this.describe();
     }
 
-    const runtime = this.resolveRuntime({ recoveryRestart });
+    const pendingRecoveryRestart = this.hasRecoveryRestartMarker();
+    const effectiveRecoveryRestart = this.shouldUseRecoveryRestart(recoveryRestart);
+    const runtime = this.resolveRuntime({ recoveryRestart: effectiveRecoveryRestart });
     this.runtimeEnv = runtime.env;
     this.status = {
       mode: this.mode,
@@ -249,6 +304,9 @@ class BackendManager {
       runtimePaths: runtime.runtimePaths,
     };
     appendLine(runtime.processLogPath, 'embedded backend startup requested');
+    if (pendingRecoveryRestart) {
+      appendLine(runtime.processLogPath, 'pending recovery marker enabled startup lease recovery');
+    }
 
     try {
       const databaseExisted = nonEmptyFileExists(runtime.runtimePaths.dbPath);
@@ -293,7 +351,11 @@ class BackendManager {
     this.quiesce();
     this.shuttingDown = true;
     const child = this.process;
-    if (!child || child.exitCode !== null) {
+    if (!child) {
+      return true;
+    }
+    if (child.exitCode !== null) {
+      this.markRecoveryRestartPending('owned_backend_already_stopped');
       return true;
     }
     appendLine(this.status.logPath, 'embedded backend stop requested');
@@ -302,6 +364,8 @@ class BackendManager {
       appendLine(this.status.logPath, 'embedded backend did not stop after forced termination');
       this.status.state = 'failed';
       this.status.message = 'Embedded backend did not stop cleanly.';
+    } else {
+      this.markRecoveryRestartPending('owned_backend_shutdown');
     }
     return stopped;
   }
@@ -336,6 +400,9 @@ class BackendManager {
         if (!stopped) {
           throw new Error('The unresponsive embedded backend could not be terminated safely.');
         }
+      }
+      if (child) {
+        this.markRecoveryRestartPending('owned_backend_controlled_restart');
       }
       if (this.process === child) this.process = null;
       try {

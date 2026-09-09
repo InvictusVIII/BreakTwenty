@@ -14,8 +14,13 @@ LOOPBACK_HOSTS = {"127.0.0.1": socket.AF_INET, "::1": socket.AF_INET6}
 
 
 def bind_loopback_socket(host: str, port: int) -> socket.socket:
-    family = LOOPBACK_HOSTS.get(host)
-    if family is None:
+    if host == "127.0.0.1":
+        family = socket.AF_INET
+        bind_host = "127.0.0.1"
+    elif host == "::1":
+        family = socket.AF_INET6
+        bind_host = "::1"
+    else:
         raise ValueError("Embedded backend host must be an exact loopback address")
     if not isinstance(port, int) or port < 0 or port > 65535:
         raise ValueError("Embedded backend port is invalid")
@@ -25,7 +30,7 @@ def bind_loopback_socket(host: str, port: int) -> socket.socket:
             listener.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
         else:
             listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        listener.bind((host, port))
+        listener.bind((bind_host, port))
         listener.listen(socket.SOMAXCONN)
         listener.setblocking(False)
         return listener

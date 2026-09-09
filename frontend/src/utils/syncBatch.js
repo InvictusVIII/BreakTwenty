@@ -5,6 +5,7 @@ import {
 } from './syncRequests';
 import { subscribeBatchEvents } from './serverEvents';
 import { APP_BRAND_NAME } from '../constants/brand';
+import { persistentStorage } from './persistentStorage';
 
 const TERMINAL_BATCH_STATUSES = new Set(['done', 'error', 'not_found', 'blocked']);
 const SYNC_BATCH_RECONCILE_INTERVAL_MS = 1500;
@@ -22,11 +23,7 @@ function normalizedBatchId(value) {
 
 function monitoredBatchStorage(storage) {
   if (storage) return storage;
-  try {
-    return globalThis.localStorage || null;
-  } catch (_error) {
-    return null;
-  }
+  return persistentStorage;
 }
 
 export function loadMonitoredSyncBatchIds(storage = null) {

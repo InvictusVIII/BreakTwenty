@@ -320,6 +320,40 @@ function incidentIdFor(date = new Date()) {
   return `${timestamp}_${crypto.randomUUID()}`;
 }
 
+function formatLocalFilenameTimestamp(value, requestedTimeZone = 'UTC') {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const candidateTimeZone = String(requestedTimeZone || 'UTC').trim().slice(0, 128) || 'UTC';
+  let formatter;
+  try {
+    formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: candidateTimeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+      timeZoneName: 'short',
+    });
+  } catch (_error) {
+    return formatLocalFilenameTimestamp(date, 'UTC');
+  }
+  const parts = Object.fromEntries(
+    formatter.formatToParts(date)
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, part.value]),
+  );
+  const abbreviation = String(parts.timeZoneName || '')
+    .replace(/[^A-Za-z0-9]+/g, '')
+    .slice(0, 8) || (candidateTimeZone === 'UTC' ? 'UTC' : 'LCL');
+  if (![parts.year, parts.month, parts.day, parts.hour, parts.minute, parts.second].every(Boolean)) {
+    return '';
+  }
+  return `${parts.year}-${parts.month}-${parts.day}_${parts.hour}-${parts.minute}-${parts.second}_${abbreviation}`;
+}
+
 const CRC32_TABLE = (() => {
   const table = new Uint32Array(256);
   for (let index = 0; index < 256; index += 1) {
@@ -667,6 +701,7 @@ module.exports = {
   AppDiagnostics,
   buildZipArchive,
   createSanitizingLogger,
+  formatLocalFilenameTimestamp,
   incidentIdFor,
   sanitizeLogText,
   sanitizeValue,

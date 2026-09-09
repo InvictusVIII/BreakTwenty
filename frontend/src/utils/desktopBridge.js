@@ -118,7 +118,7 @@ export async function listDesktopAppDiagnostics() {
   }
 }
 
-export async function exportDesktopAppDiagnostic(incidentId) {
+export async function exportDesktopAppDiagnostic(incidentId, userTimezone = '') {
   if (isPromoDesktopBoundaryActive()) {
     return {
       status: 'unavailable',
@@ -133,7 +133,7 @@ export async function exportDesktopAppDiagnostic(incidentId) {
     };
   }
   try {
-    return await bridge.appDiagnostics.export({ incidentId });
+    return await bridge.appDiagnostics.export({ incidentId, userTimezone });
   } catch (error) {
     const mainProcessIsStale = String(error?.message || '').includes(
       "No handler registered for 'breaktwenty:app-diagnostics-export'",

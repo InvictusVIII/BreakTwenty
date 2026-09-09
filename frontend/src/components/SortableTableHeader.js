@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import TriangleIcon from './TriangleIcon';
+import { persistentStorage } from '../utils/persistentStorage';
 
 export function getNextSortConfig(currentSort, key, defaultDirections = {}) {
   const defaultDirection = defaultDirections[key] || 'asc';
@@ -26,12 +27,12 @@ function normalizeSortConfig(sortConfig, defaultDirections = {}) {
 }
 
 function loadStoredSortConfig(storageKey, defaultDirections = {}, fallbackSort = null) {
-  const storedValue = localStorage.getItem(storageKey);
+  const storedValue = persistentStorage.getItem(storageKey);
   if (!storedValue) return normalizeSortConfig(fallbackSort, defaultDirections);
   try {
     return normalizeSortConfig(JSON.parse(storedValue), defaultDirections);
   } catch {
-    localStorage.removeItem(storageKey);
+    persistentStorage.removeItem(storageKey);
     return normalizeSortConfig(fallbackSort, defaultDirections);
   }
 }
@@ -39,10 +40,10 @@ function loadStoredSortConfig(storageKey, defaultDirections = {}, fallbackSort =
 function persistStoredSortConfig(storageKey, sortConfig, defaultDirections = {}) {
   const normalizedSort = normalizeSortConfig(sortConfig, defaultDirections);
   if (!normalizedSort) {
-    localStorage.removeItem(storageKey);
+    persistentStorage.removeItem(storageKey);
     return;
   }
-  localStorage.setItem(storageKey, JSON.stringify(normalizedSort));
+  persistentStorage.setItem(storageKey, JSON.stringify(normalizedSort));
 }
 
 export function usePersistentSortConfig(storageKey, fallbackSort = null, defaultDirections = {}) {

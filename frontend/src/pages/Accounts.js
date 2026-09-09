@@ -34,6 +34,7 @@ import {
 } from '../utils/currencyView';
 import { getTransactionPrimaryDescription } from '../utils/transactionDescription';
 import { getAppNow, getAppNowMs } from '../utils/appClock';
+import { persistentStorage } from '../utils/persistentStorage';
 import {
   DEFAULT_SYNC_REQUEST_TIMEOUT_MS,
   USER_INITIATED_SYNC_REQUEST_TIMEOUT_MS,
@@ -435,7 +436,7 @@ const ACCOUNT_CATEGORY_BY_TYPE = {
 };
 
 function loadAccountGroupByPreference() {
-  const savedGroupBy = localStorage.getItem(ACCOUNT_GROUP_BY_STORAGE_KEY);
+  const savedGroupBy = persistentStorage.getItem(ACCOUNT_GROUP_BY_STORAGE_KEY);
   return ACCOUNT_GROUP_MODES.some((mode) => mode.key === savedGroupBy)
     ? savedGroupBy
     : ACCOUNT_GROUP_BY_INSTITUTION;
@@ -2164,7 +2165,7 @@ function Accounts({
   );
 
   useEffect(() => {
-    localStorage.setItem(ACCOUNT_GROUP_BY_STORAGE_KEY, accountGroupBy);
+    persistentStorage.setItem(ACCOUNT_GROUP_BY_STORAGE_KEY, accountGroupBy);
   }, [accountGroupBy]);
 
   useEffect(() => () => {

@@ -119,6 +119,7 @@ import {
   admitAutoSyncRun,
   startIndependentSyncLanes,
 } from './utils/syncOrchestration';
+import { reconcileSyncNotifierActivities } from './utils/syncNotifier';
 import { formatSyncErrorMessage, getClientSyncFailureState } from './utils/clientSyncFailure';
 import {
   reconnectServerEvents,
@@ -137,6 +138,7 @@ import {
   TRANSACTION_IMPORT_RETRY_STATUS,
 } from './utils/syncDisplayState';
 import { getBrandImageAssets } from './utils/brandImageAssets';
+import { persistentStorage } from './utils/persistentStorage';
 import loadingScreenConfig from './constants/loadingScreen.generated.json';
 import {
   createLatestRequestCoordinator,
@@ -177,7 +179,7 @@ function getRightTrayReservationPolicy(key) {
 function readStoredBreakTwentyThemeMode() {
   if (typeof window === 'undefined') return BREAKTWENTY_DEFAULT_THEME_MODE;
   try {
-    return normalizeBreakTwentyThemeMode(window.localStorage.getItem(BREAKTWENTY_THEME_STORAGE_KEY));
+    return normalizeBreakTwentyThemeMode(persistentStorage.getItem(BREAKTWENTY_THEME_STORAGE_KEY));
   } catch {
     return BREAKTWENTY_DEFAULT_THEME_MODE;
   }
@@ -437,7 +439,7 @@ function warmPaintMaterialTextures(urls) {
       tile.style.inset = '0';
       tile.style.width = '1px';
       tile.style.height = '1px';
-      tile.style.backgroundImage = `url("${src.replace(/"/g, '\\"')}")`;
+      tile.style.backgroundImage = `url(${JSON.stringify(src)})`;
       tile.style.backgroundPosition = 'center';
       tile.style.backgroundRepeat = 'no-repeat';
       tile.style.backgroundSize = 'cover';
@@ -624,7 +626,7 @@ function AppBrandLoadingState() {
 
 function readStoredDashboardCustomDateRange() {
   try {
-    const saved = window.localStorage.getItem(GLOBAL_TIMEFRAME_CUSTOM_RANGE_STORAGE_KEY);
+    const saved = persistentStorage.getItem(GLOBAL_TIMEFRAME_CUSTOM_RANGE_STORAGE_KEY);
     if (!saved) return { start: '', end: '' };
     const parsed = JSON.parse(saved);
     return {
@@ -644,7 +646,7 @@ function acquireAutoSyncLease() {
   const now = Date.now();
   const token = `${now}:${Math.random().toString(36).slice(2)}`;
   try {
-    const existing = String(localStorage.getItem(AUTO_SYNC_INFLIGHT_STORAGE_KEY) || '');
+    const existing = String(persistentStorage.getItem(AUTO_SYNC_INFLIGHT_STORAGE_KEY) || '');
     const existingStartedAt = Number(existing.split(':')[0] || '0');
     if (
       existingStartedAt > 0
@@ -653,8 +655,8 @@ function acquireAutoSyncLease() {
     ) {
       return null;
     }
-    localStorage.setItem(AUTO_SYNC_INFLIGHT_STORAGE_KEY, token);
-    return localStorage.getItem(AUTO_SYNC_INFLIGHT_STORAGE_KEY) === token ? token : null;
+    persistentStorage.setItem(AUTO_SYNC_INFLIGHT_STORAGE_KEY, token);
+    return persistentStorage.getItem(AUTO_SYNC_INFLIGHT_STORAGE_KEY) === token ? token : null;
   } catch (_) {
     return token;
   }
@@ -663,8 +665,8 @@ function acquireAutoSyncLease() {
 function releaseAutoSyncLease(token) {
   if (!token) return;
   try {
-    if (localStorage.getItem(AUTO_SYNC_INFLIGHT_STORAGE_KEY) === token) {
-      localStorage.removeItem(AUTO_SYNC_INFLIGHT_STORAGE_KEY);
+    if (persistentStorage.getItem(AUTO_SYNC_INFLIGHT_STORAGE_KEY) === token) {
+      persistentStorage.removeItem(AUTO_SYNC_INFLIGHT_STORAGE_KEY);
     }
   } catch (_) {}
 }
@@ -715,44 +717,6 @@ function getActiveProviderActivityItems(syncActivity) {
       };
     })
     .sort((left, right) => left.label.localeCompare(right.label));
-}
-
-// Surface providers the client already knows are syncing (optimistic auto-sync state)
-// so the rail notifier appears immediately instead of waiting for the first
-// server-sent sync_activity event. Server-confirmed items win on provider conflicts.
-function mergeOptimisticSyncActivities(activityItems, autoSyncStates, accountSyncActivities = []) {
-  const items = Array.isArray(activityItems) ? activityItems : [];
-  const seenConnections = new Set(
-    items.map((item) => String(item.institutionId || item.provider || '').trim()).filter(Boolean)
-  );
-  const optimistic = [];
-  Object.entries(autoSyncStates || {}).forEach(([connectionKey, state]) => {
-    const normalizedProvider = String(state?.provider || '').trim();
-    const identity = String(state?.institutionId || connectionKey || '').trim();
-    const status = String(state?.status || '').trim().toLowerCase();
-    if (!normalizedProvider || !identity || seenConnections.has(identity)) {
-      return;
-    }
-    if (status !== 'syncing' && !ACTIVE_SYNC_STATUSES.has(status)) {
-      return;
-    }
-    seenConnections.add(identity);
-    const label = String(state?.label || getProviderDisplayName(normalizedProvider) || 'Institution').trim();
-    optimistic.push({
-      key: `optimistic:${identity}`,
-      provider: normalizedProvider,
-      institutionId: state?.institutionId || null,
-      label,
-      tooltip: `Syncing ${label}`,
-    });
-  });
-  (Array.isArray(accountSyncActivities) ? accountSyncActivities : []).forEach((activity) => {
-    const identity = String(activity?.institutionId || activity?.provider || '').trim();
-    if (!identity || seenConnections.has(identity)) return;
-    seenConnections.add(identity);
-    optimistic.push(activity);
-  });
-  return [...items, ...optimistic].sort((left, right) => left.label.localeCompare(right.label));
 }
 
 function getTransactionImportStatusForSignature(transactionImportStatus) {
@@ -1189,12 +1153,12 @@ function DevCaptureToggle({ enabled, onChange }) {
   );
 }
 
-function TransactionImportRailNotifier({ activeImports }) {
+function SyncRailNotifier({ activeActivities }) {
   const [expandedActivityKey, setExpandedActivityKey] = useState('');
   const [popoutPosition, setPopoutPosition] = useState(null);
   const toggleRef = useRef(null);
-  const activeCount = activeImports.length;
-  const activeActivityKey = activeImports
+  const activeCount = activeActivities.length;
+  const activeActivityKey = activeActivities
     .map((item) => item.key || item.provider || item.label)
     .join('|') || String(activeCount);
   const isExpanded = activeCount > 0 && expandedActivityKey === activeActivityKey;
@@ -1240,9 +1204,9 @@ function TransactionImportRailNotifier({ activeImports }) {
     };
   }, [isExpanded]);
 
-  const singleImport = activeCount === 1 ? activeImports[0] : null;
-  const tooltip = singleImport
-    ? singleImport.tooltip
+  const singleActivity = activeCount === 1 ? activeActivities[0] : null;
+  const tooltip = singleActivity
+    ? singleActivity.tooltip
     : `Syncing ${activeCount} institutions`;
 
   if (activeCount === 0) {
@@ -1267,8 +1231,8 @@ function TransactionImportRailNotifier({ activeImports }) {
         ))}
       >
         <span className="transaction-import-rail-content">
-          {singleImport ? (
-            <InstitutionLogo name={singleImport.label} size={24} />
+          {singleActivity ? (
+            <InstitutionLogo name={singleActivity.label} size={24} />
           ) : (
             <span className="transaction-import-rail-count">{activeCount}</span>
           )}
@@ -1287,7 +1251,7 @@ function TransactionImportRailNotifier({ activeImports }) {
             maxWidth: `${popoutPosition.maxWidth}px`,
           }}
         >
-          {activeImports.map((item) => (
+          {activeActivities.map((item) => (
             <span
               key={item.key}
               className="transaction-import-provider-chip"
@@ -1875,7 +1839,7 @@ function SupportLoggingControl({
   const [exportingAppIncident, setExportingAppIncident] = useState(false);
   const [devCaptureOn, setDevCaptureOn] = useState(() => {
     if (typeof window === 'undefined') return false;
-    return window.localStorage?.getItem(DEV_CAPTURE_STORAGE_KEY) === 'true';
+    return persistentStorage.getItem(DEV_CAPTURE_STORAGE_KEY) === 'true';
   });
   const isDevBuild = import.meta.env.DEV;
 
@@ -1883,7 +1847,7 @@ function SupportLoggingControl({
     const nextEnabled = Boolean(enabled);
     setDevCaptureOn(nextEnabled);
     if (typeof window !== 'undefined') {
-      window.localStorage?.setItem(DEV_CAPTURE_STORAGE_KEY, nextEnabled ? 'true' : 'false');
+      persistentStorage.setItem(DEV_CAPTURE_STORAGE_KEY, nextEnabled ? 'true' : 'false');
     }
   }, []);
 
@@ -2270,7 +2234,10 @@ function SupportLoggingControl({
     setExportingAppIncident(true);
     setMessage('');
     try {
-      const result = await exportDesktopAppDiagnostic(current ? '' : selectedAppIncidentId);
+      const result = await exportDesktopAppDiagnostic(
+        current ? '' : selectedAppIncidentId,
+        userTimezone,
+      );
       if (result?.status === 'cancelled') return;
       if (result?.status !== 'ok') {
         setMessage(result?.message || 'Application diagnostics could not be exported.');
@@ -2881,7 +2848,7 @@ function ShellContent({
   const [investmentsSelectedAccountIds, setInvestmentsSelectedAccountIds] = useState(null);
   const [dashboardTimeframe, setDashboardTimeframe] = useState(() => {
     try {
-      const saved = window.localStorage.getItem(GLOBAL_TIMEFRAME_STORAGE_KEY);
+      const saved = persistentStorage.getItem(GLOBAL_TIMEFRAME_STORAGE_KEY);
       if (saved === PORTFOLIO_CUSTOM_TIMEFRAME_KEY && !isCompleteCustomDateRange(readStoredDashboardCustomDateRange())) {
         return DEFAULT_PORTFOLIO_TIMEFRAME;
       }
@@ -2893,12 +2860,12 @@ function ShellContent({
   const [dashboardCustomDateRange, setDashboardCustomDateRange] = useState(readStoredDashboardCustomDateRange);
   useEffect(() => {
     try {
-      window.localStorage.setItem(GLOBAL_TIMEFRAME_STORAGE_KEY, String(dashboardTimeframe || ''));
+      persistentStorage.setItem(GLOBAL_TIMEFRAME_STORAGE_KEY, String(dashboardTimeframe || ''));
     } catch (_) { /* ignore */ }
   }, [dashboardTimeframe]);
   useEffect(() => {
     try {
-      window.localStorage.setItem(
+      persistentStorage.setItem(
         GLOBAL_TIMEFRAME_CUSTOM_RANGE_STORAGE_KEY,
         JSON.stringify(dashboardCustomDateRange || { start: '', end: '' }),
       );
@@ -3009,7 +2976,7 @@ function ShellContent({
     const appliedMode = applyBreakTwentyThemeMode(themeMode);
     if (typeof window === 'undefined') return;
     try {
-      window.localStorage.setItem(BREAKTWENTY_THEME_STORAGE_KEY, appliedMode);
+      persistentStorage.setItem(BREAKTWENTY_THEME_STORAGE_KEY, appliedMode);
     } catch {
       // Theme mode still applies for the session when storage is unavailable.
     }
@@ -3087,7 +3054,7 @@ function ShellContent({
   ]);
   const [sidebarExpanded, setSidebarExpanded] = useState(() => {
     try {
-      const stored = window.localStorage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY);
+      const stored = persistentStorage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY);
       // First startup on this device (no stored preference yet) → expanded.
       // After the user toggles it, the persisted value wins on every later launch.
       return stored === null ? true : stored === 'true';
@@ -3133,12 +3100,24 @@ function ShellContent({
   const isHelpRoute = location.pathname === '/faq' || location.pathname === '/licenses';
   const showsGlobalBalanceToggle = ['/', '/accounts', '/cash-flow'].includes(location.pathname);
   const activeProviderActivities = useMemo(
-    () => mergeOptimisticSyncActivities(
-      getActiveProviderActivityItems(syncActivity),
+    () => reconcileSyncNotifierActivities({
+      activityItems: getActiveProviderActivityItems(syncActivity),
       autoSyncStates,
+      accountSyncActivities: optimisticAccountSyncActivities,
+      activeSyncBatches,
+      transactionImportStatus: data.transactionImportStatus,
+      institutions: data.allInstitutions,
+      autoSyncInProgress,
+    }),
+    [
+      activeSyncBatches,
+      autoSyncInProgress,
+      autoSyncStates,
+      data.allInstitutions,
+      data.transactionImportStatus,
       optimisticAccountSyncActivities,
-    ),
-    [autoSyncStates, optimisticAccountSyncActivities, syncActivity]
+      syncActivity,
+    ]
   );
   const handleSyncAllBlockedChange = useCallback((blocked) => {
     syncAllBlockingRef.current = blocked;
@@ -3650,7 +3629,7 @@ function ShellContent({
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(SIDEBAR_EXPANDED_STORAGE_KEY, sidebarExpanded ? 'true' : 'false');
+      persistentStorage.setItem(SIDEBAR_EXPANDED_STORAGE_KEY, sidebarExpanded ? 'true' : 'false');
     } catch (_) {
       return;
     }
@@ -3730,7 +3709,7 @@ function ShellContent({
           />
         </a>
         <div className="floating-nav-top-stack">
-          <TransactionImportRailNotifier activeImports={activeProviderActivities} />
+          <SyncRailNotifier activeActivities={activeProviderActivities} />
           <FloatingNavAction
             icon={AddNetWorthSidebarIcon}
             label="Add to Net Worth"
@@ -4483,7 +4462,7 @@ function App() {
       if (insts.length === 0) return;
       if (PROMO_DEMO_ENABLED && isPromoDemoActive()) {
         try {
-          recordAutoSyncTrigger(localStorage);
+          recordAutoSyncTrigger(persistentStorage);
         } catch (err) {
           console.error('Auto-sync could not record its cooldown:', err);
         }
@@ -4494,7 +4473,7 @@ function App() {
         autoSyncAdmission = admitAutoSyncRun({
           acquireLease: acquireAutoSyncLease,
           releaseLease: releaseAutoSyncLease,
-          storage: localStorage,
+          storage: persistentStorage,
         });
       } catch (err) {
         console.error('Auto-sync could not record its cooldown:', err);
@@ -4749,7 +4728,7 @@ function App() {
 
     const scheduleNext = () => {
       if (autoSyncTimer.current) clearTimeout(autoSyncTimer.current);
-      const last = Number(localStorage.getItem(AUTO_SYNC_LAST_TRIGGER_STORAGE_KEY) || '0');
+      const last = Number(persistentStorage.getItem(AUTO_SYNC_LAST_TRIGGER_STORAGE_KEY) || '0');
       const delay = Math.max(AUTO_SYNC_COOLDOWN_MS - (Date.now() - last), 60000);
       autoSyncTimer.current = setTimeout(() => {
         runAutoSync().then(() => {
@@ -4774,7 +4753,7 @@ function App() {
       ]);
       if (cancelled) return;
       const loadedInstitutions = latestData?.allInstitutions ?? dataInstitutionsRef.current;
-      const lastAutoSync = localStorage.getItem(AUTO_SYNC_LAST_TRIGGER_STORAGE_KEY);
+      const lastAutoSync = persistentStorage.getItem(AUTO_SYNC_LAST_TRIGGER_STORAGE_KEY);
       if (shouldRunStartupAutoSync(lastAutoSync)) {
         runAutoSync(loadedInstitutions).then(() => {
           if (!cancelled) {

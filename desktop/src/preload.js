@@ -10,6 +10,14 @@ function invoke(channel, payload) {
   return ipcRenderer.invoke(channel, payload);
 }
 
+function rendererPreferenceRequest(request) {
+  const response = ipcRenderer.sendSync('breaktwenty:renderer-preference', request);
+  if (!response || response.status !== 'ok') {
+    throw new Error(response?.message || 'Desktop preference storage is unavailable.');
+  }
+  return response;
+}
+
 contextBridge.exposeInMainWorld('breaktwentyDesktop', {
   isDesktop: true,
   runtime: {
@@ -19,6 +27,12 @@ contextBridge.exposeInMainWorld('breaktwentyDesktop', {
   getLaunchAuth: () => invoke('breaktwenty:launch-auth'),
   getStatus: () => invoke('breaktwenty:desktop-status'),
   getMainWindowZoom: () => invoke('breaktwenty:main-window-zoom'),
+  preferences: {
+    getItem: (key) => rendererPreferenceRequest({ action: 'get', key }).value,
+    setItem: (key, value) => rendererPreferenceRequest({ action: 'set', key, value: String(value) }),
+    removeItem: (key) => rendererPreferenceRequest({ action: 'remove', key }),
+    keys: () => rendererPreferenceRequest({ action: 'keys' }).keys,
+  },
   backendRecovery: {
     acknowledge: (request) => invoke('breaktwenty:backend-recovery-acknowledge', request),
     onRecovered: (callback) => {

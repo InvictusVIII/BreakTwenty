@@ -9,10 +9,11 @@ const {
   Menu,
   ipcMain,
   screen,
+  session,
   shell,
 } = require('electron');
 const { APP_BRAND_NAME } = require('./brand');
-const { AppDiagnostics } = require('./appDiagnostics');
+const { AppDiagnostics, formatLocalFilenameTimestamp } = require('./appDiagnostics');
 const { probeBackendHealth } = require('./backendHealthProbe');
 const {
   BackendRecoveryHandoff,
@@ -26,7 +27,15 @@ const {
 const {
   createMainWindowIpcAuthorizer,
   registerPrivilegedIpcHandler,
+  registerPrivilegedIpcListener,
 } = require('./ipcAuthorization');
+const {
+  getRendererPreference,
+  listRendererPreferenceKeys,
+  removeRendererPreference,
+  setRendererPreference,
+} = require('./rendererPreferences');
+const { clearLegacyDesktopHttpCaches } = require('./httpCachePolicy');
 const {
   releaseDesktopStartupLock,
   takeOverDesktopStartupLock,
@@ -79,6 +88,7 @@ const ELECTRON_PROFILE_CACHE_BUDGETS = Object.freeze({
   ShaderCache: 32 * 1024 * 1024,
   GrShaderCache: 32 * 1024 * 1024,
 });
+const PACKAGED_RENDERER_PARTITION = 'breaktwenty-main-window-ephemeral';
 
 app.commandLine.appendSwitch('disk-cache-size', String(ELECTRON_DISK_CACHE_MAX_BYTES));
 app.commandLine.appendSwitch('media-cache-size', String(ELECTRON_MEDIA_CACHE_MAX_BYTES));
@@ -339,11 +349,54 @@ function readDesktopPreferences() {
 }
 
 function writeDesktopPreferences(preferences) {
+  const preferencesPath = desktopPreferencesPath();
+  const temporaryPath = `${preferencesPath}.${process.pid}.tmp`;
   try {
-    fs.mkdirSync(path.dirname(desktopPreferencesPath()), { recursive: true });
-    fs.writeFileSync(desktopPreferencesPath(), `${JSON.stringify(preferences, null, 2)}\n`);
-  } catch (_error) {
+    fs.mkdirSync(path.dirname(preferencesPath), { recursive: true });
+    fs.writeFileSync(temporaryPath, `${JSON.stringify(preferences, null, 2)}\n`);
+    fs.renameSync(temporaryPath, preferencesPath);
+    return true;
+  } catch (error) {
+    try {
+      fs.rmSync(temporaryPath, { force: true });
+    } catch (_cleanupError) {
+    }
+    log.warn(`Desktop preferences could not be saved: ${error.message}`);
+    return false;
   }
+}
+
+function handleRendererPreferenceRequest(request = {}) {
+  const action = String(request.action || '');
+  const preferences = readDesktopPreferences();
+  const rendererPreferences = preferences.rendererPreferences;
+  if (action === 'get') {
+    return {
+      status: 'ok',
+      value: getRendererPreference(rendererPreferences, request.key),
+    };
+  }
+  if (action === 'keys') {
+    return {
+      status: 'ok',
+      keys: listRendererPreferenceKeys(rendererPreferences),
+    };
+  }
+  const nextRendererPreferences = action === 'set'
+    ? setRendererPreference(rendererPreferences, request.key, request.value)
+    : action === 'remove'
+      ? removeRendererPreference(rendererPreferences, request.key)
+      : null;
+  if (!nextRendererPreferences) {
+    throw new Error('BreakTwenty rejected an unknown renderer preference action.');
+  }
+  if (!writeDesktopPreferences({
+    ...preferences,
+    rendererPreferences: nextRendererPreferences,
+  })) {
+    throw new Error('Desktop preference storage is unavailable.');
+  }
+  return { status: 'ok' };
 }
 
 function directorySizeExceeds(dirPath, maxBytes) {
@@ -563,6 +616,32 @@ function resetMainWindowZoomToActualSize() {
   });
 }
 
+function adjustMainWindowZoom(direction) {
+  const targetWindow = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+  const targetWebContents = targetWindow ? targetWindow.webContents : null;
+  if (!targetWebContents || targetWebContents.isDestroyed()) {
+    return;
+  }
+  const multiplier = direction === 'in' ? 1.2 : direction === 'out' ? (1 / 1.2) : 1;
+  if (multiplier === 1) {
+    return;
+  }
+  const zoomFactor = clampMainWindowZoomFactorToDisplay(
+    targetWebContents.getZoomFactor() * multiplier,
+    targetWindow.getBounds(),
+  );
+  mainWindowZoomResetPreviewActive = false;
+  mainWindowZoomUserChanged = true;
+  suppressNextMainWindowZoomSave = true;
+  targetWebContents.setZoomFactor(zoomFactor);
+  saveMainWindowZoomFactor(zoomFactor);
+  mainWindowZoomPreferenceWasStored = true;
+  notifyMainWindowZoomChanged();
+  setImmediate(() => {
+    suppressNextMainWindowZoomSave = false;
+  });
+}
+
 function applyAdaptiveMainWindowZoomForCurrentDisplay() {
   const targetWindow = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
   const targetWebContents = targetWindow ? targetWindow.webContents : null;
@@ -679,8 +758,16 @@ function installApplicationMenu() {
           accelerator: process.platform === 'darwin' ? 'Command+0' : 'Ctrl+0',
           click: resetMainWindowZoomToActualSize,
         },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
+        {
+          label: 'Zoom In',
+          accelerator: 'CmdOrCtrl+Plus',
+          click: () => adjustMainWindowZoom('in'),
+        },
+        {
+          label: 'Zoom Out',
+          accelerator: 'CmdOrCtrl+-',
+          click: () => adjustMainWindowZoom('out'),
+        },
         { type: 'separator' },
         { role: 'togglefullscreen' },
       ],
@@ -972,6 +1059,7 @@ async function recoverEmbeddedBackend({ trigger, failedHealth = null } = {}) {
       };
       if (recovered) {
         backendHealthFailureCount = 0;
+        backendManager.acknowledgeHealthyStartup();
         log.info('Controlled embedded backend recovery completed successfully.');
         const finalizeRecovered = (completion) => finalizeRecoveryIncident(incident, {
           outcome: 'recovered',
@@ -1472,9 +1560,17 @@ async function prepareBackend() {
       message: error.message,
     };
   }
-  const health = await waitForBackend({ source: 'startup' });
-  if (health.ok || BACKEND_MODE !== 'embedded') return health;
-  return recoverEmbeddedBackend({ trigger: 'startup_backend_not_ready', failedHealth: health });
+  let health = await waitForBackend({ source: 'startup' });
+  if (!health.ok && BACKEND_MODE === 'embedded') {
+    health = await recoverEmbeddedBackend({
+      trigger: 'startup_backend_not_ready',
+      failedHealth: health,
+    });
+  }
+  if (health.ok && BACKEND_MODE === 'embedded') {
+    backendManager.acknowledgeHealthyStartup();
+  }
+  return health;
 }
 
 async function waitForFrontend() {
@@ -1560,6 +1656,9 @@ function createMainWindow() {
       nodeIntegration: false,
       sandbox: true,
       zoomFactor,
+      ...(app.isPackaged && USE_PACKAGED_DYNAMIC_FRONTEND_PORT
+        ? { partition: PACKAGED_RENDERER_PARTITION }
+        : {}),
       additionalArguments: [
         `--breaktwenty-platform=${process.platform}`,
         `--breaktwenty-packaged=${app.isPackaged ? '1' : '0'}`,
@@ -1830,10 +1929,10 @@ async function exportApplicationDiagnostic(request = {}) {
   if (!incident) {
     return { status: 'error', message: 'Application diagnostic incident was not found.' };
   }
-  const timestamp = String(incident.createdAt || '')
-    .replace(/[:]/g, '-')
-    .replace(/\.\d{3}Z$/, 'Z')
-    .replace('T', '_');
+  const timestamp = formatLocalFilenameTimestamp(
+    incident.createdAt,
+    request.userTimezone,
+  );
   const defaultPath = `${APP_BRAND_NAME}_application_diagnostics_${timestamp || incidentId}.zip`;
   const result = await dialog.showSaveDialog(mainWindow || undefined, {
     title: 'Export Application Diagnostics',
@@ -1960,6 +2059,12 @@ function registerIpcHandlers() {
     registerPrivilegedIpcHandler(ipcMain, authorizePrivilegedIpc, channel, handler)
   );
   handle('breaktwenty:main-window-zoom', () => getMainWindowZoomStatus());
+  registerPrivilegedIpcListener(
+    ipcMain,
+    authorizePrivilegedIpc,
+    'breaktwenty:renderer-preference',
+    handleRendererPreferenceRequest,
+  );
 
   handle('breaktwenty:launch-auth', () => ({
     backendApiUrl,
@@ -2017,7 +2122,7 @@ if (ownsSingleInstanceLock) {
   });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   if (!ownsSingleInstanceLock) {
     return;
   }
@@ -2039,6 +2144,20 @@ app.whenReady().then(() => {
     return;
   }
   pruneElectronProfileCaches(app.getPath('userData'));
+  if (app.isPackaged) {
+    try {
+      const clearedLegacyCaches = await clearLegacyDesktopHttpCaches({
+        electronSession: session.defaultSession,
+        readPreferences: readDesktopPreferences,
+        writePreferences: writeDesktopPreferences,
+      });
+      if (clearedLegacyCaches) {
+        log.info('Cleared legacy origin-scoped renderer HTTP and code caches.');
+      }
+    } catch (error) {
+      log.warn(`Legacy renderer cache cleanup failed: ${error.message}`);
+    }
+  }
   backendManager = new BackendManager({
     app,
     appRoot: APP_ROOT,
@@ -2125,7 +2244,7 @@ app.on('before-quit', (event) => {
 });
 
 app.on('window-all-closed', () => {
-  if (ownsSingleInstanceLock && process.platform !== 'darwin') {
+  if (ownsSingleInstanceLock) {
     app.quit();
   }
 });

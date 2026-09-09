@@ -101,6 +101,47 @@ test('renders the BreakTwenty navigation shell', async () => {
   expect(localStorage.getItem('breaktwenty_last_auto_sync')).toBeNull();
 });
 
+test('respects the desktop-owned six-hour autosync cooldown across frontend origins', async () => {
+  const values = new Map([['breaktwenty_last_auto_sync', String(Date.now())]]);
+  window.breaktwentyDesktop = {
+    isDesktop: true,
+    preferences: {
+      getItem: vi.fn((key) => values.get(key) ?? null),
+      setItem: vi.fn((key, value) => values.set(key, value)),
+      removeItem: vi.fn((key) => values.delete(key)),
+      keys: vi.fn(() => [...values.keys()]),
+    },
+  };
+  const baseFetch = global.fetch.getMockImplementation();
+  global.fetch.mockImplementation((url, options = {}) => {
+    const endpoint = String(url);
+    if (endpoint.includes('/institutions/all')) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve([{ id: 7, provider: 'coinbase', name: 'Coinbase' }]),
+      });
+    }
+    if (endpoint.includes('/institutions/scope') || endpoint.endsWith('/institutions')) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve([{ id: 7, provider: 'coinbase', name: 'Coinbase', accounts: [], accountIds: [] }]),
+      });
+    }
+    return baseFetch(url, options);
+  });
+
+  render(<App />);
+
+  expect(await screen.findByLabelText('Dashboard')).toBeInTheDocument();
+  await waitFor(() => {
+    expect(global.fetch.mock.calls.some(([url]) => String(url).includes('/institutions/all'))).toBe(true);
+  });
+  expect(global.fetch.mock.calls.some(([url, options = {}]) => (
+    String(url).endsWith('/sync/batch') && (options.method || 'GET') === 'POST'
+  ))).toBe(false);
+  expect(localStorage.getItem('breaktwenty_last_auto_sync')).toBeNull();
+});
+
 test('saves the time format selected during first-run welcome setup', async () => {
   const baseFetch = global.fetch.getMockImplementation();
   const settingsWrites = [];
@@ -262,6 +303,7 @@ test('separates application incidents from institution diagnostics and exports o
   await waitFor(() => {
     expect(exportIncident).toHaveBeenCalledWith({
       incidentId: '20260826T220000Z_11111111-1111-4111-8111-111111111111',
+      userTimezone: 'America/Toronto',
     });
   });
   expect(await screen.findByText('Saved BreakTwenty_application_diagnostics.zip.')).toBeInTheDocument();

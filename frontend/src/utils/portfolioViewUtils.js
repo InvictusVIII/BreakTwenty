@@ -2,6 +2,7 @@ import { cryptoCurrencySymbol, formatMoney, stripCurrencyCodePrefix } from './fo
 import { ACCOUNT_TYPE_LABELS } from '../constants/providers';
 import { getAppliedBreakTwentyChartColors } from '../theme/applyTheme';
 import { getAppNow } from './appClock';
+import { persistentStorage } from './persistentStorage';
 
 const PORTFOLIO_CHART_COLORS_STORAGE_KEY = 'breaktwenty_dashboard_chart_colors_v2';
 export const DEFAULT_PORTFOLIO_NET_WORTH_COLOR = getAppliedBreakTwentyChartColors().netWorth;
@@ -99,7 +100,7 @@ export function hsvToHex(h, s, v) {
 
 export function loadPortfolioChartColors() {
   try {
-    const parsed = JSON.parse(localStorage.getItem(PORTFOLIO_CHART_COLORS_STORAGE_KEY) || '{}');
+    const parsed = JSON.parse(persistentStorage.getItem(PORTFOLIO_CHART_COLORS_STORAGE_KEY) || '{}');
     const normalizeNetWorthColor = (color) => normalizeChartColor(color);
     const normalizeColorMap = (source) => {
       const colors = {};
@@ -131,7 +132,7 @@ export function loadPortfolioChartColors() {
 
 export function persistPortfolioChartColors(colors) {
   try {
-    localStorage.setItem(PORTFOLIO_CHART_COLORS_STORAGE_KEY, JSON.stringify(colors));
+    persistentStorage.setItem(PORTFOLIO_CHART_COLORS_STORAGE_KEY, JSON.stringify(colors));
   } catch (err) {
     void err;
   }

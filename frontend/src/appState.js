@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useState } from 'react';
 import { BREAKTWENTY_DEFAULT_THEME_MODE } from './theme/applyTheme';
+import { persistentStorage } from './utils/persistentStorage';
 
 export const RightTrayContext = createContext({
   register: () => () => {},
@@ -91,7 +92,7 @@ function readPanelCollapsed(storageKey, defaultCollapsed) {
   if (typeof window === 'undefined') return Boolean(defaultCollapsed);
 
   try {
-    const stored = window.localStorage.getItem(storageKey);
+    const stored = persistentStorage.getItem(storageKey);
     if (stored === 'true') return true;
     if (stored === 'false') return false;
   } catch {
@@ -108,7 +109,7 @@ export function usePersistentPanelCollapsed(panelKey, defaultCollapsed = false) 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      window.localStorage.setItem(storageKey, String(Boolean(collapsed)));
+      persistentStorage.setItem(storageKey, String(Boolean(collapsed)));
     } catch {
       // Ignore unavailable local storage; the panel still works for the session.
     }

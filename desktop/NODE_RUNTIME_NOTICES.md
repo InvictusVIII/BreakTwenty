@@ -12,7 +12,7 @@ Each package remains under its own licence; those terms do not apply to original
 | electron-updater | 6.8.9 | MIT |
 | fs-extra | 10.1.0 | MIT |
 | graceful-fs | 4.2.11 | ISC |
-| js-yaml | 4.3.1 | MIT |
+| js-yaml | 4.3.2 | MIT |
 | jsonfile | 6.2.1 | MIT |
 | lazy-val | 1.0.5 | MIT |
 | lodash.escaperegexp | 4.1.2 | MIT |
@@ -440,7 +440,7 @@ Source: <https://github.com/isaacs/node-graceful-fs>
     ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
     IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-### js-yaml 4.3.1
+### js-yaml 4.3.2
 
 Source: <https://github.com/nodeca/js-yaml>
 

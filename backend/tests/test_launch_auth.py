@@ -96,6 +96,33 @@ class LaunchAuthIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(response.status_code, 401)
                 self.assertEqual(response.headers.get("www-authenticate"), "Bearer")
 
+    async def test_api_cache_policy_wraps_authorized_and_rejected_responses(self) -> None:
+        rejected = await self.request("GET", "/api/health")
+        authorized = await self.request(
+            "GET",
+            "/api/not-a-route",
+            headers={"Authorization": f"Bearer {self.renderer_token}"},
+        )
+        preflight = await self.request(
+            "OPTIONS",
+            "/api/accounts",
+            headers={
+                "Origin": "http://127.0.0.1:32100",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+
+        self.assertEqual(rejected.status_code, 401)
+        self.assertEqual(rejected.headers["cache-control"], "no-store")
+        self.assertEqual(authorized.status_code, 404)
+        self.assertEqual(authorized.headers["cache-control"], "no-store")
+        self.assertEqual(preflight.status_code, 200)
+        self.assertEqual(preflight.headers["cache-control"], "no-store")
+        self.assertEqual(
+            preflight.headers["access-control-allow-origin"],
+            "http://127.0.0.1:32100",
+        )
+
     async def test_embedded_backend_ownership_proof_authenticates_without_bearer(self) -> None:
         key_material.get_key_material()
         challenge = base64.urlsafe_b64encode(b"c" * 32).decode("ascii").rstrip("=")

@@ -75,6 +75,7 @@ TRANSACTION_JOB_QUEUED_REVIVE_SECONDS = 60
 # canonical add-flow source was renamed to ``add_connection``.
 NON_REVIVABLE_JOB_REASONS = frozenset({"add_connection", "provider_add"})
 TRANSACTION_JOB_CRASH_ERROR_PREFIX = "Transaction import task crashed"
+TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE = "Transaction import resumed after backend restart."
 TRANSACTION_JOB_LEASE_DURATION = timedelta(minutes=5)
 TRANSACTION_JOB_LEASE_RENEW_INTERVAL_SECONDS = 60
 TRANSACTION_IMPORT_NETWORK_RECOVERY_REASONS = frozenset({"autosync", "sync_all"})
@@ -527,7 +528,7 @@ async def resume_transaction_import_jobs(*, force_running: bool = False) -> None
             job.lease_token = None
             job.lease_expires_at = None
             job.last_error = (
-                "Transaction import resumed after backend restart."
+                TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE
                 if resumable
                 else "Interrupted one-shot add import; retry needed."
             )

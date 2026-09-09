@@ -6,6 +6,7 @@ const test = require('node:test');
 const {
   createMainWindowIpcAuthorizer,
   registerPrivilegedIpcHandler,
+  registerPrivilegedIpcListener,
 } = require('./ipcAuthorization');
 
 function fixture({ senderUrl = 'http://127.0.0.1:3000/accounts', sameSender = true, mainFrame = true } = {}) {
@@ -47,6 +48,30 @@ test('privileged IPC rejects non-main senders, subframes, and remote or credenti
     });
     assert.throws(() => authorize(event), /untrusted desktop request/);
   }
+});
+
+test('privileged synchronous IPC returns data only to the approved main frame', () => {
+  const trusted = fixture();
+  const rejected = fixture({ senderUrl: 'http://evil.test:3000/accounts' });
+  const listeners = new Map();
+  const ipcMain = { on: (channel, listener) => listeners.set(channel, listener) };
+  const authorize = createMainWindowIpcAuthorizer({
+    getMainWindow: () => trusted.window,
+    getFrontendUrl: () => 'http://127.0.0.1:3000',
+  });
+  registerPrivilegedIpcListener(ipcMain, authorize, 'breaktwenty:probe-sync', (payload) => ({
+    status: 'ok',
+    value: payload,
+  }));
+
+  listeners.get('breaktwenty:probe-sync')(trusted.event, 'saved');
+  assert.deepEqual(trusted.event.returnValue, { status: 'ok', value: 'saved' });
+
+  rejected.event.sender = trusted.window.webContents;
+  rejected.event.senderFrame = trusted.window.webContents.mainFrame;
+  rejected.event.senderFrame.url = 'http://evil.test:3000/accounts';
+  listeners.get('breaktwenty:probe-sync')(rejected.event, 'blocked');
+  assert.equal(rejected.event.returnValue.status, 'error');
 });
 
 test('all desktop IPC registrations use the privileged registration boundary', () => {

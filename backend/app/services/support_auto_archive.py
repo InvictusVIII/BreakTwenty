@@ -626,7 +626,7 @@ def _desktop_runtime_identity() -> tuple[str | None, str | None]:
     return app_version, platform
 
 
-def _scrub_state_last_errors(snapshots: dict[str, dict[str, Any]]) -> None:
+def _scrub_state_messages(snapshots: dict[str, dict[str, Any]]) -> None:
     for snapshot_name, payload in list(snapshots.items()):
         if not isinstance(payload, dict):
             continue
@@ -640,8 +640,11 @@ def _scrub_state_last_errors(snapshots: dict[str, dict[str, Any]]) -> None:
             if not isinstance(collection, list):
                 continue
             for row in collection:
-                if isinstance(row, dict) and "last_error" in row:
-                    row["last_error"] = _sanitize_error_text(row.get("last_error"))
+                if not isinstance(row, dict):
+                    continue
+                for field in ("last_error", "recovery_message"):
+                    if field in row:
+                        row[field] = _sanitize_error_text(row.get(field))
 
 
 def _isoformat_optional(value: Any) -> str | None:
@@ -682,6 +685,7 @@ async def _collect_current_state_at_export(user_id: int | None) -> dict[str, Any
             TransactionImportJob,
             TransactionImportWindow,
         )
+        from app.services.support_diagnostics import _diagnostic_job_message_fields
     except Exception as exc:
         payload["collection_error"] = _sanitize_error_text(f"{type(exc).__name__}: {exc}")
         return payload
@@ -819,6 +823,10 @@ async def _collect_current_state_at_export(user_id: int | None) -> dict[str, Any
         job_counts = Counter(summary["transaction_import_job_status_counts"])
         job_counts[str(job.status or "unknown")] += 1
         summary["transaction_import_job_status_counts"] = dict(sorted(job_counts.items()))
+        diagnostic_message_fields = {
+            field: _sanitize_error_text(value)
+            for field, value in _diagnostic_job_message_fields(job.last_error).items()
+        }
         job_payload = {
             "job_id": job.job_id,
             "status": job.status,
@@ -826,7 +834,7 @@ async def _collect_current_state_at_export(user_id: int | None) -> dict[str, Any
             "sync_id": job.sync_id,
             "source_sync_id": job.source_sync_id,
             "attempt_id": job.attempt_id,
-            "last_error": _sanitize_error_text(job.last_error),
+            **diagnostic_message_fields,
             "lease_token_set": bool(job.lease_token),
             "created_at": _isoformat_optional(job.created_at),
             "started_at": _isoformat_optional(job.started_at),
@@ -900,7 +908,10 @@ async def archive_run(
         return None
 
     try:
-        from app.services.support_diagnostics import _collect_state_snapshots
+        from app.services.support_diagnostics import (
+            _collect_state_snapshots,
+            _diagnostic_job_message_fields,
+        )
     except Exception as exc:
         logger.warning("auto-archive state snapshot import failed: %s", exc)
         return None
@@ -944,6 +955,13 @@ async def archive_run(
     since = now - RUN_BUFFER_WINDOW_BEFORE
     until = now + RUN_BUFFER_WINDOW_AFTER
 
+    diagnostic_message_fields = {
+        field: await asyncio.to_thread(_sanitize_error_text, value)
+        for field, value in _diagnostic_job_message_fields(
+            error,
+            error_field="error",
+        ).items()
+    }
     trigger_payload: dict[str, Any] = {
         "schema_version": 2,
         "generated_at": now.isoformat(),
@@ -965,7 +983,7 @@ async def archive_run(
             if isinstance(extra_fields, dict)
             else None
         ),
-        "error": await asyncio.to_thread(_sanitize_error_text, error),
+        **diagnostic_message_fields,
         "buffer_metadata": buffer_metadata(
             normalized_provider,
             user_id=user_id,
@@ -1076,7 +1094,7 @@ async def archive_run(
             logger.warning("auto-archive state snapshot collect failed provider=%s: %s", normalized_provider, exc)
             snapshots = {"collection_errors.json": {"error": _sanitize_error_text(str(exc))}}
         else:
-            _scrub_state_last_errors(snapshots)
+            _scrub_state_messages(snapshots)
         state_dir = run_dir / "state"
         try:
             state_dir.mkdir(parents=True, exist_ok=True)
@@ -1565,6 +1583,7 @@ def _summarize_run(provider_root: Path, run_dir: Path) -> dict[str, Any]:
         "capture_level": trigger_payload.get("capture_level"),
         "user_id": trigger_payload.get("user_id"),
         "error": trigger_payload.get("error"),
+        "recovery_message": trigger_payload.get("recovery_message"),
         "generated_at": trigger_payload.get("generated_at"),
         "files": files,
     }

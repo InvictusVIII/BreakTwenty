@@ -1160,6 +1160,261 @@ class RBCVisibleAuthCaptureLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(0, len(capture_state.tasks))
 
 
+class ScotiabankVisibleAuthCaptureLifecycleTests(unittest.IsolatedAsyncioTestCase):
+    def test_authenticated_route_accepts_current_my_accounts_path(self):
+        self.assertTrue(
+            scotiabank_visible_auth._scotia_authenticated_accounts_route(
+                "https://secure.scotiabank.com/my-accounts?lng=en"
+            )
+        )
+        self.assertTrue(
+            scotiabank_visible_auth._scotia_authenticated_accounts_route(
+                "https://secure.scotiabank.com/accounts?lng=en"
+            )
+        )
+        self.assertFalse(
+            scotiabank_visible_auth._scotia_authenticated_accounts_route(
+                "https://auth.scotiaonline.scotiabank.com/my-accounts"
+            )
+        )
+
+    def test_authentication_request_summary_retains_only_value_presence(self):
+        capture_state = scotiabank_visible_auth.ScotiaCredentialCaptureState()
+        post_data = json.dumps(
+            [
+                {"type": "username", "value": "client-card"},
+                {"type": "password", "value": "real-password"},
+                {"type": "challenge", "value": None},
+            ]
+        )
+
+        credential_request = scotiabank_visible_auth._record_scotia_authentication_request(
+            capture_state,
+            post_data=post_data,
+            source="request",
+        )
+
+        self.assertTrue(credential_request)
+        summary = capture_state.summary()
+        self.assertEqual(1, summary["request_auth_post_count"])
+        self.assertEqual(2, summary["request_value_present_count"])
+        self.assertEqual(1, summary["request_value_missing_count"])
+        self.assertNotIn("client-card", json.dumps(summary))
+        self.assertNotIn("real-password", json.dumps(summary))
+
+    async def test_request_signal_schedules_and_drains_bounded_field_capture(self):
+        class FakePage:
+            def __init__(self):
+                self.handlers = {}
+
+            def on(self, event, callback):
+                self.handlers[event] = callback
+
+        page = FakePage()
+        credentials = {"username": "", "password": ""}
+        capture_state = scotiabank_visible_auth.ScotiaCredentialCaptureState()
+        request = types.SimpleNamespace(
+            method="POST",
+            url="https://auth.scotiaonline.scotiabank.com/v2/authentications/auth-id",
+            post_data=json.dumps([{"type": "password", "value": "real-password"}]),
+        )
+
+        with patch.object(
+            scotiabank_visible_auth,
+            "_capture_scotia_raw_input_credentials_burst",
+            new=AsyncMock(),
+        ) as capture_burst:
+            scotiabank_visible_auth._install_scotia_request_capture(
+                page,
+                credentials,
+                capture_state,
+            )
+            page.handlers["request"](request)
+            drained = await scotiabank_visible_auth._drain_scotia_capture_tasks(capture_state)
+
+        self.assertTrue(drained)
+        capture_burst.assert_awaited_once_with(page, credentials)
+        summary = capture_state.summary()
+        self.assertEqual(1, summary["capture_task_scheduled_count"])
+        self.assertEqual(1, summary["capture_task_completed_count"])
+        self.assertEqual(1, summary["request_auth_post_count"])
+        self.assertEqual(1, summary["request_value_present_count"])
+        self.assertNotIn("real-password", json.dumps(summary))
+
+    async def test_windows_auth_route_captures_fields_before_request_continues(self):
+        credentials = {"username": "", "password": ""}
+        capture_state = scotiabank_visible_auth.ScotiaCredentialCaptureState()
+        page = types.SimpleNamespace(is_closed=Mock(return_value=False))
+
+        class FakeContext:
+            def __init__(self):
+                self.pattern = ""
+                self.handler = None
+
+            async def route(self, pattern, handler):
+                self.pattern = pattern
+                self.handler = handler
+
+        class FakeRoute:
+            def __init__(self):
+                self.continued = False
+
+            async def continue_(self):
+                if (
+                    credentials.get("username") != "client-card"
+                    or credentials.get("password") != "real-password"
+                ):
+                    raise AssertionError("Scotiabank auth request continued before live-field capture")
+                self.continued = True
+
+        async def capture_live_fields(_page, captured_credentials, **_kwargs):
+            self.assertIs(page, _page)
+            scotiabank_visible_auth._capture_scotia_username(
+                captured_credentials,
+                "client-card",
+                source="raw",
+            )
+            scotiabank_visible_auth._capture_scotia_password(
+                captured_credentials,
+                "real-password",
+                source="raw",
+            )
+
+        context = FakeContext()
+        route = FakeRoute()
+        request = types.SimpleNamespace(
+            method="POST",
+            url="https://auth.scotiaonline.scotiabank.com/v2/authentications/auth-id",
+            post_data=json.dumps(
+                [
+                    {"type": "username", "value": "client-card"},
+                    {"type": "password", "value": "real-password"},
+                ]
+            ),
+            frame=types.SimpleNamespace(page=page),
+        )
+
+        with (
+            patch.object(scotiabank_visible_auth, "SCOTIA_WINDOWS_FLOW", True),
+            patch.object(
+                scotiabank_visible_auth,
+                "_capture_scotia_raw_input_credentials",
+                side_effect=capture_live_fields,
+            ),
+        ):
+            await scotiabank_visible_auth._install_scotia_windows_auth_route_capture(
+                context,
+                credentials,
+                capture_state,
+            )
+            await context.handler(route, request)
+
+        self.assertEqual(scotiabank_visible_auth.SCOTIA_WINDOWS_AUTH_ROUTE_PATTERN, context.pattern)
+        self.assertTrue(route.continued)
+        self.assertEqual(
+            ("client-card", "real-password"),
+            scotiabank_visible_auth.collect_scotia_credentials(credentials),
+        )
+        summary = scotiabank_visible_auth._scotia_credential_capture_details(credentials, capture_state)
+        self.assertEqual(1, summary["route_install_success_count"])
+        self.assertEqual(1, summary["route_auth_post_count"])
+        self.assertEqual(2, summary["route_value_present_count"])
+        self.assertNotIn("client-card", json.dumps(summary))
+        self.assertNotIn("real-password", json.dumps(summary))
+
+    async def test_windows_auth_route_continues_noncredential_auth_request(self):
+        capture_state = scotiabank_visible_auth.ScotiaCredentialCaptureState()
+
+        class FakeContext:
+            def __init__(self):
+                self.handler = None
+
+            async def route(self, _pattern, handler):
+                self.handler = handler
+
+        route = types.SimpleNamespace(continue_=AsyncMock())
+        request = types.SimpleNamespace(
+            method="POST",
+            url="https://auth.scotiaonline.scotiabank.com/v2/authentications",
+            post_data=json.dumps({"authenticator_key": None, "user_key": None}),
+        )
+        context = FakeContext()
+
+        with patch.object(scotiabank_visible_auth, "SCOTIA_WINDOWS_FLOW", True):
+            await scotiabank_visible_auth._install_scotia_windows_auth_route_capture(
+                context,
+                {"username": "", "password": ""},
+                capture_state,
+            )
+            await context.handler(route, request)
+
+        route.continue_.assert_awaited_once_with()
+        self.assertEqual(1, capture_state.route_auth_post_count)
+        self.assertEqual(0, capture_state.route_value_present_count)
+
+    async def test_live_field_capture_prioritizes_ephemeral_password(self):
+        credentials = {"username": "", "password": ""}
+        calls = []
+
+        async def input_value(_page, selectors, **_kwargs):
+            calls.append(selectors)
+            if selectors is scotiabank_visible_auth.SCOTIA_PASSWORD_CAPTURE_SELECTORS:
+                return "real-password"
+            return "client-card"
+
+        with patch.object(
+            scotiabank_visible_auth,
+            "_scotia_first_input_value",
+            side_effect=input_value,
+        ):
+            await scotiabank_visible_auth._capture_scotia_raw_input_credentials(
+                object(),
+                credentials,
+                include_hidden_fallback=True,
+            )
+
+        self.assertEqual(
+            [
+                scotiabank_visible_auth.SCOTIA_PASSWORD_CAPTURE_SELECTORS,
+                scotiabank_visible_auth.SCOTIA_USERNAME_CAPTURE_SELECTORS,
+            ],
+            calls,
+        )
+        self.assertEqual(
+            ("client-card", "real-password"),
+            scotiabank_visible_auth.collect_scotia_credentials(credentials),
+        )
+
+    async def test_response_capture_accepts_current_my_accounts_summary_path(self):
+        class FakePage:
+            def __init__(self):
+                self.handlers = {}
+
+            def on(self, event, callback):
+                self.handlers[event] = callback
+
+        page = FakePage()
+        response = types.SimpleNamespace(
+            url="https://secure.scotiabank.com/my-accounts/api/summary?isAccountSummaryPage=true",
+            status=200,
+            text=AsyncMock(
+                return_value=json.dumps(
+                    {"data": {"products": [{"key": "account-key"}]}}
+                )
+            ),
+        )
+
+        scotiabank_visible_auth._install_scotia_response_capture(page)
+        page.handlers["response"](response)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+
+        self.assertEqual(
+            {"data": {"products": [{"key": "account-key"}]}},
+            getattr(page, "_scotia_accounts_payload"),
+        )
+
+
 class BMOVisibleAuthSessionArtifactTests(unittest.TestCase):
     def test_sanitized_har_filename_carries_sync_and_attempt_identity(self):
         with (

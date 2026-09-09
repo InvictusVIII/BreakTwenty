@@ -9,6 +9,21 @@ const UPDATE_AUTH_MUTATION_BLOCKED_STATUSES = new Set([
   'installing',
 ]);
 
+function displayedAppVersion({
+  appVersion,
+  isPackaged,
+  sourceCommit = process.env.BREAKTWENTY_SOURCE_COMMIT,
+}) {
+  if (isPackaged) {
+    return String(appVersion || 'Unknown');
+  }
+  const normalizedCommit = String(sourceCommit || '').trim();
+  if (/^[0-9a-f]{7,64}$/i.test(normalizedCommit)) {
+    return `Development build (source ${normalizedCommit.slice(0, 12)})`;
+  }
+  return 'Development build';
+}
+
 function prereleaseUpdatesEnabled({
   appVersion,
   argv = process.argv,
@@ -22,6 +37,22 @@ function prereleaseUpdatesEnabled({
     env.BREAKTWENTY_ALLOW_PRERELEASE_UPDATES === '1'
     || argv.includes('--allow-prerelease-updates')
     || String(appVersion || '').includes('-')
+  );
+}
+
+function prereleaseToStableFallbackAllowed({
+  error,
+  appVersion,
+  allowPrerelease,
+  privateFeed = false,
+  explicitChannel = false,
+}) {
+  return (
+    !privateFeed
+    && !explicitChannel
+    && allowPrerelease === true
+    && String(appVersion || '').includes('-')
+    && error?.code === 'ERR_UPDATER_NO_PUBLISHED_VERSIONS'
   );
 }
 
@@ -83,6 +114,8 @@ function stateAfterUpdateFeedChange({ enabled, disabledMessage, successMessage }
 
 module.exports = {
   buildStampedGithubFeed,
+  displayedAppVersion,
+  prereleaseToStableFallbackAllowed,
   prereleaseUpdatesEnabled,
   readStampedUpdateConfiguration,
   stateAfterUpdateFeedChange,

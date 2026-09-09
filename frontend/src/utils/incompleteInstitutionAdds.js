@@ -1,5 +1,6 @@
 import { API } from '../config';
 import { ADD_INSTITUTION_SYNC_REQUEST_TIMEOUT_MS } from './syncRequests';
+import { persistentStorage } from './persistentStorage';
 
 const PENDING_ADD_PREFIX = 'breaktwenty_pending_add_provider_';
 const INTERRUPTED_ADD_PREFIX = 'breaktwenty_interrupted_add_provider_';
@@ -21,7 +22,7 @@ function getInterruptedAddKey(provider) {
 function getPendingAddMarker(provider) {
   if (!provider) return null;
   try {
-    return JSON.parse(localStorage.getItem(getPendingAddKey(provider)) || 'null');
+    return JSON.parse(persistentStorage.getItem(getPendingAddKey(provider)) || 'null');
   } catch (_) {
     return null;
   }
@@ -43,7 +44,7 @@ function markerMatchesAttempt(provider, attemptId) {
 export function markPendingInstitutionAdd(provider) {
   if (!provider) return '';
   const attemptId = createAttemptId(provider);
-  localStorage.setItem(getPendingAddKey(provider), JSON.stringify({
+  persistentStorage.setItem(getPendingAddKey(provider), JSON.stringify({
     provider,
     attemptId,
     startedAt: Date.now(),
@@ -69,13 +70,13 @@ export function hasInterruptedInstitutionAdd(provider) {
 export function clearPendingInstitutionAdd(provider, attemptId = '') {
   if (!provider) return;
   if (attemptId && !markerMatchesAttempt(provider, attemptId)) return;
-  localStorage.removeItem(getPendingAddKey(provider));
+  persistentStorage.removeItem(getPendingAddKey(provider));
 }
 
 export function getPendingInstitutionAddProviders() {
   const providers = [];
-  for (let index = 0; index < localStorage.length; index += 1) {
-    const key = localStorage.key(index);
+  for (let index = 0; index < persistentStorage.length; index += 1) {
+    const key = persistentStorage.key(index);
     if (!key || !key.startsWith(PENDING_ADD_PREFIX)) continue;
     const provider = key.slice(PENDING_ADD_PREFIX.length);
     if (provider) providers.push(provider);

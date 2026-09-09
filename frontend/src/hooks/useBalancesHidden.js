@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
+import { persistentStorage } from '../utils/persistentStorage';
 
 const STORAGE_KEY = 'breaktwenty_hide_balances';
 const EVENT_NAME = 'breaktwenty:balances-hidden-change';
 
 function readStoredValue() {
   if (typeof window === 'undefined') return false;
-  return window.localStorage.getItem(STORAGE_KEY) === 'true';
+  return persistentStorage.getItem(STORAGE_KEY) === 'true';
 }
 
 export function getBalancesHidden() {
@@ -15,7 +16,7 @@ export function getBalancesHidden() {
 export function setBalancesHidden(nextValue) {
   if (typeof window === 'undefined') return;
   const normalized = Boolean(nextValue);
-  window.localStorage.setItem(STORAGE_KEY, String(normalized));
+  persistentStorage.setItem(STORAGE_KEY, String(normalized));
   window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: normalized }));
 }
 
