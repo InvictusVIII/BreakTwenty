@@ -198,6 +198,21 @@ describe('provider sync display authority', () => {
     });
   });
 
+  it('maps an IBKR provider delay to an amber retryable status with the durable tooltip copy', () => {
+    expect(resolve({
+      institution: { id: 12, provider: 'ibkr', name: 'Interactive Brokers', sync_status: 'provider_delayed' },
+    })).toMatchObject({
+      label: 'Sync delayed',
+      tone: 'delayed',
+      colorClass: 'is-delayed',
+      actionTarget: 'sync',
+      tooltipRows: [
+        'Last sync: 2 hours ago',
+        'IBKR did not finish generating the Flex report within 2½ minutes. BreakTwenty will retry on the next sync',
+      ],
+    });
+  });
+
   it('allows green Synced only when the full provider contract is complete', () => {
     expect(resolve()).toMatchObject({ label: 'Synced', tone: 'synced', iconState: 'sync' });
     expect(resolve({ manualSyncState: { status: 'ok', justSynced: true } })).toMatchObject({

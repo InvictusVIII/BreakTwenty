@@ -18,6 +18,7 @@ from app.database import async_session
 from app.services.flex_query import (
     IBKR_FLEX_NETWORK_BLOCKED_MESSAGE,
     IBKRFlexNetworkBlockedError,
+    IBKRFlexReportPendingTimeout,
     get_flex_credentials,
     get_flex_report,
     is_flex_network_block_message,
@@ -32,9 +33,9 @@ logger = get_connector_logger("ibkr_flex")
 
 IBKR_FLEX_MAX_BACKFILL_DAYS = 365
 IBKR_FLEX_BACKFILL_CHUNK_DAYS = 365
-IBKR_FLEX_TEMPORARY_SKIP_MESSAGE = (
-    "IBKR Flex statement generation is temporarily unavailable. "
-    f"Previous IBKR data was kept; {APP_BRAND_NAME} will retry on the next sync."
+IBKR_FLEX_DELAYED_MESSAGE = (
+    "IBKR did not finish generating the Flex report within 2½ minutes. "
+    f"{APP_BRAND_NAME} will retry on the next sync"
 )
 
 
@@ -73,7 +74,23 @@ class IBKRFlexConnector(ApiProviderConnectorBase):
         return _is_ibkr_flex_auth_error(str(exc)) or super().is_auth_required_exception(exc)
 
     def exception_result(self, user_id: int, exc: Exception, *, stage: str = "sync failed") -> SyncResult:
-        if isinstance(exc, IBKRFlexNetworkBlockedError) or is_flex_network_block_message(str(exc)):
+        message = str(exc)
+        if isinstance(exc, IBKRFlexReportPendingTimeout) or is_transient_flex_message(message):
+            log_connector_event(
+                logger,
+                provider=self.provider,
+                stage="statement generation deferred",
+                level="warning",
+                user_id=user_id,
+                message=message,
+                sync_scope=self.sync_scope(),
+            )
+            return SyncResult(
+                status=SyncStatus.PROVIDER_DELAYED,
+                message=IBKR_FLEX_DELAYED_MESSAGE,
+                transaction_import_deferred=True,
+            )
+        if isinstance(exc, IBKRFlexNetworkBlockedError) or is_flex_network_block_message(message):
             return self.network_error_result(
                 user_id=user_id,
                 message=IBKR_FLEX_NETWORK_BLOCKED_MESSAGE,
@@ -116,25 +133,7 @@ class IBKRFlexConnector(ApiProviderConnectorBase):
             )
 
         try:
-            try:
-                xml_text = await get_flex_report(token, query_id, user_id=user_id)
-            except Exception as exc:
-                if is_transient_flex_message(str(exc)):
-                    log_connector_event(
-                        logger,
-                        provider=self.provider,
-                        stage="statement generation deferred",
-                        level="warning",
-                        user_id=user_id,
-                        message=str(exc),
-                        sync_scope=self.sync_scope(),
-                    )
-                    return SyncResult(
-                        status=SyncStatus.SKIPPED,
-                        message=IBKR_FLEX_TEMPORARY_SKIP_MESSAGE,
-                        transaction_import_deferred=True,
-                    )
-                raise
+            xml_text = await get_flex_report(token, query_id, user_id=user_id)
             accounts_data = parse_flex_report(xml_text)
             if not accounts_data:
                 log_connector_event(

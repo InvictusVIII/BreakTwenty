@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   admitAutoSyncRun,
+  fetchLiveAutoSyncInstitutions,
   startIndependentSyncLanes,
 } from './syncOrchestration';
 
@@ -77,5 +78,34 @@ describe('startIndependentSyncLanes', () => {
       moomooPromise: null,
       batchPromise: null,
     });
+  });
+});
+
+describe('fetchLiveAutoSyncInstitutions', () => {
+  it('loads the real enabled institution list through the supplied boundary', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{ id: 42, provider: 'amex' }],
+    });
+
+    await expect(fetchLiveAutoSyncInstitutions({
+      fetchImpl,
+      apiBase: 'http://127.0.0.1:8000/api',
+    })).resolves.toEqual([{ id: 42, provider: 'amex' }]);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'http://127.0.0.1:8000/api/institutions/all',
+    );
+  });
+
+  it('rejects a malformed live institution response without admitting provider work', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ institutions: [] }),
+    });
+
+    await expect(fetchLiveAutoSyncInstitutions({
+      fetchImpl,
+      apiBase: 'http://127.0.0.1:8000/api',
+    })).rejects.toThrow('Live institutions could not be loaded for autosync.');
   });
 });

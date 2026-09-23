@@ -18,6 +18,28 @@ export function todayLocalDateValue() {
   return toLocalDateValue(getAppNow());
 }
 
+export function formatPurchaseDate(iso) {
+  if (!iso) return '';
+  const datePrefix = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (datePrefix) {
+    const [, year, month, day] = datePrefix;
+    const localDate = new Date(Number(year), Number(month) - 1, Number(day));
+    return localDate.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  }
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime())
+    ? ''
+    : date.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+}
+
 export function formatShortDateValue(dateStr, fallback = '') {
   if (!dateStr) return fallback;
   const date = parseLocalDateValue(dateStr);

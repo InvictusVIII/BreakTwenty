@@ -722,7 +722,7 @@ test('specialized round controls preserve their edge and square-shell geometry',
     'utf8'
   );
   const scopeSelectorSource = fs.readFileSync(
-    path.join(sourceRoot, 'components', 'InstitutionAccountSelector.js'),
+    path.join(sourceRoot, 'components', 'ScopeSelectorTrigger.js'),
     'utf8'
   );
   const timelineTriggerSource = fs.readFileSync(

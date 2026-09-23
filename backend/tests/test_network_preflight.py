@@ -13,6 +13,7 @@ from app.services.network_preflight import (
     _run_dns_resolution_sync,
     _run_network_preflight_sync,
     collect_sanitized_resolver_facts,
+    is_recoverable_dns_preflight_result,
     is_temporary_dns_preflight_result,
     provider_preflight_host,
     run_provider_dns_resolution,
@@ -27,6 +28,18 @@ class _FakeConnection:
 
     def close(self) -> None:
         self.closed = True
+
+
+def _noname_result(provider="coinbase", host="api.coinbase.com"):
+    return DnsResolutionResult(
+        provider=provider,
+        host=host,
+        status="failed",
+        diagnosis="dns_lookup_failed_from_backend_runtime",
+        duration_ms=1,
+        error_code=socket.EAI_NONAME,
+        error_name="EAI_NONAME",
+    )
 
 
 class NetworkPreflightTests(unittest.IsolatedAsyncioTestCase):
@@ -112,6 +125,116 @@ class NetworkPreflightTests(unittest.IsolatedAsyncioTestCase):
             ),
             result,
         )
+
+    async def test_noname_recovers_when_independent_dns_canary_also_fails(self) -> None:
+        failure = _noname_result()
+        with patch(
+            "app.services.network_preflight._run_dns_resolution",
+            new=AsyncMock(return_value=_noname_result("internet_canary", "example.com")),
+        ) as probe:
+            self.assertTrue(await is_recoverable_dns_preflight_result(failure))
+
+        probe.assert_awaited_once()
+        self.assertEqual(("internet_canary", "example.com"), probe.await_args.args)
+
+    async def test_noname_recovers_when_dns_is_already_restored(self) -> None:
+        resolved = DnsResolutionResult(
+            provider="internet_canary",
+            host="example.com",
+            status="resolved",
+            diagnosis="test",
+            duration_ms=1,
+            resolved_addresses=("203.0.113.10",),
+        )
+        with patch(
+            "app.services.network_preflight._run_dns_resolution",
+            new=AsyncMock(return_value=resolved),
+        ) as probe:
+            self.assertTrue(await is_recoverable_dns_preflight_result(_noname_result()))
+
+        self.assertEqual(2, probe.await_count)
+        self.assertEqual(("coinbase", "api.coinbase.com"), probe.await_args.args)
+
+    async def test_isolated_noname_does_not_retry_a_missing_provider_hostname(self) -> None:
+        resolved = DnsResolutionResult(
+            provider="internet_canary",
+            host="example.com",
+            status="resolved",
+            diagnosis="test",
+            duration_ms=1,
+        )
+        with patch(
+            "app.services.network_preflight._run_dns_resolution",
+            new=AsyncMock(side_effect=[resolved, _noname_result()]),
+        ):
+            self.assertFalse(await is_recoverable_dns_preflight_result(_noname_result()))
+
+    async def test_provider_tcp_failure_does_not_enter_dns_recovery(self) -> None:
+        failure = NetworkPreflightResult(
+            provider="coinbase",
+            host="api.coinbase.com",
+            port=443,
+            status="tcp_failed",
+            diagnosis="dns_resolved_but_tcp_connect_failed_from_backend_runtime",
+            duration_ms=1,
+            error_name="ETIMEDOUT",
+        )
+        with patch(
+            "app.services.network_preflight._run_dns_resolution",
+            new=AsyncMock(),
+        ) as probe:
+            self.assertFalse(await is_recoverable_dns_preflight_result(failure))
+
+        probe.assert_not_awaited()
+
+    async def test_gate_waits_through_noname_outage_then_recovers(self) -> None:
+        resolved = DnsResolutionResult(
+            provider="coinbase",
+            host="api.coinbase.com",
+            status="resolved",
+            diagnosis="test",
+            duration_ms=1,
+        )
+        with patch(
+            "app.services.network_preflight._run_dns_resolution",
+            new=AsyncMock(side_effect=[
+                _noname_result(),
+                _noname_result("internet_canary", "example.com"),
+                resolved,
+                _noname_result("internet_canary", "example.com"),
+            ]),
+        ):
+            result = await run_sync_network_gate(
+                ["coinbase"],
+                user_id=None,
+                flow="transaction_import_recovery",
+                mode="autosync",
+                retry_delays_seconds=(0.0,),
+            )
+
+        self.assertEqual("ready", result.status)
+        self.assertEqual(2, result.attempts)
+
+    async def test_noname_outage_exhausts_the_existing_gate_budget(self) -> None:
+        with (
+            patch(
+                "app.services.network_preflight._run_dns_resolution",
+                new=AsyncMock(side_effect=lambda provider, host, **_kwargs: _noname_result(provider, host)),
+            ) as probe,
+            patch("app.services.network_preflight.collect_sanitized_resolver_facts", return_value={}),
+            patch("app.services.network_preflight._log_sanitized_resolver_context"),
+        ):
+            result = await run_sync_network_gate(
+                ["coinbase"],
+                user_id=None,
+                flow="batch",
+                mode="auto",
+                retry_delays_seconds=(0.0, 0.0),
+            )
+
+        self.assertEqual("blocked", result.status)
+        self.assertEqual(3, result.attempts)
+        self.assertEqual(6, probe.await_count)
 
     async def test_dns_failure_returns_dns_failed(self) -> None:
         with patch(

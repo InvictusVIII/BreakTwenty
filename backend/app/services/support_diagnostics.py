@@ -16,6 +16,7 @@ from app.models import (
     TransactionImportWindow,
 )
 from app.services.auth_artifact_utils import normalize_provider as _normalize_provider
+from app.services.provider_keys import provider_status_key
 from app.services.support_logging import (
     DEFAULT_SUPPORT_CAPTURE_LEVEL,
     SUPPORT_CAPTURE_LEVEL_DEVELOPER_LOCAL,
@@ -23,10 +24,7 @@ from app.services.support_logging import (
 )
 from app.services.sync_tracking import get_provider_sync_attempt
 from app.services.sync_utils import sync_lock_state_snapshot
-from app.services.transaction_import_jobs import (
-    TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE,
-    transaction_import_task_snapshot,
-)
+from app.services.transaction_import_jobs import transaction_import_task_snapshot
 
 LOG_FIELD_RE = re.compile(r"\b(?P<key>[A-Za-z_][A-Za-z0-9_-]*)=(?P<value>[^\s]+)")
 JSON_LOG_FIELD_RE = re.compile(
@@ -232,19 +230,6 @@ def _snapshot_display_name(value: Any, *, capture_level: str) -> str | None:
     return "<redacted>"
 
 
-def _diagnostic_job_message_fields(
-    value: Any,
-    *,
-    error_field: str = "last_error",
-) -> dict[str, Any]:
-    if str(value or "").strip() == TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE:
-        return {
-            error_field: None,
-            "recovery_message": TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE,
-        }
-    return {error_field: value}
-
-
 def _job_row_to_dict(row: TransactionImportJob) -> dict[str, Any]:
     return {
         "id": int(row.id) if row.id is not None else None,
@@ -256,7 +241,8 @@ def _job_row_to_dict(row: TransactionImportJob) -> dict[str, Any]:
         "sync_id": row.sync_id,
         "source_sync_id": row.source_sync_id,
         "attempt_id": row.attempt_id,
-        **_diagnostic_job_message_fields(row.last_error),
+        "last_error": row.last_error,
+        "recovery_message": row.recovery_message,
         "last_progress_at": _isoformat_optional(row.last_progress_at),
         "last_progress_label": row.last_progress_label,
         "stale_recovery_count": int(row.stale_recovery_count or 0),
@@ -386,6 +372,9 @@ async def _collect_state_snapshots(
     capture_level: str = DEFAULT_SUPPORT_CAPTURE_LEVEL,
 ) -> dict[str, dict[str, Any]]:
     normalized_provider = _normalize_provider(provider)
+    connection_provider = (
+        _normalize_provider(provider_status_key(normalized_provider)) or normalized_provider
+    )
     normalized_capture_level = normalize_capture_level(capture_level)
     normalized_sync_id = str(sync_id or "").strip()
     normalized_attempt_id = str(attempt_id or "").strip()
@@ -449,7 +438,7 @@ async def _collect_state_snapshots(
                     select(Institution)
                     .where(
                         Institution.user_id == user_id,
-                        Institution.provider == normalized_provider,
+                        Institution.provider == connection_provider,
                     )
                     .order_by(Institution.hidden.asc(), Institution.id.desc())
                 )
@@ -518,6 +507,7 @@ async def _collect_state_snapshots(
         "initiation_source": normalized_initiation_source or None,
         "user_id": user_id,
         "provider": normalized_provider,
+        "connection_provider": connection_provider,
         "institutions": [
             _institution_row_to_dict(
                 row,

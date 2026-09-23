@@ -1807,3 +1807,12 @@ export function installPromoDemoFetch() {
   promoFetch[PROMO_FETCH_STATE_KEY] = state;
   window.fetch = promoFetch;
 }
+
+export function fetchOutsidePromoDemo(input, init) {
+  if (typeof window === 'undefined' || typeof window.fetch !== 'function') {
+    return Promise.reject(new Error('The live BreakTwenty backend is unavailable.'));
+  }
+  const currentFetch = window.fetch;
+  const liveFetch = currentFetch[PROMO_ORIGINAL_FETCH_KEY] || currentFetch;
+  return liveFetch(input, init);
+}

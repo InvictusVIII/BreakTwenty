@@ -1283,7 +1283,7 @@ async def try_headless_sync(
                 exception_type=type(exc).__name__,
                 message=_tangerine_sanitize_log_text(str(exc)),
             )
-            return scraper_network_error()
+            return scraper_network_error(exception=exc)
         _tangerine_log_event(
             "headless sync failed",
             user_id=user_id,

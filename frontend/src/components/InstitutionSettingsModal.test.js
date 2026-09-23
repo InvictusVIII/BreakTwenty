@@ -7,7 +7,7 @@ import {
   waitFor,
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import InstitutionSettingsModal, { formatPurchaseDate } from './InstitutionSettingsModal';
+import InstitutionSettingsModal from './InstitutionSettingsModal';
 
 vi.mock('./InstitutionLogo', () => ({
   default: ({ name }) => <span>{name}</span>,
@@ -85,16 +85,6 @@ afterEach(() => {
 });
 
 describe('InstitutionSettingsModal credential response handling', () => {
-  it('formats value-history calendar dates without shifting to the prior local day', () => {
-    const expected = new Date(2026, 7, 22).toLocaleDateString(
-      undefined,
-      { year: 'numeric', month: 'short', day: 'numeric' },
-    );
-
-    expect(formatPurchaseDate('2026-08-22')).toBe(expected);
-    expect(formatPurchaseDate('2026-08-22T00:00:00Z')).toBe(expected);
-  });
-
   it('explains the full local provider-data deletion scope in human terms', async () => {
     const fetchMock = vi.fn((url, options = {}) => {
       if (isSettingsRead(url, options)) {

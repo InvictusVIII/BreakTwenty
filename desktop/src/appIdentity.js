@@ -47,6 +47,15 @@ function getApplicationIdentity() {
   return activePackagedIdentity;
 }
 
+function resolveSafeStorageIdentity({
+  isPackaged = true,
+  identity = activePackagedIdentity,
+} = {}) {
+  return isPackaged
+    ? identity.storageNamespace
+    : APP_DEVELOPMENT_STORAGE_NAMESPACE;
+}
+
 function resolveUserDataPath(
   appDataDir,
   {
@@ -105,6 +114,7 @@ module.exports = {
   configureApplicationIdentity,
   getApplicationIdentity,
   resolvePackagedIdentity,
+  resolveSafeStorageIdentity,
   resolveUserDataPath,
   resolveWindowsLocalAppRoot,
 };

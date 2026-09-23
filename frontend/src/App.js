@@ -41,6 +41,7 @@ import AddTransactionModal from './components/AddTransactionModal';
 import WelcomeModal from './components/WelcomeModal';
 import { TOUR_DEMO_NOW_ISO } from './components/tourDemoData';
 import {
+  fetchOutsidePromoDemo,
   installPromoDemoFetch,
   isPromoDemoActive,
   PROMO_DEMO_CHANGE_EVENT,
@@ -81,7 +82,6 @@ import {
 import {
   AUTO_SYNC_COOLDOWN_MS,
   AUTO_SYNC_LAST_TRIGGER_STORAGE_KEY,
-  recordAutoSyncTrigger,
   shouldRunStartupAutoSync,
 } from './utils/autoSyncCadence';
 import {
@@ -117,6 +117,7 @@ import {
 } from './utils/syncBatch';
 import {
   admitAutoSyncRun,
+  fetchLiveAutoSyncInstitutions,
   startIndependentSyncLanes,
 } from './utils/syncOrchestration';
 import { reconcileSyncNotifierActivities } from './utils/syncNotifier';
@@ -354,7 +355,10 @@ function applyDesktopZoomRimScale(zoomStatus) {
 const INITIAL_BREAKTWENTY_THEME_MODE = readStoredBreakTwentyThemeMode();
 const INITIAL_LOADING_BRAND_ASSETS = getBrandImageAssets(INITIAL_BREAKTWENTY_THEME_MODE, brandAssetVersions);
 const LOADING_CATCHPHRASE = loadingScreenConfig.catchphrase;
-const PROMO_DEMO_ENABLED = import.meta.env.DEV;
+const PROMO_DEMO_ENABLED = (
+  import.meta.env.DEV
+  || window.breaktwentyDesktop?.runtime?.isIsolatedUiTest === true
+);
 
 applyBreakTwentyThemeMode(INITIAL_BREAKTWENTY_THEME_MODE);
 if (PROMO_DEMO_ENABLED) {
@@ -496,6 +500,7 @@ const AUTO_SYNC_INFLIGHT_TTL_MS = 15 * 60 * 1000;
 const SYNC_BATCH_DATA_STATUSES = new Set([
   'ok',
   'skipped',
+  'provider_delayed',
   'auth_required',
   'different_profile_detected',
   'network_error',
@@ -4428,6 +4433,13 @@ function App() {
         institutionId,
       };
     }
+    if (status === 'provider_delayed') {
+      return {
+        status: 'provider_delayed',
+        message: result?.message || null,
+        institutionId,
+      };
+    }
     if (isProviderAuthStatus(status)) {
       return { status: 'auth_required', institutionId };
     }
@@ -4457,17 +4469,22 @@ function App() {
         || syncAllBlockingRef.current
         || hasActiveManualSyncBatch(activeSyncBatchesRef.current)
       ) return;
-      const insts = (institutionsSource || [])
+      const promoBackgroundSync = PROMO_DEMO_ENABLED && isPromoDemoActive();
+      let syncInstitutions = institutionsSource || [];
+      if (promoBackgroundSync) {
+        try {
+          syncInstitutions = await fetchLiveAutoSyncInstitutions({
+            fetchImpl: fetchOutsidePromoDemo,
+            apiBase: API,
+          });
+        } catch (err) {
+          console.error('Promo background autosync could not load live institutions:', err);
+          return;
+        }
+      }
+      const insts = syncInstitutions
         .filter((inst) => Boolean(getBackgroundSyncEndpoint(inst.provider)));
       if (insts.length === 0) return;
-      if (PROMO_DEMO_ENABLED && isPromoDemoActive()) {
-        try {
-          recordAutoSyncTrigger(persistentStorage);
-        } catch (err) {
-          console.error('Auto-sync could not record its cooldown:', err);
-        }
-        return;
-      }
       let autoSyncAdmission = null;
       try {
         autoSyncAdmission = admitAutoSyncRun({
@@ -4482,6 +4499,58 @@ function App() {
       if (!autoSyncAdmission) return;
       const { lease: autoSyncLease, runId } = autoSyncAdmission;
       autoSyncRunning.current = true;
+      if (promoBackgroundSync) {
+        try {
+          const batchInsts = insts.filter((inst) => inst.provider !== 'moomoo');
+          const moomooInsts = insts.filter((inst) => inst.provider === 'moomoo');
+          const { moomooPromise, batchPromise } = startIndependentSyncLanes({
+            startMoomoo: moomooInsts.length > 0
+              ? () => Promise.all(moomooInsts.map(async (moomooInst) => {
+                const syncEndpoint = getBackgroundSyncEndpoint(moomooInst.provider);
+                const response = await fetchOutsidePromoDemo(`${API}${syncEndpoint}`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    sync_source: 'autosync',
+                    institution_id: moomooInst.id,
+                  }),
+                });
+                if (!response.ok) {
+                  throw new Error('Promo background Moomoo autosync request failed.');
+                }
+                return response.json();
+              }))
+              : null,
+            startBatch: batchInsts.length > 0
+              ? () => runSyncBatchUntilDone({
+                connections: batchInsts.map((inst) => ({
+                  provider: inst.provider,
+                  institution_id: inst.id,
+                })),
+                mode: 'auto',
+                fetchImpl: fetchOutsidePromoDemo,
+                subscribeToEvents: false,
+              })
+              : null,
+          });
+          const batch = batchPromise ? await batchPromise : null;
+          const batchStatus = String(batch?.status || '').toLowerCase();
+          if (
+            batch
+            && batchStatus !== 'done'
+            && batchStatus !== 'blocked'
+          ) {
+            throw new Error(batch.message || 'Promo background autosync batch failed.');
+          }
+          if (moomooPromise) await moomooPromise;
+        } catch (err) {
+          console.error('Promo background autosync failed:', err);
+        } finally {
+          autoSyncRunning.current = false;
+          releaseAutoSyncLease(autoSyncLease);
+        }
+        return;
+      }
       setAutoSyncInProgress(true);
       let needsFinalRefresh = false;
       let moomooSync = null;

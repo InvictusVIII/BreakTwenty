@@ -56,6 +56,11 @@ _FLEX_TRANSIENT_MARKERS = (
 class IBKRFlexNetworkBlockedError(Exception):
     pass
 
+
+class IBKRFlexReportPendingTimeout(TimeoutError):
+    pass
+
+
 IBKR_CASH_TX_TYPE_MAP = {
     "Dividends": "dividend",
     "Payment In Lieu Of Dividends": "dividend",
@@ -370,6 +375,7 @@ async def fetch_flex_report(
     user_id: int | None = None,
 ):
     """Step 2: Poll until the report is ready and download it."""
+    last_pending_message = ""
     async with httpx.AsyncClient(timeout=60, trust_env=False, headers=FLEX_HTTP_HEADERS) as client:
         for attempt in range(max_retries):
             await asyncio.sleep(FLEX_FETCH_RETRY_DELAY_SECONDS)
@@ -425,13 +431,14 @@ async def fetch_flex_report(
             root = _parse_flex_service_xml(resp.text, "fetch")
             status = root.find("Status")
             if status is not None and status.text == "Warn":
+                last_pending_message = _flex_error_message(root, "")
                 log_connector_event(
                     logger,
                     provider=IBKR_FLEX_PROVIDER,
                     stage="fetch report pending",
                     user_id=user_id,
                     attempt=attempt + 1,
-                    message=_flex_error_message(root, ""),
+                    message=last_pending_message,
                     debug=True,
                 )
                 continue
@@ -460,7 +467,18 @@ async def fetch_flex_report(
                     message=error_text,
                 )
                 raise Exception(f"Flex report error: {error_text}")
-    raise TimeoutError(f"Flex report timed out after {max_retries} fetch attempts")
+    log_connector_event(
+        logger,
+        provider=IBKR_FLEX_PROVIDER,
+        stage="fetch report timed out",
+        level="warning",
+        user_id=user_id,
+        attempts=max_retries,
+        message=last_pending_message or None,
+    )
+    raise IBKRFlexReportPendingTimeout(
+        f"Flex report remained pending after {max_retries} fetch attempts"
+    )
 
 
 _FLEX_REPORT_CACHE: dict[tuple[int | None, str, str], tuple[float, str]] = {}

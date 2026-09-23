@@ -26,6 +26,8 @@ SYNC_NETWORK_SUPPORT_PROVIDER = "network"
 SYNC_NETWORK_SUPPORT_TRIGGER = "sync_dns_gate_blocked"
 SYNC_NETWORK_BLOCKED_CODE = "dns_resolution_temporarily_unavailable"
 TEMPORARY_DNS_FAILURE_MARKER = "_temporary_dns_failure"
+RECOVERABLE_TRANSPORT_TIMEOUT_MARKER = "_recoverable_transport_timeout"
+TRANSPORT_RECOVERY_STABILIZATION_DELAY_SECONDS = 2.0
 SYNC_NETWORK_BLOCKED_MESSAGE = (
     f"{APP_BRAND_NAME} couldn't reach your financial providers because of a temporary "
     "connection problem. Check your internet connection and try again."
@@ -125,6 +127,42 @@ def is_temporary_dns_preflight_result(
     if result.status == "temporary_failure":
         return True
     return result.status == "dns_failed" and result.error_name in {"EAI_AGAIN", "TIMEOUT"}
+
+
+def _is_ambiguous_dns_failure(
+    result: DnsResolutionResult | NetworkPreflightResult | None,
+) -> bool:
+    return (
+        result is not None
+        and result.status in {"failed", "dns_failed"}
+        and result.error_name == "EAI_NONAME"
+    )
+
+
+async def is_recoverable_dns_preflight_result(
+    result: DnsResolutionResult | NetworkPreflightResult | None,
+) -> bool:
+    if is_temporary_dns_preflight_result(result):
+        return True
+    if not _is_ambiguous_dns_failure(result) or not result.host:
+        return False
+
+    canary = await _run_dns_resolution(
+        SYNC_DNS_CANARY_PROVIDER,
+        SYNC_DNS_CANARY_HOST,
+        timeout_seconds=DEFAULT_DNS_PROBE_TIMEOUT_SECONDS,
+    )
+    if is_temporary_dns_preflight_result(canary) or _is_ambiguous_dns_failure(canary):
+        return True
+    if canary.status != "resolved":
+        return False
+
+    provider = await _run_dns_resolution(
+        result.provider,
+        result.host,
+        timeout_seconds=DEFAULT_DNS_PROBE_TIMEOUT_SECONDS,
+    )
+    return provider.status == "resolved"
 
 
 def provider_preflight_host(provider: str) -> str | None:
@@ -513,7 +551,10 @@ def _sync_dns_gate_status(
         return "inconclusive"
     if any(probe.status == "resolved" for probe in probes):
         return "ready"
-    if probes and all(probe.status == "temporary_failure" for probe in probes):
+    if probes and all(
+        is_temporary_dns_preflight_result(probe) or _is_ambiguous_dns_failure(probe)
+        for probe in probes
+    ):
         return "temporary_failure"
     return "inconclusive"
 

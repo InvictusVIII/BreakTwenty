@@ -26,6 +26,7 @@ from app.services.moomoo_cloud import (
     MOOMOO_CLOUD_TIMEOUT,
     MoomooCloudHistoryRateLimiter,
     MoomooCloudAuthRequired,
+    MoomooCloudProviderError,
     MoomooCloudTemporaryError,
     api_get as moomoo_cloud_get,
     fetch_history_pages as fetch_moomoo_cloud_history_pages,
@@ -329,6 +330,16 @@ class MoomooConnector(ApiProviderConnectorBase):
                 user_id=user_id,
                 message="Moomoo cloud account access did not finish. Try syncing again.",
                 stage="cloud request failed",
+                exception=exc,
+                cloud_stage=exc.stage,
+                status_code=exc.status_code,
+                provider_code=exc.provider_code,
+            )
+        except MoomooCloudProviderError as exc:
+            return self.error_result(
+                user_id=user_id,
+                message="Moomoo rejected the sync request. Try again, or export diagnostics if it continues.",
+                stage="cloud request rejected",
                 exception=exc,
                 cloud_stage=exc.stage,
                 status_code=exc.status_code,

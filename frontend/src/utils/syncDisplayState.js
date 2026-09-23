@@ -23,6 +23,7 @@ const AUTH_STATUSES = new Set([
   'approval_required',
 ]);
 const NETWORK_STATUSES = new Set(['network_error']);
+const DELAYED_STATUSES = new Set(['provider_delayed']);
 const FAILURE_STATUSES = new Set(['error', 'error_flex', 'error_scraper']);
 const SUCCESS_STATUSES = new Set(['ok', 'skipped']);
 const TRANSACTION_ACTIVE_STATUSES = new Set(['queued', 'running']);
@@ -32,11 +33,17 @@ const DISPLAY_BY_TONE = {
   failed: { label: 'Sync failed', priority: 0, iconState: 'attention', actionTarget: 'sync' },
   auth: { label: 'Sign in required', priority: 1, iconState: 'sync', actionTarget: 'auth' },
   partial: { label: 'Partial sync', priority: 2, iconState: 'attention', actionTarget: 'sync' },
-  syncing: { label: 'Syncing', priority: 3, iconState: 'spinner', actionTarget: null },
-  never: { label: 'Never synced', priority: 4, iconState: 'sync', actionTarget: 'sync' },
-  manual: { label: 'Manually added', priority: 5, iconState: 'dot', actionTarget: null },
-  synced: { label: 'Synced', priority: 6, iconState: 'sync', actionTarget: 'sync' },
+  delayed: { label: 'Sync delayed', priority: 3, iconState: 'attention', actionTarget: 'sync' },
+  syncing: { label: 'Syncing', priority: 4, iconState: 'spinner', actionTarget: null },
+  never: { label: 'Never synced', priority: 5, iconState: 'sync', actionTarget: 'sync' },
+  manual: { label: 'Manually added', priority: 6, iconState: 'dot', actionTarget: null },
+  synced: { label: 'Synced', priority: 7, iconState: 'sync', actionTarget: 'sync' },
 };
+
+const IBKR_FLEX_DELAYED_MESSAGE = (
+  'IBKR did not finish generating the Flex report within 2½ minutes. '
+  + 'BreakTwenty will retry on the next sync'
+);
 
 function normalizeStatus(value) {
   return String(value || '').trim().toLowerCase();
@@ -276,6 +283,20 @@ export function resolveProviderSyncDisplay({
     return buildDisplayModel('syncing', {
       lastSyncText: resolvedLastSyncText,
       sourceStatus: status || normalizeStatus(activeActivity?.status),
+    });
+  }
+
+  if (DELAYED_STATUSES.has(status)) {
+    const message = accountState.message || (
+      provider === 'ibkr' || provider === 'ibkr_flex'
+        ? IBKR_FLEX_DELAYED_MESSAGE
+        : 'The provider did not finish preparing data in time. BreakTwenty will retry on the next sync'
+    );
+    return buildDisplayModel('delayed', {
+      lastSyncText: resolvedLastSyncText,
+      sourceStatus: status,
+      message,
+      warningRow: message,
     });
   }
 

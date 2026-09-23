@@ -19,7 +19,12 @@ const {
   BackendRecoveryHandoff,
   completeBackendRecoveryHandoff,
 } = require('./backendRecoveryHandoff');
-const { configureApplicationIdentity, getApplicationIdentity } = require('./appIdentity');
+const {
+  configureApplicationIdentity,
+  getApplicationIdentity,
+  resolvePackagedIdentity,
+  resolveSafeStorageIdentity,
+} = require('./appIdentity');
 const {
   normalizeLocalBackendApiUrl,
   normalizeLocalFrontendUrl,
@@ -46,7 +51,13 @@ const {
   openExternalHttpsOrMailto,
 } = require('./externalNavigation');
 
-app.setName(APP_BRAND_NAME);
+const startupApplicationIdentity = resolvePackagedIdentity();
+app.setName(process.platform === 'darwin'
+  ? resolveSafeStorageIdentity({
+    isPackaged: app.isPackaged,
+    identity: startupApplicationIdentity,
+  })
+  : APP_BRAND_NAME);
 configureApplicationIdentity(app, {
   developmentUserDataDir: process.env.BREAKTWENTY_DEVELOPMENT_USER_DATA_DIR,
 });

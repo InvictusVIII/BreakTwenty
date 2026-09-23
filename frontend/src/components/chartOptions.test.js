@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildAllocationPieOption } from './AllocationChart';
+import { buildAllocationPieOption } from '../utils/allocationChartOptions';
 import { buildNetWorthOption, buildUniformTickIndexes } from './NetWorthChart';
 import { buildCfDonutOption } from '../utils/cashFlowChart';
 

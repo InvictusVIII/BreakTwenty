@@ -14,6 +14,7 @@ from app.provider_catalog import (
     get_desktop_visible_auth_metadata,
     get_provider_metadata,
     iter_available_institutions,
+    iter_nightly_providers,
     iter_provider_metadata,
     provider_uses_background_transaction_import,
     resolve_sync_route_provider,
@@ -111,6 +112,20 @@ class ProviderCatalogSchemaTests(unittest.TestCase):
                 self.assertIsNotNone(route_provider)
                 self.assertTrue(provider_uses_background_transaction_import(route_provider))
                 self.assertEqual("accounts", _provider_sync_scope(route_provider))
+
+    def test_ibkr_nightly_selects_visible_connection_and_routes_through_flex(self) -> None:
+        nightly_api_providers = iter_nightly_providers("api")
+
+        self.assertIn("ibkr", nightly_api_providers)
+        self.assertNotIn("ibkr_flex", nightly_api_providers)
+        self.assertEqual("ibkr_flex", resolve_sync_route_provider("ibkr", "nightly"))
+        self.assertEqual("ibkr_flex", resolve_sync_route_provider("ibkr", "background"))
+        self.assertEqual("ibkr", resolve_sync_route_provider("ibkr", "manual"))
+
+        for provider in ("questrade", "coinbase", "wise"):
+            with self.subTest(provider=provider):
+                self.assertIn(provider, nightly_api_providers)
+                self.assertEqual(provider, resolve_sync_route_provider(provider, "nightly"))
 
 
 if __name__ == "__main__":

@@ -3,11 +3,13 @@ from __future__ import annotations
 import tempfile
 import unittest
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from app.connectors import orchestration
 from app.connectors.orchestration import persist_connector_result
 from app.connectors.persistence import _find_existing_account, persist_sync_result
 from app.connectors.types import (
@@ -29,6 +31,7 @@ from app.models import (
     VisibleAuthAttemptArtifact,
 )
 from app.services import sync_utils
+from app.services.network_preflight import NetworkPreflightResult
 from app.services.sync_tracking import finalize_provider_sync_attempt, start_provider_sync_attempt
 
 
@@ -130,6 +133,67 @@ class ConnectorPersistenceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(account_count, 0)
         self.assertEqual(institution_count, 0)
+
+    async def test_reachable_transport_timeout_emits_internal_recovery_marker(self) -> None:
+        connector = SimpleNamespace(
+            sync=AsyncMock(
+                return_value=SyncResult(
+                    status=SyncStatus.NETWORK_ERROR,
+                    message="Connection failed",
+                    recoverable_transport_timeout=True,
+                )
+            )
+        )
+        preflight = NetworkPreflightResult(
+            provider="amex",
+            host="global.americanexpress.com",
+            port=443,
+            status="reachable",
+            diagnosis="provider_reachable_after_sync_network_error",
+            duration_ms=1,
+        )
+        db = SimpleNamespace(rollback=AsyncMock())
+        with (
+            patch.object(orchestration, "get_connector", return_value=connector),
+            patch.object(
+                orchestration,
+                "ensure_provider_sync_attempt",
+                return_value={"sync_id": "amex-timeout"},
+            ),
+            patch.object(
+                orchestration,
+                "_log_network_preflight",
+                new=AsyncMock(return_value=preflight),
+            ),
+            patch.object(
+                orchestration,
+                "retry_sqlite_busy",
+                new=AsyncMock(
+                    return_value={
+                        "status": "network_error",
+                        "message": "Connection failed",
+                        "sync_id": "amex-timeout",
+                    }
+                ),
+            ),
+            patch.object(orchestration, "finalize_provider_sync_attempt"),
+            patch(
+                "app.services.support_auto_archive.archive_run_fire_and_forget"
+            ),
+        ):
+            _result, response = await orchestration.run_connector_sync(
+                db,
+                1,
+                "amex",
+                sync_id="amex-timeout",
+                institution_id=7,
+                sync_source="autosync",
+                include_network_recovery_hint=True,
+            )
+
+        self.assertTrue(
+            response[orchestration.RECOVERABLE_TRANSPORT_TIMEOUT_MARKER]
+        )
 
     async def test_successful_split_add_clears_temporary_auth_required_status(self) -> None:
         async with self._sessionmaker() as session:
@@ -309,6 +373,7 @@ class ConnectorPersistenceTests(unittest.IsolatedAsyncioTestCase):
         cases = (
             (("network_error", "ok"), "ok"),
             (("ok", "network_error"), "network_error"),
+            (("ok", "provider_delayed"), "provider_delayed"),
             (("error", "auth_required"), "auth_required"),
         )
         for statuses, expected_status in cases:

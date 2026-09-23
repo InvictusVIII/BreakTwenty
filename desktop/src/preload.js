@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('breaktwentyDesktop', {
   runtime: {
     platform: commandLineValue('breaktwenty-platform'),
     isPackaged: commandLineValue('breaktwenty-packaged') === '1',
+    isIsolatedUiTest: commandLineValue('breaktwenty-isolated-ui-test') === '1',
   },
   getLaunchAuth: () => invoke('breaktwenty:launch-auth'),
   getStatus: () => invoke('breaktwenty:desktop-status'),
@@ -83,3 +84,12 @@ contextBridge.exposeInMainWorld('breaktwentyDesktop', {
     cancel: (request) => invoke('breaktwenty:visible-auth-cancel', request),
   },
 });
+
+if (
+  String(process.env.BREAKTWENTY_ISOLATED_TEST_MARKER || '').startsWith('breaktwenty-isolated-test-v1:')
+  && commandLineValue('breaktwenty-isolated-electron-preload') === '1'
+  && commandLineValue('breaktwenty-isolated-ui-test') === '1'
+  && globalThis.location?.protocol === 'http:'
+) {
+  globalThis.localStorage.setItem('breaktwenty_promo_demo_active_v1', '1');
+}

@@ -224,14 +224,20 @@ class PythonDependencyLockTests(unittest.TestCase):
                 self.assertTrue(declared)
                 self.assertLessEqual(declared, input_pins)
                 self.assertLessEqual(declared, lock_pins)
-        runtime_declaration = _source_entries(BACKEND_ROOT / "requirements.txt")
-        self.assertFalse(
-            any(
-                entry.startswith(("-r ", "--requirement "))
-                for entry in runtime_declaration
-            ),
-            "requirements.txt must not include its generated lock",
-        )
+    def test_scanner_facing_declarations_are_self_contained(self) -> None:
+        for declaration in (
+            BACKEND_ROOT / "requirements.txt",
+            BACKEND_ROOT / "requirements-dev.txt",
+        ):
+            with self.subTest(declaration=declaration.name):
+                entries = _source_entries(declaration)
+                self.assertFalse(
+                    any(
+                        entry.startswith(("-r ", "--requirement "))
+                        for entry in entries
+                    ),
+                    f"{declaration.name} must not include another requirements file",
+                )
 
     def test_lock_generator_has_one_canonical_non_circular_interface(self) -> None:
         generator = (

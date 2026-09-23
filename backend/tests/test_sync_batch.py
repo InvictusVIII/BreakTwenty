@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.database import Base
 from app.models import Account, BalanceHistory, Institution, SyncBatchJob, User
 from app.services import sync_batch
-from app.services.network_preflight import SyncNetworkGateResult
+from app.services.network_preflight import DnsResolutionResult, SyncNetworkGateResult
 
 
 def _gate_result(status: str) -> SyncNetworkGateResult:
@@ -414,6 +414,135 @@ class SyncBatchConcurrencyTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(2, gate.await_count)
         self.assertEqual("batch_recovery", gate.await_args_list[1].kwargs["flow"])
+
+    async def test_auto_batch_retries_only_confirmed_transport_timeout(self) -> None:
+        user_id = 1
+        batch_id = "transport-timeout-recovery-batch"
+        targets_by_key = {
+            "connection:1": {
+                "provider": "amex",
+                "institution_id": 1,
+                "route_provider": "amex",
+            },
+            "connection:2": {
+                "provider": "coinbase",
+                "institution_id": 2,
+                "route_provider": "coinbase",
+            },
+        }
+        await self._store_job(user_id, batch_id, targets_by_key, mode="auto")
+        calls: list[tuple[str, bool]] = []
+
+        async def run_single_connection(_user_id, _batch_id, key, _target, **kwargs):
+            allow_recovery = kwargs["defer_temporary_dns_failure"]
+            calls.append((key, allow_recovery))
+            if allow_recovery:
+                return {
+                    "status": "network_error",
+                    sync_batch.NETWORK_RECOVERY_PENDING_MARKER: True,
+                    sync_batch.TEMPORARY_DNS_FAILURE_MARKER: False,
+                    sync_batch.RECOVERABLE_TRANSPORT_TIMEOUT_MARKER: key == "connection:1",
+                }
+            return {"status": "ok"}
+
+        gate = AsyncMock(side_effect=(_gate_result("ready"), _gate_result("ready")))
+        finish_connection = AsyncMock()
+        with (
+            patch.object(
+                sync_batch,
+                "_order_connections_for_batch",
+                return_value=list(targets_by_key.items()),
+            ),
+            patch.object(sync_batch, "_run_single_connection", side_effect=run_single_connection),
+            patch.object(sync_batch, "_finish_connection", new=finish_connection),
+            patch.object(sync_batch, "run_sync_network_gate", new=gate),
+            patch.object(sync_batch, "TRANSPORT_RECOVERY_STABILIZATION_DELAY_SECONDS", 0.0),
+            patch.object(sync_batch, "publish_event"),
+        ):
+            await sync_batch._run_sync_batch_job(user_id, batch_id, targets_by_key)
+
+        self.assertEqual(
+            calls,
+            [
+                ("connection:1", True),
+                ("connection:2", True),
+                ("connection:1", False),
+            ],
+        )
+        finish_connection.assert_awaited_once()
+        self.assertEqual("connection:2", finish_connection.await_args.args[2])
+        self.assertEqual(2, gate.await_count)
+
+    async def test_noname_batch_recovers_failed_ibkr_without_replaying_successful_sibling(self) -> None:
+        await self._assert_noname_batch_recovery("ok")
+
+    async def test_noname_batch_keeps_failure_when_its_one_retry_also_fails(self) -> None:
+        await self._assert_noname_batch_recovery("network_error")
+
+    async def test_isolated_noname_batch_preserves_failure_without_recovery_retry(self) -> None:
+        await self._assert_noname_batch_recovery("network_error", outage=False)
+
+    async def _assert_noname_batch_recovery(self, retry_status, outage=True) -> None:
+        targets = {
+            "connection:1": {"provider": "ibkr", "institution_id": 1, "route_provider": "ibkr_flex"},
+            "connection:2": {"provider": "wise", "institution_id": 2, "route_provider": "wise"},
+        }
+        batch_id = "noname-recovery-batch"
+        await self._store_job(1, batch_id, targets, mode="auto")
+        calls = []
+
+        async def connector(_db, _user_id, provider, **kwargs):
+            calls.append((provider, kwargs["include_network_recovery_hint"]))
+            status = "ok" if provider == "wise" else (
+                "network_error" if kwargs["include_network_recovery_hint"] else retry_status
+            )
+            return object(), {"status": status, "sync_id": f"{provider}-sync"}
+
+        failure = DnsResolutionResult(
+            provider="ibkr_flex",
+            host="ndcdyn.interactivebrokers.com",
+            status="failed",
+            diagnosis="dns_lookup_failed_from_backend_runtime",
+            duration_ms=1,
+            error_name="EAI_NONAME",
+        )
+        gate = AsyncMock(return_value=_gate_result("ready"))
+        resolved_canary = DnsResolutionResult(
+            provider="internet_canary",
+            host="example.com",
+            status="resolved",
+            diagnosis="test",
+            duration_ms=1,
+        )
+        with (
+            patch.object(sync_batch, "run_connector_sync", new=AsyncMock(side_effect=connector)),
+            patch.object(sync_batch, "acquire_sync_lock", new=AsyncMock(return_value=True)),
+            patch.object(sync_batch, "release_sync_lock", new=AsyncMock()),
+            patch.object(sync_batch, "set_provider_activity"),
+            patch.object(sync_batch, "clear_provider_activity"),
+            patch.object(sync_batch, "enqueue_provider_transaction_import", new=AsyncMock(return_value=None)),
+            patch.object(sync_batch, "run_provider_dns_resolution", new=AsyncMock(return_value=failure)),
+            patch(
+                "app.services.network_preflight._run_dns_resolution",
+                new=AsyncMock(side_effect=lambda provider, _host, **_kwargs: (
+                    resolved_canary if not outage and provider == "internet_canary" else failure
+                )),
+            ),
+            patch.object(sync_batch, "run_sync_network_gate", new=gate),
+            patch.object(sync_batch, "publish_event"),
+        ):
+            await sync_batch._run_sync_batch_job(1, batch_id, targets)
+
+        self.assertEqual(1, calls.count(("wise", True)))
+        self.assertEqual(1, calls.count(("ibkr_flex", True)))
+        self.assertEqual(int(outage), calls.count(("ibkr_flex", False)))
+        self.assertEqual(3 if outage else 2, len(calls))
+        self.assertEqual(2 if outage else 1, gate.await_count)
+        async with self._sessionmaker() as db:
+            row = await db.scalar(select(SyncBatchJob).where(SyncBatchJob.batch_id == batch_id))
+            results = json.loads(row.state_json)["results"]
+        self.assertEqual(retry_status, results["connection:1"]["status"])
+        self.assertEqual("ok", results["connection:2"]["status"])
 
     async def test_nightly_batch_does_not_enable_interactive_network_recovery(self) -> None:
         user_id = 1

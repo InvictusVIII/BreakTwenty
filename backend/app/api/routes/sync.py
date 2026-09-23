@@ -55,7 +55,10 @@ from app.services.connection_auth_storage import (
     get_scraper_credentials,
 )
 from app.services.network_preflight import (
+    RECOVERABLE_TRANSPORT_TIMEOUT_MARKER,
+    TRANSPORT_RECOVERY_STABILIZATION_DELAY_SECONDS,
     TEMPORARY_DNS_FAILURE_MARKER,
+    is_recoverable_dns_preflight_result,
     run_provider_dns_resolution,
     run_sync_network_gate,
 )
@@ -749,10 +752,16 @@ async def _sync_connector_route(
                 and str(response.get("status") or "").lower() == "network_error"
             ):
                 dns_result = await run_provider_dns_resolution(provider)
+                transport_timeout_recovery = (
+                    response.get(RECOVERABLE_TRANSPORT_TIMEOUT_MARKER) is True
+                )
                 if (
-                    response.get(TEMPORARY_DNS_FAILURE_MARKER) is True
-                    or dns_result.status == "temporary_failure"
+                    transport_timeout_recovery
+                    or response.get(TEMPORARY_DNS_FAILURE_MARKER) is True
+                    or await is_recoverable_dns_preflight_result(dns_result)
                 ):
+                    if transport_timeout_recovery:
+                        await asyncio.sleep(TRANSPORT_RECOVERY_STABILIZATION_DELAY_SECONDS)
                     recovery_gate = await run_sync_network_gate(
                         [provider],
                         user_id=user_id,
@@ -763,11 +772,16 @@ async def _sync_connector_route(
                         log_connector_event(
                             get_connector_logger(provider),
                             provider=provider,
-                            stage="temporary DNS recovery retry",
+                            stage="temporary network recovery retry",
                             user_id=user_id,
                             sync_id=sync_id,
                             institution_id=institution_id,
                             sync_source=sync_source,
+                            recovery_reason=(
+                                "transport_timeout_provider_reachable"
+                                if transport_timeout_recovery
+                                else "dns_resolution_recovered"
+                            ),
                             error_name=dns_result.error_name,
                         )
                         response = await _run_connector_sync(
@@ -784,6 +798,7 @@ async def _sync_connector_route(
                             include_network_recovery_hint=False,
                         )
             response.pop(TEMPORARY_DNS_FAILURE_MARKER, None)
+            response.pop(RECOVERABLE_TRANSPORT_TIMEOUT_MARKER, None)
             retain_visible_auth_attempt = False
             if add_flow and _add_flow_response_requires_cleanup(response):
                 await _cleanup_incomplete_institution_add(db, user_id, provider, institution_id)

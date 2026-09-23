@@ -30,3 +30,15 @@ export function startIndependentSyncLanes({ startMoomoo, startBatch }) {
 
   return { moomooPromise, batchPromise };
 }
+
+export async function fetchLiveAutoSyncInstitutions({ fetchImpl, apiBase }) {
+  if (typeof fetchImpl !== 'function') {
+    throw new TypeError('Live autosync fetch is unavailable.');
+  }
+  const response = await fetchImpl(`${apiBase}/institutions/all`);
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || !Array.isArray(payload)) {
+    throw new Error('Live institutions could not be loaded for autosync.');
+  }
+  return payload;
+}

@@ -30,8 +30,11 @@ from app.provider_catalog import (
 )
 from app.services.event_bus import EVENT_SYNC_BATCH, publish_event
 from app.services.network_preflight import (
+    RECOVERABLE_TRANSPORT_TIMEOUT_MARKER,
     SYNC_NETWORK_BLOCKED_MESSAGE,
+    TRANSPORT_RECOVERY_STABILIZATION_DELAY_SECONDS,
     TEMPORARY_DNS_FAILURE_MARKER,
+    is_recoverable_dns_preflight_result,
     run_provider_dns_resolution,
     run_sync_network_gate,
 )
@@ -858,9 +861,21 @@ async def _run_sync_batch_job(
             response.get(TEMPORARY_DNS_FAILURE_MARKER) is True
             for _, _, response in pending_network_failures
         )
-        if pending_network_failures and batch_dns_outage_confirmed:
+        transport_timeout_failures = [
+            entry
+            for entry in pending_network_failures
+            if entry[2].get(RECOVERABLE_TRANSPORT_TIMEOUT_MARKER) is True
+        ]
+        retryable_network_failures = (
+            pending_network_failures
+            if batch_dns_outage_confirmed
+            else transport_timeout_failures
+        )
+        if retryable_network_failures:
+            if not batch_dns_outage_confirmed:
+                await asyncio.sleep(TRANSPORT_RECOVERY_STABILIZATION_DELAY_SECONDS)
             recovery_gate = await run_sync_network_gate(
-                [target["route_provider"] for _, target, _ in pending_network_failures],
+                [target["route_provider"] for _, target, _ in retryable_network_failures],
                 user_id=user_id,
                 flow="batch_recovery",
                 mode=mode,
@@ -868,9 +883,14 @@ async def _run_sync_batch_job(
             )
             if recovery_gate.status == "ready":
                 logger.info(
-                    "sync batch temporary DNS recovery retry batch_id=%s connections=%s",
+                    "sync batch temporary network recovery retry batch_id=%s connections=%s reason=%s",
                     batch_id,
-                    len(pending_network_failures),
+                    len(retryable_network_failures),
+                    (
+                        "dns_resolution_recovered"
+                        if batch_dns_outage_confirmed
+                        else "transport_timeout_provider_reachable"
+                    ),
                 )
                 retry_tasks = [
                     create_tracked_task(
@@ -879,13 +899,13 @@ async def _run_sync_batch_job(
                             target,
                             allow_network_recovery=False,
                         ),
-                        name=f"sync-batch-dns-retry:{user_id}:{batch_id}:{key}",
+                        name=f"sync-batch-network-retry:{user_id}:{batch_id}:{key}",
                     )
-                    for key, target, _ in pending_network_failures
+                    for key, target, _ in retryable_network_failures
                 ]
                 await asyncio.gather(*retry_tasks, return_exceptions=True)
             else:
-                for key, target, response in pending_network_failures:
+                for key, target, response in retryable_network_failures:
                     await _finish_connection(
                         user_id,
                         batch_id,
@@ -895,8 +915,9 @@ async def _run_sync_batch_job(
                         response,
                         lease_token=lease_token,
                     )
-        elif pending_network_failures:
-            for key, target, response in pending_network_failures:
+        retried_keys = {key for key, _, _ in retryable_network_failures}
+        for key, target, response in pending_network_failures:
+            if key not in retried_keys:
                 await _finish_connection(
                     user_id,
                     batch_id,
@@ -1199,7 +1220,10 @@ async def _run_single_connection(
             dns_result = await run_provider_dns_resolution(route_provider)
             temporary_dns_failure = (
                 response.get(TEMPORARY_DNS_FAILURE_MARKER) is True
-                or dns_result.status == "temporary_failure"
+                or await is_recoverable_dns_preflight_result(dns_result)
+            )
+            recoverable_transport_timeout = (
+                response.get(RECOVERABLE_TRANSPORT_TIMEOUT_MARKER) is True
             )
             if temporary_dns_failure:
                 logger.info(
@@ -1212,6 +1236,7 @@ async def _run_single_connection(
                 **response,
                 NETWORK_RECOVERY_PENDING_MARKER: True,
                 TEMPORARY_DNS_FAILURE_MARKER: temporary_dns_failure,
+                RECOVERABLE_TRANSPORT_TIMEOUT_MARKER: recoverable_transport_timeout,
             }
 
         await _finish_connection(

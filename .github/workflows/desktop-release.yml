@@ -105,7 +105,7 @@ jobs:
         shell: bash
         run: test -s frontend/build/index.html
       - name: Upload frontend artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-build
           if-no-files-found: error
@@ -133,9 +133,56 @@ jobs:
           updater-private: 'false'
           updater-repo: BreakTwenty
 
+  native_preflight_windows:
+    name: Preflight unpacked Windows runtime
+    needs: [prepare, build_frontend]
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.prepare.outputs.candidate_sha }}
+      - name: Build and exercise unpacked Windows runtime
+        uses: ./.github/actions/desktop-package
+        with:
+          artifact: preflight-windows
+          frontend-build-artifact: frontend-build
+          script: package:win:dir:prebuilt-frontend
+          updater-owner: InvictusVIII
+          updater-private: 'false'
+          updater-repo: BreakTwenty
+          validation-mode: native-preflight
+
+  native_preflight_macos:
+    name: Preflight unpacked macOS runtime
+    needs: [prepare, build_frontend]
+    runs-on: macos-14
+    timeout-minutes: 25
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.prepare.outputs.candidate_sha }}
+      - name: Build and exercise unpacked macOS runtime
+        uses: ./.github/actions/desktop-package
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        with:
+          artifact: preflight-macos-arm64
+          extra-args: --arm64
+          frontend-build-artifact: frontend-build
+          script: package:mac:dir:prebuilt-frontend
+          updater-owner: InvictusVIII
+          updater-private: 'false'
+          updater-repo: BreakTwenty
+          validation-mode: native-preflight
+
   build_windows:
     name: Build signed Windows NSIS
-    needs: [prepare, build_frontend]
+    needs: [prepare, build_frontend, native_preflight_windows]
     permissions:
       contents: read
       id-token: write
@@ -167,7 +214,7 @@ jobs:
 
   build_macos:
     name: Build signed/notarized macOS DMG
-    needs: [prepare, build_frontend]
+    needs: [prepare, build_frontend, native_preflight_macos]
     runs-on: macos-14
     timeout-minutes: 40
     steps:

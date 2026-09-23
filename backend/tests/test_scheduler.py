@@ -1,4 +1,5 @@
 import unittest
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 from app.services import scheduler as scheduler_service
@@ -60,6 +61,45 @@ class SchedulerStartupTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("nightly_sync_user_1", job_ids)
         self.assertIn("fx_rates_daily_refresh", job_ids)
+
+    async def test_nightly_sync_selects_persisted_ibkr_connection(self) -> None:
+        observed_providers = []
+
+        class FakeResult:
+            def scalars(self):
+                return self
+
+            def all(self):
+                return [SimpleNamespace(provider="ibkr", id=42)]
+
+        class FakeSession:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, traceback):
+                return False
+
+            async def execute(self, statement):
+                for value in statement.compile().params.values():
+                    if isinstance(value, list):
+                        observed_providers.extend(value)
+                return FakeResult()
+
+        run_sync_batch = AsyncMock(return_value={})
+        with (
+            patch("app.services.scheduler.async_session", return_value=FakeSession()),
+            patch("app.services.sync_batch.run_sync_batch_now", new=run_sync_batch),
+            patch("app.services.scheduler._persist_user_sync_statuses", new=AsyncMock()),
+        ):
+            await scheduler_service.nightly_sync_user(7)
+
+        self.assertIn("ibkr", observed_providers)
+        self.assertNotIn("ibkr_flex", observed_providers)
+        run_sync_batch.assert_awaited_once_with(
+            7,
+            [{"provider": "ibkr", "institution_id": 42}],
+            mode="nightly",
+        )
 
 
 if __name__ == "__main__":

@@ -1,9 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { LuLandmark } from 'react-icons/lu';
 import { MdCheck, MdSearch } from 'react-icons/md';
 import InstitutionLogo from './InstitutionLogo';
 import { API } from '../config';
-import ControlChevron from './ControlChevron';
 import AccountTypeBadge from './AccountTypeBadge';
 import { ACCOUNT_TYPE_LABELS } from '../constants/providers';
 
@@ -35,57 +33,6 @@ function getAccountSearchText(account, institution) {
     account?.currency,
     getDefaultAccountTypeLabel(account),
   ].filter(Boolean).join(' '));
-}
-
-function formatScopeCount(count, singular, plural = `${singular}s`) {
-  return `${count} ${count === 1 ? singular : plural}`;
-}
-
-export function formatScopeSelectionSummary({
-  totalInstitutions,
-  selectedInstitutions,
-  selectedAccounts,
-}) {
-  if (selectedAccounts === 0) {
-    return 'No sources selected';
-  }
-
-  const accountLabel = formatScopeCount(selectedAccounts, 'Account');
-
-  if (selectedInstitutions === totalInstitutions) {
-    return `${formatScopeCount(totalInstitutions, 'Institution')} · ${accountLabel}`;
-  }
-
-  return `${selectedInstitutions} of ${totalInstitutions} institutions · ${accountLabel}`;
-}
-
-export function ScopeSelectorTrigger({
-  isOpen = false,
-  summary,
-  onClick,
-  className = '',
-  controls,
-  ariaLabel = 'Scope',
-}) {
-  return (
-    <button
-      type="button"
-      className={joinClassNames('scope-selector-trigger', 'app-control-root', isOpen ? 'is-open' : '', className)}
-      aria-haspopup="dialog"
-      aria-expanded={isOpen}
-      aria-controls={controls}
-      aria-label={ariaLabel}
-      onClick={onClick}
-    >
-      <span className="scope-selector-icon app-control-icon" aria-hidden="true">
-        <LuLandmark />
-      </span>
-      <span className="scope-selector-summary app-control-label">{summary}</span>
-      <span className={`scope-selector-chevron app-control-chevron ${isOpen ? 'is-open' : ''}`.trim()} aria-hidden="true">
-        <ControlChevron />
-      </span>
-    </button>
-  );
 }
 
 function InstitutionAccountSelector({

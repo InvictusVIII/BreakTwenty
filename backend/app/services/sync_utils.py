@@ -31,6 +31,7 @@ _STATUS_SEVERITY_RANK: dict[str, int] = {
     "skipped": 0,
     "already_syncing": 0,
     "syncing": 0,
+    "provider_delayed": 1,
     "network_error": 2,
     "different_profile_detected": 3,
     "auth_required": 3,
@@ -110,6 +111,27 @@ def is_network_error(e: Exception) -> bool:
     return any(kw in msg for kw in NETWORK_KEYWORDS)
 
 
+def is_recoverable_transport_timeout(e: Exception | None) -> bool:
+    if e is None:
+        return False
+    timeout_types: list[type[BaseException]] = [
+        httpx.ConnectTimeout,
+        httpx.ReadTimeout,
+    ]
+    try:
+        import requests.exceptions
+
+        timeout_types.extend(
+            [
+                requests.exceptions.ConnectTimeout,
+                requests.exceptions.ReadTimeout,
+            ]
+        )
+    except ImportError:
+        pass
+    return isinstance(e, tuple(timeout_types))
+
+
 def check_network_error_result(result: dict) -> bool:
     """Check if a service result dict contains a swallowed network error."""
     if not isinstance(result, dict) or result.get("status") != "error":
@@ -143,7 +165,7 @@ def get_persisted_sync_status(result: dict, *, error_status: str = "error") -> s
     if not isinstance(result, dict):
         return error_status
     status = result.get("status")
-    if status in ("ok", "network_error", "auth_required"):
+    if status in ("ok", "provider_delayed", "network_error", "auth_required"):
         return status
     if status == "different_profile_detected":
         return "auth_required"

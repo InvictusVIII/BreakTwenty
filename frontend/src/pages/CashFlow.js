@@ -10,13 +10,15 @@ import CategoryPill from '../components/CategoryPill';
 import { TOUR_DEMO_CASH_FLOW_ANCHOR_DATE, getTourHint, isTourDemoActive } from '../components/tourDemoData';
 import InstitutionLogo from '../components/InstitutionLogo';
 import AppStatusNotice from '../components/AppStatusNotice';
-import InstitutionAccountSelector, { ScopeSelectorTrigger, formatScopeSelectionSummary } from '../components/InstitutionAccountSelector';
+import InstitutionAccountSelector from '../components/InstitutionAccountSelector';
+import ScopeSelectorTrigger from '../components/ScopeSelectorTrigger';
 import CashFlowTimelineControl, {
   computeRange as computeCashFlowRange,
   canStep as canStepCashFlow,
   stepAnchor as stepCashFlowAnchor,
 } from '../components/CashFlowTimelineControl';
 import { formatCompactMoney } from '../utils/format';
+import { formatScopeSelectionSummary } from '../utils/scopeSelection';
 import {
   CASH_FLOW_DONUT_HEIGHT,
   formatMoney,

@@ -15,6 +15,38 @@ MOOMOO_CLOUD_MAX_PAGES = 500
 MOOMOO_CLOUD_RATE_LIMIT_STATUS_CODES = frozenset({429, 439})
 MOOMOO_CLOUD_RATE_LIMIT_ATTEMPTS = 5
 MOOMOO_CLOUD_HISTORY_REQUEST_INTERVAL_SECONDS = 3.1
+MOOMOO_CLOUD_TRANSIENT_STATUS_CODES = frozenset({408, 425, 429, 439})
+MOOMOO_CLOUD_AUTH_ERROR_CODES = frozenset({
+    "access_denied",
+    "access_token_expired",
+    "expired_token",
+    "insufficient_scope",
+    "invalid_grant",
+    "invalid_token",
+    "permission_denied",
+    "refresh_token_expired",
+    "refresh_token_revoked",
+    "revoked_token",
+    "scope_not_granted",
+    "token_expired",
+    "token_revoked",
+    "unauthorized",
+})
+MOOMOO_CLOUD_OAUTH_REQUEST_ERROR_CODES = frozenset({
+    "invalid_client",
+    "invalid_request",
+    "invalid_scope",
+    "unauthorized_client",
+    "unsupported_grant_type",
+    "unsupported_response_type",
+})
+MOOMOO_CLOUD_TEMPORARY_ERROR_CODES = frozenset({
+    "rate_limit_exceeded",
+    "server_error",
+    "slow_down",
+    "temporarily_unavailable",
+    "too_many_requests",
+})
 MOOMOO_CLOUD_MARKETS_BY_CODE = {
     1: "HK",
     2: "US",
@@ -47,6 +79,10 @@ class MoomooCloudAuthRequired(MoomooCloudError):
 
 
 class MoomooCloudTemporaryError(MoomooCloudError):
+    pass
+
+
+class MoomooCloudProviderError(MoomooCloudError):
     pass
 
 
@@ -126,12 +162,42 @@ def markets_for_account(account: dict[str, Any]) -> list[str]:
 def _provider_error(payload: Any, fallback: str) -> tuple[str | int | None, str]:
     if not isinstance(payload, dict):
         return None, fallback
-    nested = payload.get("error") if isinstance(payload.get("error"), dict) else {}
+    raw_error = payload.get("error")
+    nested = raw_error if isinstance(raw_error, dict) else {}
     code = payload.get("errcode", nested.get("code"))
+    if code is None and isinstance(raw_error, str):
+        code = raw_error
     message = payload.get("errmsg") or payload.get("error_description") or nested.get("message")
-    if not message and isinstance(payload.get("error"), str):
-        message = payload["error"]
+    if not message and isinstance(raw_error, str):
+        message = raw_error
     return code, str(message or fallback)[:500]
+
+
+def _normalized_provider_code(provider_code: str | int | None) -> str:
+    return str(provider_code or "").strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def _response_error_type(
+    *,
+    stage: str,
+    status_code: int,
+    provider_code: str | int | None,
+) -> type[MoomooCloudError]:
+    normalized_code = _normalized_provider_code(provider_code)
+    if (
+        stage in {"token_exchange", "token_refresh"}
+        and normalized_code in MOOMOO_CLOUD_OAUTH_REQUEST_ERROR_CODES
+    ):
+        return MoomooCloudProviderError
+    if status_code in {401, 403} or normalized_code in MOOMOO_CLOUD_AUTH_ERROR_CODES:
+        return MoomooCloudAuthRequired
+    if (
+        status_code in MOOMOO_CLOUD_TRANSIENT_STATUS_CODES
+        or status_code >= 500
+        or normalized_code in MOOMOO_CLOUD_TEMPORARY_ERROR_CODES
+    ):
+        return MoomooCloudTemporaryError
+    return MoomooCloudProviderError
 
 
 def _unwrap(payload: Any, *, stage: str, status_code: int) -> Any:
@@ -140,7 +206,11 @@ def _unwrap(payload: Any, *, stage: str, status_code: int) -> Any:
     if isinstance(payload, dict) and payload.get("ret_code") == 0:
         return payload.get("data")
     code, message = _provider_error(payload, "Moomoo returned an unsuccessful response.")
-    error_type = MoomooCloudAuthRequired if status_code in {400, 401, 403} else MoomooCloudTemporaryError
+    error_type = _response_error_type(
+        stage=stage,
+        status_code=status_code,
+        provider_code=code,
+    )
     raise error_type(message, stage=stage, status_code=status_code, provider_code=code)
 
 
@@ -204,7 +274,12 @@ async def _request_json(
         try:
             payload = response.json()
         except ValueError as exc:
-            raise MoomooCloudTemporaryError(
+            error_type = _response_error_type(
+                stage=stage,
+                status_code=response.status_code,
+                provider_code="invalid_json",
+            )
+            raise error_type(
                 f"Moomoo returned a non-JSON response (HTTP {response.status_code}).",
                 stage=stage,
                 status_code=response.status_code,
@@ -212,10 +287,10 @@ async def _request_json(
             ) from exc
         if response.status_code >= 400:
             code, message = _provider_error(payload, f"Moomoo returned HTTP {response.status_code}.")
-            error_type = (
-                MoomooCloudAuthRequired
-                if response.status_code in {400, 401, 403}
-                else MoomooCloudTemporaryError
+            error_type = _response_error_type(
+                stage=stage,
+                status_code=response.status_code,
+                provider_code=code,
             )
             raise error_type(
                 message,
@@ -271,7 +346,7 @@ async def exchange_authorization_code(
     )
     if not isinstance(payload, dict) or not payload.get("access_token") or not payload.get("refresh_token"):
         code_value, message = _provider_error(payload, "Moomoo token exchange did not return both tokens.")
-        raise MoomooCloudAuthRequired(
+        raise MoomooCloudProviderError(
             message,
             stage="token_exchange",
             status_code=status_code,
@@ -302,7 +377,7 @@ async def refresh_access_token(
     )
     if not isinstance(payload, dict) or not payload.get("access_token"):
         code, message = _provider_error(payload, "Moomoo token refresh did not return an access token.")
-        raise MoomooCloudAuthRequired(
+        raise MoomooCloudProviderError(
             message,
             stage="token_refresh",
             status_code=status_code,

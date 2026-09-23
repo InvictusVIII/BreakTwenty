@@ -5,6 +5,7 @@ const {
   atomicWriteFile,
   decryptProtectedString,
   encryptProtectedString,
+  isTemporaryStorageError,
   requireSecureStorage,
 } = require('./secureStorage');
 const { APP_BRAND_NAME } = require('./brand');
@@ -161,9 +162,12 @@ class BreakTwentyKeyManager {
         });
       }
       return { databaseKey, appEncryptionKey };
-    } catch (_error) {
+    } catch (error) {
       if (databaseKey) databaseKey.fill(0);
       if (appEncryptionKey) appEncryptionKey.fill(0);
+      if (isTemporaryStorageError(error)) {
+        throw error;
+      }
       throw new Error(
         `${APP_BRAND_NAME} could not unwrap the protected key bundle in this OS user context. The database was not changed.`,
       );

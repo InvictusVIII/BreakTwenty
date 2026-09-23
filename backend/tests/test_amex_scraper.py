@@ -2,6 +2,8 @@ import socket
 import unittest
 from unittest.mock import AsyncMock, patch
 
+import httpx
+
 from app.scrapers import amex
 from app.connectors.amex import _normalize_amex_transaction
 from app.scrapers.results import normalize_scraper_result
@@ -456,6 +458,22 @@ class AmexDirectSyncTests(unittest.IsolatedAsyncioTestCase):
             exception_type="gaierror",
             message="[Errno -3] Temporary failure in name resolution",
         )
+
+    async def test_direct_connect_timeout_is_marked_for_network_handoff_recovery(self):
+        fake_replay = _FakeReplaySession()
+        with (
+            patch.object(amex, "load_saved_artifact_replay_session_async", side_effect=_fake_replay_factory(fake_replay)),
+            patch.object(
+                amex,
+                "_build_authenticated_payload_direct",
+                new=AsyncMock(side_effect=httpx.ConnectTimeout("route changed")),
+            ),
+            patch.object(amex, "_amex_log_event"),
+        ):
+            result = await amex.try_headless_sync(1)
+
+        self.assertEqual("network_error", result["status"])
+        self.assertTrue(result["recoverable_transport_timeout"])
 
     async def test_direct_success_saves_session_artifact(self):
         fake_replay = _FakeReplaySession()

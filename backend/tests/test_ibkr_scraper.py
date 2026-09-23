@@ -84,6 +84,19 @@ class IBKRScraperConnectorTests(unittest.TestCase):
 
         self.assertEqual(result.status, SyncStatus.AUTH_REQUIRED)
 
+    def test_transport_timeout_marker_survives_saved_artifact_conversion(self) -> None:
+        result = IBKRScraperConnector()._saved_artifact_payload_to_result(
+            1,
+            {
+                "status": "network_error",
+                "message": "Connection failed",
+                "recoverable_transport_timeout": True,
+            },
+        )
+
+        self.assertEqual(result.status, SyncStatus.NETWORK_ERROR)
+        self.assertTrue(result.recoverable_transport_timeout)
+
 
 class IBKRScraperRuntimeStateTests(unittest.IsolatedAsyncioTestCase):
     async def test_refreshed_storage_state_drops_client_removed_cookies(self) -> None:

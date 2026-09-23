@@ -7,7 +7,10 @@ from unittest.mock import AsyncMock, patch
 from app.services.moomoo_cloud import (
     MoomooCloudHistoryRateLimiter,
     MoomooCloudAuthRequired,
+    MoomooCloudProviderError,
+    MoomooCloudTemporaryError,
     _request_json,
+    _unwrap,
     date_range_microseconds,
     fetch_history_pages,
     granted_account_ids,
@@ -100,6 +103,130 @@ class MoomooCloudTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(payload["s"], "ok")
         self.assertEqual(client.request.await_count, 2)
         sleep.assert_awaited_once_with(31.0)
+
+    async def test_http_400_request_validation_is_not_treated_as_auth_failure(self) -> None:
+        class Response:
+            status_code = 400
+            headers = {}
+
+            def json(self):
+                return {
+                    "error": "invalid_request",
+                    "error_description": "The requested history range is invalid.",
+                }
+
+        client = AsyncMock()
+        client.request.return_value = Response()
+
+        with self.assertRaises(MoomooCloudProviderError) as rejected:
+            await _request_json(
+                "GET",
+                "/api/v1.0/accounts/test/orders_history",
+                stage="orders_history_US",
+                access_token="memory-only-token",
+                client=client,
+            )
+
+        self.assertEqual(rejected.exception.status_code, 400)
+        self.assertEqual(rejected.exception.provider_code, "invalid_request")
+
+    async def test_oauth_invalid_grant_still_requires_reauthorization(self) -> None:
+        class Response:
+            status_code = 400
+            headers = {}
+
+            def json(self):
+                return {
+                    "error": "invalid_grant",
+                    "error_description": "The refresh token is expired or revoked.",
+                }
+
+        client = AsyncMock()
+        client.request.return_value = Response()
+
+        with self.assertRaises(MoomooCloudAuthRequired) as rejected:
+            await _request_json(
+                "POST",
+                "/oauth2/token",
+                stage="token_refresh",
+                client=client,
+            )
+
+        self.assertEqual(rejected.exception.provider_code, "invalid_grant")
+
+    async def test_oauth_client_and_scope_request_errors_do_not_prompt_reconnect(self) -> None:
+        class Response:
+            status_code = 401
+            headers = {}
+
+            def __init__(self, error: str) -> None:
+                self.error = error
+
+            def json(self):
+                return {
+                    "error": self.error,
+                    "error_description": "The OAuth request configuration is invalid.",
+                }
+
+        for provider_code in ("invalid_client", "unauthorized_client", "invalid_scope"):
+            with self.subTest(provider_code=provider_code):
+                client = AsyncMock()
+                client.request.return_value = Response(provider_code)
+                with self.assertRaises(MoomooCloudProviderError):
+                    await _request_json(
+                        "POST",
+                        "/oauth2/token",
+                        stage="token_refresh",
+                        client=client,
+                    )
+
+    async def test_http_auth_and_server_failures_keep_distinct_classes(self) -> None:
+        class Response:
+            headers = {}
+
+            def __init__(self, status_code: int) -> None:
+                self.status_code = status_code
+
+            def json(self):
+                return {"error": {"message": "request failed"}}
+
+        for status_code, expected_error in (
+            (401, MoomooCloudAuthRequired),
+            (403, MoomooCloudAuthRequired),
+            (503, MoomooCloudTemporaryError),
+        ):
+            with self.subTest(status_code=status_code):
+                client = AsyncMock()
+                client.request.return_value = Response(status_code)
+                with self.assertRaises(expected_error):
+                    await _request_json(
+                        "GET",
+                        "/api/v1.0/accounts/test/funds",
+                        stage="account_funds",
+                        access_token="memory-only-token",
+                        client=client,
+                    )
+
+    def test_successful_http_provider_envelopes_use_provider_error_codes(self) -> None:
+        with self.assertRaises(MoomooCloudAuthRequired):
+            _unwrap(
+                {"s": "error", "errcode": "invalid_token", "errmsg": "token expired"},
+                stage="authorized_accounts",
+                status_code=200,
+            )
+        with self.assertRaises(MoomooCloudProviderError):
+            _unwrap(
+                {"s": "error", "errcode": "invalid_parameter", "errmsg": "bad market"},
+                stage="orders_history_US",
+                status_code=200,
+            )
+        with self.assertRaises(MoomooCloudProviderError) as documented_error:
+            _unwrap(
+                {"s": "error", "errcode": -1200, "errmsg": "Error message."},
+                stage="orders_history_US",
+                status_code=200,
+            )
+        self.assertEqual(documented_error.exception.provider_code, -1200)
 
     async def test_refresh_keeps_original_scope_when_provider_omits_unchanged_scope(self) -> None:
         with patch(

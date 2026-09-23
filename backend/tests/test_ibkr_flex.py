@@ -21,6 +21,7 @@ from app.services.flex_query import (
     FLEX_FETCH_MAX_ATTEMPTS,
     IBKR_FLEX_NETWORK_BLOCKED_MESSAGE,
     IBKRFlexNetworkBlockedError,
+    IBKRFlexReportPendingTimeout,
     clear_flex_report_cache,
     fetch_flex_report,
     get_flex_report,
@@ -202,15 +203,35 @@ class IBKRFlexSyncScopeTests(unittest.IsolatedAsyncioTestCase):
         ):
             result = await connector._sync_impl(1)
 
-        self.assertEqual(result.status, SyncStatus.SKIPPED)
+        self.assertEqual(result.status, SyncStatus.PROVIDER_DELAYED)
         self.assertTrue(result.transaction_import_deferred)
-        self.assertIn("Previous IBKR data was kept", result.message)
+        self.assertEqual(
+            result.message,
+            "IBKR did not finish generating the Flex report within 2½ minutes. "
+            "BreakTwenty will retry on the next sync",
+        )
         parse_report.assert_not_called()
+
+    async def test_pending_poll_timeout_surfaces_as_provider_delayed(self) -> None:
+        connector = IBKRFlexConnector()
+        connector._should_skip_same_day_ibkr_scraper_sync = AsyncMock(return_value=False)
+
+        with (
+            patch("app.connectors.ibkr_flex.get_flex_credentials", AsyncMock(return_value=("token", "query"))),
+            patch(
+                "app.connectors.ibkr_flex.get_flex_report",
+                AsyncMock(side_effect=IBKRFlexReportPendingTimeout("Flex report remained pending")),
+            ),
+        ):
+            result = await connector._sync_impl(1)
+
+        self.assertEqual(result.status, SyncStatus.PROVIDER_DELAYED)
+        self.assertTrue(result.transaction_import_deferred)
 
     async def test_deferred_statement_generation_does_not_enqueue_transaction_import(self) -> None:
         response = {
-            "status": "skipped",
-            "message": "IBKR Flex statement generation is temporarily unavailable.",
+            "status": "provider_delayed",
+            "message": "IBKR did not finish generating the Flex report within 2½ minutes.",
             "transaction_import_deferred": True,
         }
 
@@ -410,7 +431,7 @@ class IBKRFlexRequestRetryTests(unittest.IsolatedAsyncioTestCase):
             patch("app.services.flex_query.httpx.AsyncClient", return_value=client),
             patch("app.services.flex_query.asyncio.sleep", AsyncMock()),
         ):
-            with self.assertRaises(TimeoutError):
+            with self.assertRaises(IBKRFlexReportPendingTimeout):
                 await fetch_flex_report("token", "ref", user_id=1)
 
         self.assertEqual(client.calls, FLEX_FETCH_MAX_ATTEMPTS)
@@ -459,25 +480,25 @@ class IBKRFlexErrorClassificationTests(unittest.TestCase):
     def _status(self, message: str) -> SyncStatus:
         return self.connector.exception_result(1, Exception(message)).status
 
-    def test_transient_poll_error_is_retryable_not_auth(self) -> None:
+    def test_transient_poll_error_is_provider_delayed_not_auth(self) -> None:
         self.assertEqual(
             self._status(
                 "Flex report error: Statement could not be retrieved at this time. "
                 "Please try again shortly."
             ),
-            SyncStatus.NETWORK_ERROR,
+            SyncStatus.PROVIDER_DELAYED,
         )
 
-    def test_transient_request_error_is_retryable(self) -> None:
+    def test_transient_request_error_is_provider_delayed(self) -> None:
         self.assertEqual(
             self._status("Statement could not be generated at this time. Please try again shortly."),
-            SyncStatus.NETWORK_ERROR,
+            SyncStatus.PROVIDER_DELAYED,
         )
 
-    def test_rate_limit_is_retryable(self) -> None:
+    def test_rate_limit_is_provider_delayed(self) -> None:
         self.assertEqual(
             self._status("Too many requests have been made from this token. Please try again shortly."),
-            SyncStatus.NETWORK_ERROR,
+            SyncStatus.PROVIDER_DELAYED,
         )
 
     def test_request_http_503_is_retryable(self) -> None:

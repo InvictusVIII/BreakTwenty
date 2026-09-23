@@ -685,7 +685,6 @@ async def _collect_current_state_at_export(user_id: int | None) -> dict[str, Any
             TransactionImportJob,
             TransactionImportWindow,
         )
-        from app.services.support_diagnostics import _diagnostic_job_message_fields
     except Exception as exc:
         payload["collection_error"] = _sanitize_error_text(f"{type(exc).__name__}: {exc}")
         return payload
@@ -823,10 +822,6 @@ async def _collect_current_state_at_export(user_id: int | None) -> dict[str, Any
         job_counts = Counter(summary["transaction_import_job_status_counts"])
         job_counts[str(job.status or "unknown")] += 1
         summary["transaction_import_job_status_counts"] = dict(sorted(job_counts.items()))
-        diagnostic_message_fields = {
-            field: _sanitize_error_text(value)
-            for field, value in _diagnostic_job_message_fields(job.last_error).items()
-        }
         job_payload = {
             "job_id": job.job_id,
             "status": job.status,
@@ -834,7 +829,8 @@ async def _collect_current_state_at_export(user_id: int | None) -> dict[str, Any
             "sync_id": job.sync_id,
             "source_sync_id": job.source_sync_id,
             "attempt_id": job.attempt_id,
-            **diagnostic_message_fields,
+            "last_error": _sanitize_error_text(job.last_error),
+            "recovery_message": _sanitize_error_text(job.recovery_message),
             "lease_token_set": bool(job.lease_token),
             "created_at": _isoformat_optional(job.created_at),
             "started_at": _isoformat_optional(job.started_at),
@@ -863,9 +859,9 @@ def _current_state_provider_key(provider: Any) -> str:
     if not normalized_provider:
         return ""
     try:
-        from app.provider_catalog import get_status_provider_for_result
+        from app.services.provider_keys import provider_status_key
 
-        return _normalize_provider(get_status_provider_for_result(normalized_provider))
+        return _normalize_provider(provider_status_key(normalized_provider))
     except Exception:
         return normalized_provider
 
@@ -899,6 +895,7 @@ async def archive_run(
     sync_id: str | None,
     trigger: str,
     error: str | None = None,
+    recovery_message: str | None = None,
     extra_fields: dict[str, Any] | None = None,
     traceback_text: str | None = None,
     attempt_id: str | None = None,
@@ -908,10 +905,7 @@ async def archive_run(
         return None
 
     try:
-        from app.services.support_diagnostics import (
-            _collect_state_snapshots,
-            _diagnostic_job_message_fields,
-        )
+        from app.services.support_diagnostics import _collect_state_snapshots
     except Exception as exc:
         logger.warning("auto-archive state snapshot import failed: %s", exc)
         return None
@@ -955,13 +949,6 @@ async def archive_run(
     since = now - RUN_BUFFER_WINDOW_BEFORE
     until = now + RUN_BUFFER_WINDOW_AFTER
 
-    diagnostic_message_fields = {
-        field: await asyncio.to_thread(_sanitize_error_text, value)
-        for field, value in _diagnostic_job_message_fields(
-            error,
-            error_field="error",
-        ).items()
-    }
     trigger_payload: dict[str, Any] = {
         "schema_version": 2,
         "generated_at": now.isoformat(),
@@ -970,6 +957,11 @@ async def archive_run(
         "sync_id": sync_id,
         "attempt_id": attempt_id,
         "capture_level": capture_level,
+        "error": await asyncio.to_thread(_sanitize_error_text, error),
+        "recovery_message": await asyncio.to_thread(
+            _sanitize_error_text,
+            recovery_message,
+        ),
         "export_scope": {
             "kind": "sync_attempt",
             "attempt_sync_id": str(sync_id or "") or None,
@@ -983,7 +975,6 @@ async def archive_run(
             if isinstance(extra_fields, dict)
             else None
         ),
-        **diagnostic_message_fields,
         "buffer_metadata": buffer_metadata(
             normalized_provider,
             user_id=user_id,
@@ -1184,6 +1175,7 @@ def archive_run_fire_and_forget(
     sync_id: str | None,
     trigger: str,
     error: str | None = None,
+    recovery_message: str | None = None,
     extra_fields: dict[str, Any] | None = None,
     traceback_text: str | None = None,
     attempt_id: str | None = None,
@@ -1205,6 +1197,7 @@ def archive_run_fire_and_forget(
                 sync_id=sync_id,
                 trigger=trigger,
                 error=error,
+                recovery_message=recovery_message,
                 extra_fields=extra_fields,
                 traceback_text=traceback_text,
                 attempt_id=attempt_id,

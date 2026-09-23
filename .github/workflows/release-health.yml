@@ -42,4 +42,4 @@ jobs:
         run: |
           BASELINE="${BASE_SHA:-HEAD}"
           python scripts/check_public_tree.py --candidate HEAD --baseline-ref "$BASELINE" --check-worktree
-          python scripts/run_release_health.py
+          python scripts/run_release_health.py --baseline "$BASELINE" --candidate HEAD

@@ -2,18 +2,23 @@
   "name": "breaktwenty",
   "productName": "BreakTwenty",
   "desktopName": "app.breaktwenty.desktop",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "description": "Electron shell and desktop auth coordinator for the local BreakTwenty app.",
   "homepage": "https://github.com/InvictusVIII/BreakTwenty",
   "author": "BreakTwenty",
   "license": "SEE LICENSE IN ../LICENSE.md",
-  "main": "src/main.js",
+  "main": "src/bootstrap.js",
   "engines": {
     "node": ">=22.12.0"
   },
   "scripts": {
     "start": "electron .",
+    "lint": "eslint \"src/**/*.js\"",
+    "test:startup": "node ../scripts/run_desktop_isolated_startup.js",
+    "test:e2e": "node ../scripts/run_desktop_isolated_electron.js",
+    "test:e2e:update-baselines": "node ../scripts/run_desktop_isolated_electron.js --update-baselines",
+    "test:packaged": "node ../scripts/run_packaged_native_smoke.js --build",
     "smoke:moomoo-cloud": "node ../scripts/moomoo_cloud_oauth_probe.js",
     "test:update-helper": "node ../scripts/update_helper_harness.js",
     "test:update-helper:gui": "node ../scripts/update_helper_harness.js --gui-smoke",
@@ -30,7 +35,9 @@
     "package:docker:dir": "node ../scripts/build_desktop_packaged_runtime.js --build-frontend --docker-backend && electron-builder --dir",
     "package:linux:dir": "npm run prepare:portable-python && node ../scripts/build_desktop_packaged_runtime.js --build-frontend --python-source dist/portable-python/current/python --pip-only-binary :all: && electron-builder --linux dir",
     "package:win:dir": "npm run prepare:portable-python && node ../scripts/build_desktop_packaged_runtime.js --build-frontend --python-source dist/portable-python/current/python --pip-only-binary :all: && electron-builder --win dir",
+    "package:win:dir:prebuilt-frontend": "npm run prepare:portable-python && node ../scripts/build_desktop_packaged_runtime.js --python-source dist/portable-python/current/python --pip-only-binary :all: && electron-builder --win dir",
     "package:mac:dir": "npm run prepare:portable-python && node ../scripts/build_desktop_packaged_runtime.js --build-frontend --python-source dist/portable-python/current/python --pip-only-binary :all: && electron-builder --mac dir",
+    "package:mac:dir:prebuilt-frontend": "npm run prepare:portable-python && node ../scripts/build_desktop_packaged_runtime.js --python-source dist/portable-python/current/python --pip-only-binary :all: && electron-builder --mac dir",
     "dist": "npm run dist:current",
     "dist:current": "npm run prepare:portable-python && node ../scripts/build_desktop_packaged_runtime.js --build-frontend --python-source dist/portable-python/current/python --pip-only-binary :all: && electron-builder",
     "dist:linux": "npm run prepare:portable-python && node ../scripts/build_desktop_packaged_runtime.js --build-frontend --python-source dist/portable-python/current/python --pip-only-binary :all: && electron-builder --linux AppImage deb",
@@ -43,11 +50,13 @@
     "dist:docker:linux": "node ../scripts/build_desktop_packaged_runtime.js --build-frontend --docker-backend && electron-builder --linux AppImage deb",
     "dist:docker:win": "node ../scripts/build_desktop_packaged_runtime.js --build-frontend --docker-backend && electron-builder --win nsis",
     "dist:docker:mac": "node ../scripts/build_desktop_packaged_runtime.js --build-frontend --docker-backend && electron-builder --mac dmg zip",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/appDiagnostics.js && node --check src/backendHealthProbe.js && node --check src/backendRecoveryHandoff.js && node --check src/appUpdater.js && node --check src/updateFeed.js && node --check src/updateInstallHelper.js && node --check src/visibleAuthBroker.js && node --check src/visibleAuthPython.js && node --check src/backendManager.js && node --check src/backendApiUrl.js && node --check src/ipcAuthorization.js && node --check src/rendererPreferences.js && node --check src/httpCachePolicy.js && node --check src/migrationSafety.js && node --check src/browserRuntimePrewarm.js && node --check src/mainWindowZoom.js && node --check src/supportArchiveReveal.js && node --check src/secureStorage.js && node --check src/keyManager.js && node --check src/launchAuth.js && node --check src/startupLock.js && node --check src/appIdentity.js && node --check src/appLifecycle.js && node --check src/externalNavigation.js && node --check ../scripts/moomoo_cloud_oauth_probe.js && node --test --test-concurrency=1 src/appDiagnostics.test.js src/backendHealthProbe.test.js src/backendRecoveryHandoff.test.js src/updateInstallHelper.test.js src/mainWindowZoom.test.js src/keyManager.test.js src/launchAuth.test.js src/startupLock.test.js src/backendApiUrl.test.js src/ipcAuthorization.test.js src/rendererPreferences.test.js src/httpCachePolicy.test.js src/backendManager.test.js src/visibleAuthBroker.test.js src/visibleAuthPython.test.js src/desktopSurface.test.js src/appIdentity.test.js src/appLifecycle.test.js src/migrationSafety.test.js src/updateFeed.test.js src/externalNavigation.test.js src/supportArchiveReveal.test.js ../scripts/python_runtime_install_policy.test.js ../scripts/moomoo_cloud_oauth_probe.test.js && node --check ../scripts/build_desktop_packaged_runtime.js && node --check ../scripts/prepare_portable_python_runtime.js && node --check ../scripts/python_runtime_install_policy.js"
+    "check": "npm run lint && node --check src/bootstrap.js && node --check src/main.js && node --check src/preload.js && node --check src/appDiagnostics.js && node --check src/backendHealthProbe.js && node --check src/backendRecoveryHandoff.js && node --check src/appUpdater.js && node --check src/updateFeed.js && node --check src/updateInstallHelper.js && node --check src/visibleAuthBroker.js && node --check src/visibleAuthPython.js && node --check src/backendManager.js && node --check src/backendApiUrl.js && node --check src/ipcAuthorization.js && node --check src/rendererPreferences.js && node --check src/httpCachePolicy.js && node --check src/migrationSafety.js && node --check src/browserRuntimePrewarm.js && node --check src/mainWindowZoom.js && node --check src/supportArchiveReveal.js && node --check src/secureStorage.js && node --check src/packagedSafeStorageSmoke.js && node --check src/packagedSafeStorageSmokeProtocol.js && node --check src/packagedSmokeLifecycle.js && node --check src/isolatedTestContract.js && node --check src/isolatedStartupChild.js && node --check src/isolatedElectronJourney.js && node --check src/isolatedElectronJourneyProtocol.js && node --check src/isolatedJourneyRoutes.js && node --check src/keyManager.js && node --check src/launchAuth.js && node --check src/startupLock.js && node --check src/appIdentity.js && node --check src/appLifecycle.js && node --check src/externalNavigation.js && node --check ../scripts/run_desktop_isolated_startup.js && node --check ../scripts/run_desktop_isolated_electron.js && node --check ../scripts/run_packaged_native_smoke.js && node --check ../scripts/run_packaged_safe_storage_smoke.js && node --check ../scripts/moomoo_cloud_oauth_probe.js && node --test --test-concurrency=1 src/appDiagnostics.test.js src/backendHealthProbe.test.js src/backendRecoveryHandoff.test.js src/updateInstallHelper.test.js src/mainWindowZoom.test.js src/keyManager.test.js src/launchAuth.test.js src/startupLock.test.js src/backendApiUrl.test.js src/ipcAuthorization.test.js src/rendererPreferences.test.js src/httpCachePolicy.test.js src/backendManager.test.js src/visibleAuthBroker.test.js src/visibleAuthPython.test.js src/desktopSurface.test.js src/appIdentity.test.js src/appLifecycle.test.js src/migrationSafety.test.js src/updateFeed.test.js src/externalNavigation.test.js src/supportArchiveReveal.test.js src/isolatedTestContract.test.js src/isolatedJourneyRoutes.test.js src/packagedSmokeLifecycle.test.js ../scripts/run_packaged_native_smoke.test.js ../scripts/python_runtime_install_policy.test.js ../scripts/moomoo_cloud_oauth_probe.test.js && npm run test:startup && node --check ../scripts/build_desktop_packaged_runtime.js && node --check ../scripts/prepare_portable_python_runtime.js && node --check ../scripts/python_runtime_install_policy.js"
   },
   "devDependencies": {
     "electron": "43.2.0",
-    "electron-builder": "^27.0.0-alpha.7"
+    "electron-builder": "^27.0.0-alpha.7",
+    "eslint": "10.6.0",
+    "globals": "17.4.0"
   },
   "dependencies": {
     "electron-log": "^5.4.4",

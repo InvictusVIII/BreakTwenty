@@ -27,6 +27,7 @@ from app.services.sync_utils import (
     AUTH_REQUIRED_KEYWORDS,
     INVALID_CREDENTIAL_KEYWORDS,
     is_network_error,
+    is_recoverable_transport_timeout,
 )
 
 if TYPE_CHECKING:
@@ -600,6 +601,7 @@ class ApiProviderConnectorBase(Connector):
         return SyncResult(
             status=SyncStatus.NETWORK_ERROR,
             message=safe_connector_public_message(message, fallback="Connection failed"),
+            recoverable_transport_timeout=is_recoverable_transport_timeout(exception),
         )
 
     def error_result(
@@ -694,6 +696,9 @@ class ApiProviderConnectorBase(Connector):
                 ),
                 challenge_method=result.get("challenge_method"),
                 transaction_import_deferred=bool(result.get("transaction_import_deferred")),
+                recoverable_transport_timeout=bool(
+                    result.get("recoverable_transport_timeout")
+                ),
             )
 
         self.log_event(

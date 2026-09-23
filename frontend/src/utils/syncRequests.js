@@ -11,7 +11,12 @@ const CLIENT_NETWORK_FAILURE_PATTERNS = [
   /sync timed out/i,
 ];
 
-export function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_SYNC_REQUEST_TIMEOUT_MS) {
+export function fetchWithTimeout(
+  url,
+  options = {},
+  timeoutMs = DEFAULT_SYNC_REQUEST_TIMEOUT_MS,
+  fetchImpl = fetch,
+) {
   const controller = new AbortController();
   const upstreamSignal = options.signal;
   const handleUpstreamAbort = () => controller.abort();
@@ -26,7 +31,7 @@ export function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_SYNC_REQ
     upstreamSignal?.removeEventListener('abort', handleUpstreamAbort);
   };
 
-  return fetch(url, { ...options, signal: controller.signal })
+  return fetchImpl(url, { ...options, signal: controller.signal })
     .then((resp) => {
       cleanup();
       return resp;

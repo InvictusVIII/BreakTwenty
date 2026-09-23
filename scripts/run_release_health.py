@@ -10,9 +10,32 @@ import tempfile
 import time
 from pathlib import Path
 
+try:
+    from change_validation import (
+        check_id_from_title,
+        fingerprint_tree,
+        receipt_base,
+        verify_receipt,
+        write_receipt,
+    )
+except ModuleNotFoundError:
+    from scripts.change_validation import (
+        check_id_from_title,
+        fingerprint_tree,
+        receipt_base,
+        verify_receipt,
+        write_receipt,
+    )
+
+try:
+    from quiet_validation import run_quiet_command
+except ModuleNotFoundError:
+    from scripts.quiet_validation import run_quiet_command
+
 
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
 ANY_WORKTREE_IGNORE_NAMES = {
+    ".breaktwenty-validation",
     ".git",
     ".mypy_cache",
     ".pytest_cache",
@@ -20,6 +43,7 @@ ANY_WORKTREE_IGNORE_NAMES = {
     "__pycache__",
     "node_modules",
 }
+ACTIVE_RELEASE_RECEIPT: dict[str, object] | None = None
 ROOT_WORKTREE_IGNORE_NAMES = {
     ".claude",
     ".codex",
@@ -58,6 +82,26 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Run against the current checkout instead of a temporary clean worktree.",
     )
+    parser.add_argument(
+        "--receipt",
+        type=Path,
+        help="Write the machine-readable complete-gate receipt to this path.",
+    )
+    parser.add_argument(
+        "--changed-path",
+        action="append",
+        default=[],
+        help="Record one candidate path changed from the release baseline.",
+    )
+    parser.add_argument(
+        "--baseline",
+        help="Git baseline used to derive the candidate's exact changed paths.",
+    )
+    parser.add_argument(
+        "--candidate",
+        default="HEAD",
+        help="Git candidate used with --baseline (default: HEAD).",
+    )
     return parser.parse_args()
 
 
@@ -66,6 +110,21 @@ def required_tool(name: str) -> str:
     if not executable:
         raise SystemExit(f"Required executable not found on PATH: {name}")
     return executable
+
+
+def release_changed_paths(root: Path, baseline: str, candidate: str) -> list[str]:
+    if baseline:
+        command = ["git", "diff", "--name-only", f"{baseline}...{candidate}"]
+    else:
+        command = ["git", "ls-tree", "-r", "--name-only", candidate]
+    completed = subprocess.run(  # nosec B603
+        command,
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return sorted({line for line in completed.stdout.splitlines() if line})
 
 
 def run_step(
@@ -87,19 +146,55 @@ def run_step(
     }
     if env:
         step_env.update(env)
+    record: dict[str, object] = {
+        "id": check_id_from_title(title),
+        "title": title,
+        "command": command,
+        "cwd": str(cwd),
+        "status": "running",
+        "attempts": [],
+    }
+    started = time.monotonic()
     for attempt in range(1, max(attempts, 1) + 1):
-        try:
-            subprocess.run(command, cwd=cwd, env=step_env, check=True)  # nosec B603
+        result = run_quiet_command(
+            command,
+            cwd=cwd,
+            env=step_env,
+            label=f"{title} (attempt {attempt}/{max(attempts, 1)})",
+            log_directory=SOURCE_ROOT / ".breaktwenty-validation" / "logs",
+            receipt_root=SOURCE_ROOT,
+        )
+        attempt_record: dict[str, object] = {
+            "attempt": attempt,
+            "status": "passed" if result.passed else "failed",
+            "duration_ms": result.duration_ms,
+            "exit_code": result.exit_code,
+            "output": result.receipt_output(),
+        }
+        if result.error:
+            attempt_record["error"] = result.error
+        record["attempts"].append(attempt_record)
+        if result.passed:
+            record["status"] = "passed"
+            record["duration_ms"] = round((time.monotonic() - started) * 1000)
+            if ACTIVE_RELEASE_RECEIPT is not None:
+                ACTIVE_RELEASE_RECEIPT["checks"].append(record)
             return
-        except subprocess.CalledProcessError:
-            if attempt >= max(attempts, 1):
-                raise
-            print(
-                f"{title} failed on attempt {attempt}/{attempts}; retrying in "
-                f"{retry_delay_seconds:g}s...",
-                flush=True,
+        if attempt >= max(attempts, 1):
+            record["status"] = "failed"
+            record["duration_ms"] = round((time.monotonic() - started) * 1000)
+            if ACTIVE_RELEASE_RECEIPT is not None:
+                ACTIVE_RELEASE_RECEIPT["checks"].append(record)
+            raise RuntimeError(
+                f"{title} failed with exit code {result.exit_code}; "
+                f"complete output: {result.retained_log}"
             )
-            time.sleep(retry_delay_seconds)
+        print(
+            f"{title} failed on attempt {attempt}/{attempts}; retrying in "
+            f"{retry_delay_seconds:g}s...",
+            flush=True,
+        )
+        time.sleep(retry_delay_seconds)
 
 
 def frontend_cache_dirs(root: Path) -> list[Path]:
@@ -388,6 +483,16 @@ def run_release_health(root: Path, args: argparse.Namespace) -> int:
         cwd=root,
     )
     run_step("Desktop check", [npm, "--prefix", "desktop", "run", "check"], cwd=root)
+    electron_command = [npm, "--prefix", "desktop", "run", "test:e2e"]
+    if sys.platform.startswith("linux") and not os.environ.get("DISPLAY"):
+        xvfb_run = required_tool("xvfb-run")
+        electron_command = [xvfb_run, "-a", *electron_command]
+    run_step("Desktop isolated Electron journey", electron_command, cwd=root)
+    run_step(
+        "Current-OS packaged native executable smoke",
+        [npm, "--prefix", "desktop", "run", "test:packaged"],
+        cwd=root,
+    )
     run_step(
         "SQLCipher CPython 3.12 wheel matrix",
         [sys.executable, "scripts/check_sqlcipher_wheel_matrix.py"],
@@ -398,18 +503,76 @@ def run_release_health(root: Path, args: argparse.Namespace) -> int:
     return 0
 
 
+def run_with_receipt(
+    root: Path,
+    args: argparse.Namespace,
+    receipt_path: Path,
+) -> int:
+    global ACTIVE_RELEASE_RECEIPT
+    initial_fingerprint = fingerprint_tree(root)
+    ACTIVE_RELEASE_RECEIPT = receipt_base(
+        root,
+        mode="complete-release",
+        paths=sorted(set(args.changed_path)) or ["<complete-tree>"],
+        boundaries=(
+            "backend",
+            "database_schema",
+            "desktop",
+            "electron_runtime",
+            "frontend",
+            "frontend_style",
+            "packaged_runtime_policy",
+            "release_tooling",
+            "shared_contract",
+        ),
+        skipped_boundaries=(
+            {
+                "boundary": "live_provider_networks",
+                "reason": "Release health never uses credentials or contacts live providers.",
+            },
+            {
+                "boundary": "other_native_operating_systems",
+                "reason": "This local receipt covers the current host; native package workflows validate their own OS.",
+            },
+        ),
+        fingerprint=initial_fingerprint,
+    )
+    write_receipt(receipt_path, ACTIVE_RELEASE_RECEIPT)
+    try:
+        result = run_release_health(root, args)
+        if fingerprint_tree(root)["value"] != initial_fingerprint["value"]:
+            raise RuntimeError("Release-health inputs changed while the complete gate was running.")
+        ACTIVE_RELEASE_RECEIPT["status"] = "passed"
+        write_receipt(receipt_path, ACTIVE_RELEASE_RECEIPT)
+        verify_receipt(root, ACTIVE_RELEASE_RECEIPT)
+        print(f"Validation receipt: {receipt_path}", flush=True)
+        return result
+    except BaseException as exc:
+        ACTIVE_RELEASE_RECEIPT["status"] = "failed"
+        ACTIVE_RELEASE_RECEIPT["error"] = f"{type(exc).__name__}: {exc}"
+        write_receipt(receipt_path, ACTIVE_RELEASE_RECEIPT)
+        raise
+    finally:
+        ACTIVE_RELEASE_RECEIPT = None
+
+
 def main() -> int:
     args = parse_args()
     if args.skip_install and not args.in_place:
         raise SystemExit("--skip-install can only be used with --in-place.")
+    if args.baseline is not None:
+        if args.changed_path:
+            raise SystemExit("Use either --baseline or --changed-path, not both.")
+        args.changed_path = release_changed_paths(SOURCE_ROOT, args.baseline, args.candidate)
 
+    receipt_path = (args.receipt or (SOURCE_ROOT / ".breaktwenty-validation" / "release-health.json")).resolve()
     if args.in_place:
-        return run_release_health(SOURCE_ROOT, args)
+        return run_with_receipt(SOURCE_ROOT, args, receipt_path)
 
     with tempfile.TemporaryDirectory(prefix="breaktwenty_release_health_worktree_") as tmp_dir:
         worktree = Path(tmp_dir) / "BreakTwenty"
         copy_release_health_worktree(worktree)
-        return run_release_health(worktree, args)
+        return run_with_receipt(worktree, args, receipt_path)
 
 
 if __name__ == "__main__":

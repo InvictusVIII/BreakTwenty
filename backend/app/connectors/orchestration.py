@@ -23,9 +23,10 @@ from app.provider_catalog import (
 )
 from app.services.runtime_state import clear_provider_reauth_quarantine_async
 from app.services.network_preflight import (
+    RECOVERABLE_TRANSPORT_TIMEOUT_MARKER,
     TEMPORARY_DNS_FAILURE_MARKER,
     NetworkPreflightResult,
-    is_temporary_dns_preflight_result,
+    is_recoverable_dns_preflight_result,
     run_provider_network_preflight,
 )
 from app.services.holdings_sector_enrichment import enrich_holding_rows_with_sectors
@@ -507,10 +508,17 @@ async def run_connector_sync(
             archive_scheduled=archive_scheduled,
             debug=True,
         )
-        if include_network_recovery_hint and is_temporary_dns_preflight_result(
+        if include_network_recovery_hint and await is_recoverable_dns_preflight_result(
             network_preflight
         ):
             response = {**response, TEMPORARY_DNS_FAILURE_MARKER: True}
+        if (
+            include_network_recovery_hint
+            and result.recoverable_transport_timeout
+            and network_preflight is not None
+            and network_preflight.status == "reachable"
+        ):
+            response = {**response, RECOVERABLE_TRANSPORT_TIMEOUT_MARKER: True}
         return result, response
     except Exception as exc:
         network_failure = is_network_error(exc)

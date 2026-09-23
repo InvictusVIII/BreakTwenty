@@ -147,7 +147,8 @@
       "properties": {
         "enabled": { "type": "boolean" },
         "phase": { "type": "string", "minLength": 1 },
-        "order": { "type": "integer" }
+        "order": { "type": "integer" },
+        "routeProvider": { "type": "string", "minLength": 1 }
       }
     },
     "TransactionImport": {

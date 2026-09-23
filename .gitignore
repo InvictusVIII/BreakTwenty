@@ -10,6 +10,7 @@ PROJECT_STATE.md
 rollout-*.jsonl
 .vscode/
 .desktop-auth/
+.breaktwenty-validation/
 
 node_modules/
 frontend/node_modules/

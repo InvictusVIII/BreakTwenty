@@ -17,7 +17,11 @@ from app.connectors.moomoo import (
 )
 from app.connectors.sync_modes import AccountSyncWindow
 from app.connectors.types import SyncStatus
-from app.services.moomoo_cloud import MoomooCloudAuthRequired, MoomooCloudTokens
+from app.services.moomoo_cloud import (
+    MoomooCloudAuthRequired,
+    MoomooCloudProviderError,
+    MoomooCloudTokens,
+)
 from app.services.transaction_import import _split_windows
 
 
@@ -274,6 +278,38 @@ class MoomooConnectorAuthTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result.status, SyncStatus.AUTH_REQUIRED)
         self.assertIn("Reconnect Moomoo", result.message or "")
+
+    async def test_request_validation_failure_is_an_error_without_reconnect(self) -> None:
+        connector = MoomooConnector()
+        session = {
+            "schema": "breaktwenty.moomoo-cloud-oauth.v1",
+            "auth_mode": "cloud_oauth",
+            "client_id": "public-client",
+            "refresh_token": "refresh-token",
+            "scope": "trade:read accid:1234567890123456",
+        }
+        rejected_request = MoomooCloudProviderError(
+            "invalid history range",
+            stage="orders_history_US",
+            status_code=400,
+            provider_code="invalid_request",
+        )
+        with (
+            patch.object(
+                moomoo_module,
+                "load_connection_artifact_async",
+                AsyncMock(return_value=session),
+            ),
+            patch.object(
+                moomoo_module,
+                "refresh_moomoo_cloud_access_token",
+                AsyncMock(side_effect=rejected_request),
+            ),
+        ):
+            result = await connector.sync(1)
+
+        self.assertEqual(result.status, SyncStatus.ERROR)
+        self.assertNotIn("Reconnect", result.message or "")
 
 
 if __name__ == "__main__":

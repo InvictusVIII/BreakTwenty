@@ -55,6 +55,36 @@ afterEach(() => {
 });
 
 describe('runSyncBatchUntilDone', () => {
+  it('can poll through an explicit live fetch boundary without opening SSE', async () => {
+    vi.useFakeTimers();
+    const globalFetch = vi.fn(() => {
+      throw new Error('promo fetch must not receive background autosync requests');
+    });
+    const liveFetch = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ status: 'started', batch_id: 'batch-live' }))
+      .mockResolvedValueOnce(jsonResponse({
+        status: 'done',
+        batch_id: 'batch-live',
+        results: {},
+      }));
+    vi.stubGlobal('fetch', globalFetch);
+
+    const completion = runSyncBatchUntilDone({
+      connections: [{ provider: 'amex', institution_id: 42 }],
+      mode: 'auto',
+      fetchImpl: liveFetch,
+      subscribeToEvents: false,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+
+    await expect(completion).resolves.toMatchObject({
+      status: 'done',
+      batch_id: 'batch-live',
+    });
+    expect(liveFetch).toHaveBeenCalledTimes(2);
+    expect(globalFetch).not.toHaveBeenCalled();
+  });
+
   it('reconciles terminal status when the completion SSE event is missed', async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn()

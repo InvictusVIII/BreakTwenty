@@ -6,7 +6,13 @@ const path = require('node:path');
 const test = require('node:test');
 
 const { BreakTwentyKeyManager, KEY_RECORD_FILE } = require('./keyManager');
-const { evaluateStorageStatus } = require('./secureStorage');
+const {
+  classifyLinuxAsyncBackend,
+  decryptProtectedString,
+  evaluateStorageStatus,
+  secureStorageStatus,
+  TEMPORARY_STORAGE_ERROR_CODE,
+} = require('./secureStorage');
 
 function fakeSecureStorage() {
   const wrappingKey = crypto.randomBytes(32);
@@ -208,6 +214,14 @@ test('Linux basic_text is classified as insecure', () => {
     evaluateStorageStatus({
       platform: 'linux',
       encryptionAvailable: true,
+      backend: 'secret_portal',
+    }).secure,
+    true,
+  );
+  assert.equal(
+    evaluateStorageStatus({
+      platform: 'linux',
+      encryptionAvailable: true,
       backend: 'unsupported_backend',
     }).secure,
     false,
@@ -236,4 +250,143 @@ test('Linux basic_text is classified as insecure', () => {
     }).secure,
     false,
   );
+});
+
+test('Linux async ciphertext identifies the provider that actually encrypted it', () => {
+  assert.equal(
+    classifyLinuxAsyncBackend(Buffer.from('v10ciphertext'), 'gnome_libsecret'),
+    'basic_text',
+  );
+  assert.equal(
+    classifyLinuxAsyncBackend(Buffer.from('v11ciphertext'), 'basic_text'),
+    'secret_service_or_kwallet',
+  );
+  assert.equal(
+    classifyLinuxAsyncBackend(Buffer.from('v11ciphertext'), 'kwallet6'),
+    'kwallet6',
+  );
+  assert.equal(
+    classifyLinuxAsyncBackend(Buffer.from('v12ciphertext'), 'basic_text'),
+    'secret_portal',
+  );
+  assert.equal(
+    classifyLinuxAsyncBackend(Buffer.from('v13ciphertext'), 'gnome_libsecret'),
+    'unknown',
+  );
+  assert.equal(classifyLinuxAsyncBackend(Buffer.from('v1')), 'unknown');
+  assert.equal(classifyLinuxAsyncBackend('v11ciphertext'), 'unknown');
+});
+
+test('Linux secure-storage status trusts the async provider instead of the legacy label', async () => {
+  const secureStatus = await secureStorageStatus({
+    platform: 'linux',
+    storage: {
+      async isAsyncEncryptionAvailable() {
+        return true;
+      },
+      getSelectedStorageBackend() {
+        return 'basic_text';
+      },
+      async encryptStringAsync(value) {
+        assert.equal(value, 'breaktwenty-secure-storage-probe');
+        return Buffer.from('v11ciphertext');
+      },
+    },
+  });
+  assert.deepEqual(secureStatus, {
+    secure: true,
+    encryptionAvailable: true,
+    backend: 'secret_service_or_kwallet',
+  });
+
+  const fallbackStatus = await secureStorageStatus({
+    platform: 'linux',
+    storage: {
+      async isAsyncEncryptionAvailable() {
+        return true;
+      },
+      getSelectedStorageBackend() {
+        return 'gnome_libsecret';
+      },
+      async encryptStringAsync() {
+        return Buffer.from('v10ciphertext');
+      },
+    },
+  });
+  assert.deepEqual(fallbackStatus, {
+    secure: false,
+    encryptionAvailable: true,
+    backend: 'basic_text',
+  });
+});
+
+test('temporary OS decrypt failures receive only the bounded retry budget', async () => {
+  let calls = 0;
+  const waits = [];
+  const decrypted = await decryptProtectedString(Buffer.from('ciphertext'), {
+    storage: {
+      async decryptStringAsync() {
+        calls += 1;
+        if (calls < 3) {
+          throw new Error('safeStorage.decryptStringAsync is temporarily unavailable. Please try again.');
+        }
+        return { result: 'plaintext', shouldReEncrypt: false };
+      },
+    },
+    requireStorage: async () => ({ secure: true, backend: 'keychain' }),
+    retryDelaysMs: [10, 20],
+    wait: async (delay) => waits.push(delay),
+  });
+
+  assert.deepEqual(decrypted, { plaintext: 'plaintext', shouldReEncrypt: false });
+  assert.equal(calls, 3);
+  assert.deepEqual(waits, [10, 20]);
+});
+
+test('permanent OS decrypt failures are never retried', async () => {
+  let calls = 0;
+  await assert.rejects(
+    decryptProtectedString(Buffer.from('ciphertext'), {
+      storage: {
+        async decryptStringAsync() {
+          calls += 1;
+          throw new Error('permanent decrypt failure');
+        },
+      },
+      requireStorage: async () => ({ secure: true, backend: 'keychain' }),
+      retryDelaysMs: [10, 20],
+      wait: async () => assert.fail('permanent failures must not wait'),
+    }),
+    /permanent decrypt failure/,
+  );
+  assert.equal(calls, 1);
+});
+
+test('exhausted temporary decrypt failures remain distinguishable at key startup', async (context) => {
+  const runtime = temporaryRuntime();
+  context.after(() => fs.rmSync(runtime.root, { recursive: true, force: true }));
+  const storage = fakeSecureStorage();
+  const firstManager = new BreakTwentyKeyManager({ ...runtime, secureStorage: storage });
+  await firstManager.loadOrCreate();
+  firstManager.clear();
+  const recordPath = path.join(runtime.dataDir, KEY_RECORD_FILE);
+  const before = fs.readFileSync(recordPath);
+  const temporaryError = new Error('OS-backed secure storage remained temporarily unavailable.');
+  temporaryError.code = TEMPORARY_STORAGE_ERROR_CODE;
+
+  await assert.rejects(
+    new BreakTwentyKeyManager({
+      ...runtime,
+      secureStorage: {
+        async requireSecureStorage() {
+          return { secure: true, backend: 'keychain' };
+        },
+        async decryptProtectedString() {
+          throw temporaryError;
+        },
+      },
+    }).loadOrCreate(),
+    (error) => error.code === TEMPORARY_STORAGE_ERROR_CODE,
+  );
+  assert.deepEqual(fs.readFileSync(recordPath), before);
 });

@@ -22,7 +22,7 @@ class MigrationUpdateSafetyFixtureTests(unittest.TestCase):
     def test_installed_head_upgrades_to_next_revision(self) -> None:
         result = self.run_fixture("success")
 
-        self.assertEqual(result["beforeRevisions"], ["0008_canonical_category_palette"])
+        self.assertEqual(result["beforeRevisions"], ["0009_tximport_recovery_message"])
         self.assertEqual(result["afterRevisions"], ["fixture_next"])
         self.assertFalse(result["needsMigrationAfter"])
         self.assertFalse(result["migrationFailed"])
@@ -95,8 +95,8 @@ class MigrationUpdateSafetyFixtureTests(unittest.TestCase):
     def test_failed_next_revision_restores_installed_head(self) -> None:
         result = self.run_fixture("failure")
 
-        self.assertEqual(result["beforeRevisions"], ["0008_canonical_category_palette"])
-        self.assertEqual(result["afterRevisions"], ["0008_canonical_category_palette"])
+        self.assertEqual(result["beforeRevisions"], ["0009_tximport_recovery_message"])
+        self.assertEqual(result["afterRevisions"], ["0009_tximport_recovery_message"])
         self.assertTrue(result["needsMigrationAfter"])
         self.assertTrue(result["migrationFailed"])
         self.assertEqual(result["marker"], "installed-v1-data")

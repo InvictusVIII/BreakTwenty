@@ -4,11 +4,9 @@ import { Link } from 'react-router-dom';
 import NetWorthChart from '../components/NetWorthChart';
 import CsvExportButton from '../components/CsvExportButton';
 import AppStatusNotice from '../components/AppStatusNotice';
-import AllocationChart, {
-  OTHER_INSTITUTIONS_COLOR_KEY,
-  OTHER_INSTITUTIONS_LABEL,
-} from '../components/AllocationChart';
-import InstitutionAccountSelector, { ScopeSelectorTrigger, formatScopeSelectionSummary } from '../components/InstitutionAccountSelector';
+import AllocationChart from '../components/AllocationChart';
+import InstitutionAccountSelector from '../components/InstitutionAccountSelector';
+import ScopeSelectorTrigger from '../components/ScopeSelectorTrigger';
 import { ChartColorPopover, ChartColorRow } from '../components/ChartColorControls';
 import InstitutionLogo from '../components/InstitutionLogo';
 import ProviderSyncStatus from '../components/ProviderSyncStatus';
@@ -26,6 +24,11 @@ import {
   MdRestartAlt,
 } from 'react-icons/md';
 import { LuSlidersHorizontal } from 'react-icons/lu';
+import {
+  OTHER_INSTITUTIONS_COLOR_KEY,
+  OTHER_INSTITUTIONS_LABEL,
+} from '../utils/allocationChartOptions';
+import { formatScopeSelectionSummary } from '../utils/scopeSelection';
 import TriangleIcon from '../components/TriangleIcon';
 import { API } from '../config';
 import { getAppClockOverride, getAppNow, getAppNowMs } from '../utils/appClock';

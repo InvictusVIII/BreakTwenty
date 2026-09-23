@@ -15,17 +15,50 @@ from unittest.mock import AsyncMock, patch
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.database import Base
-from app.models import Account, Institution, TransactionImportJob, TransactionImportWindow, User
+from app.models import (
+    Account,
+    Institution,
+    TransactionImportAccountState,
+    TransactionImportJob,
+    TransactionImportWindow,
+    User,
+)
 from app.services import support_auto_archive, support_diagnostics
 from app.services.log_buffer import ProviderLogRingBuffer
 from app.services.transaction_import_jobs import TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE
 
 
 class SupportAutoArchiveTests(unittest.IsolatedAsyncioTestCase):
-    def test_diagnostic_job_message_fields_preserve_real_errors(self) -> None:
-        fields = support_diagnostics._diagnostic_job_message_fields("provider timeout")
+    def test_job_snapshot_preserves_real_errors_and_recovery_metadata(self) -> None:
+        row = SimpleNamespace(
+            id=1,
+            job_id="bmo-job",
+            provider="bmo",
+            institution_id=2,
+            status="failed",
+            reason="autosync",
+            sync_id="bmo-sync",
+            source_sync_id="bmo-sync",
+            attempt_id="bmo-attempt",
+            last_error="provider timeout",
+            recovery_message=TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE,
+            last_progress_at=None,
+            last_progress_label=None,
+            stale_recovery_count=0,
+            lease_token=None,
+            created_at=None,
+            started_at=None,
+            finished_at=None,
+            updated_at=None,
+        )
 
-        self.assertEqual({"last_error": "provider timeout"}, fields)
+        fields = support_diagnostics._job_row_to_dict(row)
+
+        self.assertEqual("provider timeout", fields["last_error"])
+        self.assertEqual(
+            TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE,
+            fields["recovery_message"],
+        )
 
     async def test_attempt_state_excludes_older_provider_jobs_and_windows(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -66,7 +99,7 @@ class SupportAutoArchiveTests(unittest.IsolatedAsyncioTestCase):
                             status="running",
                             sync_id="bmo-transaction-phase",
                             source_sync_id="bmo-attempt-a",
-                            last_error=TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE,
+                            recovery_message=TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE,
                             created_at=now,
                             updated_at=now,
                         ),
@@ -192,6 +225,7 @@ class SupportAutoArchiveTests(unittest.IsolatedAsyncioTestCase):
             snapshots["institution_snapshot.json"]["historical_attempt_evidence"]
         )
         institution_snapshot = snapshots["institution_snapshot.json"]
+        self.assertEqual("bmo", institution_snapshot["connection_provider"])
         self.assertEqual("popup-a", institution_snapshot["attempt_id"])
         self.assertEqual("auth_required", institution_snapshot["attempt_result_status"])
         self.assertEqual("sync_all", institution_snapshot["initiation_source"])
@@ -249,7 +283,7 @@ class SupportAutoArchiveTests(unittest.IsolatedAsyncioTestCase):
                         reason="autosync",
                         sync_id="ibkr-attempt-a",
                         source_sync_id="ibkr-attempt-a",
-                        last_error=TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE,
+                        recovery_message=TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE,
                         created_at=now,
                         updated_at=now,
                     )
@@ -280,6 +314,124 @@ class SupportAutoArchiveTests(unittest.IsolatedAsyncioTestCase):
             snapshot["providers"]["ibkr"]["latest_transaction_import_job"][
                 "recovery_message"
             ],
+        )
+
+    async def test_ibkr_flex_attempt_state_uses_visible_ibkr_connection(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            engine = create_async_engine(f"sqlite+aiosqlite:///{temp_dir}/support-state.db")
+            sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+            async with engine.begin() as connection:
+                await connection.run_sync(Base.metadata.create_all)
+            now = datetime(2026, 8, 26, 20, 0, tzinfo=timezone.utc)
+            async with sessionmaker() as db:
+                db.add(User(id=1))
+                db.add(
+                    Institution(
+                        id=1,
+                        user_id=1,
+                        name="IBKR",
+                        type="scraper",
+                        provider="ibkr",
+                        sync_status="ok",
+                    )
+                )
+                db.add(
+                    Account(
+                        id=1,
+                        user_id=1,
+                        institution_id=1,
+                        external_id="ibkr-account",
+                        name="IBKR Account",
+                        account_type="brokerage",
+                        currency="USD",
+                    )
+                )
+                db.add(
+                    TransactionImportJob(
+                        user_id=1,
+                        institution_id=1,
+                        provider="ibkr_flex",
+                        job_id="ibkr-flex-job",
+                        status="failed",
+                        reason="autosync",
+                        sync_id="ibkr-flex-attempt-a",
+                        source_sync_id="ibkr-flex-attempt-a",
+                        last_error="Flex report unavailable",
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+                db.add(
+                    TransactionImportAccountState(
+                        user_id=1,
+                        institution_id=1,
+                        account_id=1,
+                        provider="ibkr_flex",
+                        account_external_id="ibkr-account",
+                        account_name="IBKR Account",
+                        account_type="brokerage",
+                        backfill_status="failed",
+                        last_error="Flex report unavailable",
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+                await db.commit()
+
+            try:
+                with (
+                    patch.object(support_diagnostics, "async_session", sessionmaker),
+                    patch.object(
+                        support_diagnostics,
+                        "get_provider_sync_attempt",
+                        return_value=None,
+                    ),
+                    patch.object(
+                        support_diagnostics,
+                        "sync_lock_state_snapshot",
+                        return_value={},
+                    ),
+                    patch.object(
+                        support_diagnostics,
+                        "transaction_import_task_snapshot",
+                        return_value={},
+                    ),
+                ):
+                    snapshots = await support_diagnostics._collect_state_snapshots(
+                        1,
+                        "ibkr_flex",
+                        sync_id="ibkr-flex-attempt-a",
+                        attempt_id="ibkr-flex-popup-a",
+                        institution_id=1,
+                        result_status="network_error",
+                        initiation_source="autosync",
+                        since=now - timedelta(minutes=10),
+                        until=now + timedelta(minutes=2),
+                    )
+            finally:
+                await engine.dispose()
+
+        institution_snapshot = snapshots["institution_snapshot.json"]
+        self.assertEqual("ibkr_flex", institution_snapshot["provider"])
+        self.assertEqual("ibkr", institution_snapshot["connection_provider"])
+        self.assertEqual(
+            ["ibkr"],
+            [row["provider"] for row in institution_snapshot["institutions"]],
+        )
+        self.assertEqual(
+            [1],
+            [row["institution_id"] for row in institution_snapshot["accounts"]],
+        )
+        self.assertEqual(
+            ["ibkr_flex"],
+            [
+                row["provider"]
+                for row in institution_snapshot["transaction_import_account_states"]
+            ],
+        )
+        self.assertEqual(
+            ["ibkr_flex"],
+            [row["provider"] for row in snapshots["jobs.json"]["jobs"]],
         )
 
     def test_log_buffer_snapshot_requires_matching_user_and_sync_id(self) -> None:
@@ -457,7 +609,7 @@ class SupportAutoArchiveTests(unittest.IsolatedAsyncioTestCase):
                     sync_id="bmo-attempt-a",
                     attempt_id="popup-a",
                     trigger="sync_result_ok",
-                    error=TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE,
+                    recovery_message=TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE,
                     extra_fields={
                         "sync_scope": "accounts",
                         "sync_source": "sync_all",

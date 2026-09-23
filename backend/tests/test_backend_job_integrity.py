@@ -18,6 +18,7 @@ from app.models import (
     User,
 )
 from app.services import transaction_import_jobs
+from app.services.network_preflight import DnsResolutionResult
 
 
 class TransactionImportLeaseHeartbeatTests(unittest.IsolatedAsyncioTestCase):
@@ -178,6 +179,11 @@ class TransactionImportLeaseHeartbeatTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(job.lease_token)
         self.assertIsNone(job.lease_expires_at)
         self.assertIsNone(job.finished_at)
+        self.assertIsNone(job.last_error)
+        self.assertEqual(
+            transaction_import_jobs.TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE,
+            job.recovery_message,
+        )
         self.assertEqual(window.status, "error")
         self.assertEqual(account_state.backfill_status, "error")
 
@@ -199,6 +205,11 @@ class TransactionImportLeaseHeartbeatTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(job.status, transaction_import_jobs.JOB_STATUS_QUEUED)
         self.assertIsNone(job.lease_token)
         self.assertIsNone(job.lease_expires_at)
+        self.assertIsNone(job.last_error)
+        self.assertEqual(
+            transaction_import_jobs.TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE,
+            job.recovery_message,
+        )
 
     async def test_restart_fails_nonrevivable_add_connection_job(self) -> None:
         async with self._sessionmaker() as db, db.begin():
@@ -219,6 +230,11 @@ class TransactionImportLeaseHeartbeatTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(job.status, transaction_import_jobs.JOB_STATUS_FAILED)
         self.assertIsNotNone(job.finished_at)
         self.assertIsNone(job.lease_token)
+        self.assertEqual(
+            "Interrupted one-shot add import; retry needed.",
+            job.last_error,
+        )
+        self.assertIsNone(job.recovery_message)
         self.assertEqual(window.status, "error")
 
     async def test_task_crash_callback_durably_fails_job_and_clears_lease(self) -> None:
@@ -275,6 +291,7 @@ class TransactionImportLeaseHeartbeatTests(unittest.IsolatedAsyncioTestCase):
             status=transaction_import_jobs.JOB_STATUS_COMPLETE,
             reason="manual_sync",
             last_error=None,
+            recovery_message=transaction_import_jobs.TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE,
         )
         flow_finished = False
 
@@ -330,6 +347,7 @@ class TransactionImportLeaseHeartbeatTests(unittest.IsolatedAsyncioTestCase):
             attempt_id="visible-auth-attempt",
             trigger="tximport_job_finalized_complete",
             error=None,
+            recovery_message=transaction_import_jobs.TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE,
             extra_fields={
                 "job_id": "rbc-final-job",
                 "job_status": transaction_import_jobs.JOB_STATUS_COMPLETE,
@@ -341,9 +359,28 @@ class TransactionImportLeaseHeartbeatTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_sync_all_transaction_job_retries_once_after_temporary_dns_recovery(self) -> None:
+        await self._assert_transaction_job_network_recovery("sync_all", False)
+
+    async def test_autosync_transaction_job_recovers_noname_with_independent_dns_failure(self) -> None:
+        await self._assert_transaction_job_network_recovery("autosync", True)
+
+    async def test_autosync_transaction_job_retries_reachable_transport_timeout(self) -> None:
+        await self._assert_transaction_job_network_recovery(
+            "autosync",
+            False,
+            transport_timeout=True,
+        )
+
+    async def _assert_transaction_job_network_recovery(
+        self,
+        reason,
+        noname,
+        *,
+        transport_timeout=False,
+    ) -> None:
         async with self._sessionmaker() as db:
             job = await db.get(TransactionImportJob, 1)
-            job.reason = "sync_all"
+            job.reason = reason
             job.source_sync_id = "rbc-sync-all"
             await db.commit()
 
@@ -354,13 +391,26 @@ class TransactionImportLeaseHeartbeatTests(unittest.IsolatedAsyncioTestCase):
                     {
                         "status": "network_error",
                         "sync_id": "rbc-sync-all",
-                        transaction_import_jobs.TEMPORARY_DNS_FAILURE_MARKER: True,
+                        transaction_import_jobs.TEMPORARY_DNS_FAILURE_MARKER: (
+                            not noname and not transport_timeout
+                        ),
+                        transaction_import_jobs.RECOVERABLE_TRANSPORT_TIMEOUT_MARKER: (
+                            transport_timeout
+                        ),
                     },
                 ),
                 (object(), {"status": "ok", "sync_id": "rbc-sync-all"}),
             )
         )
         mark_job = AsyncMock()
+        dns_failure = DnsResolutionResult(
+            provider="rbc",
+            host="www1.royalbank.com",
+            status="failed",
+            diagnosis="dns_lookup_failed_from_backend_runtime",
+            duration_ms=1,
+            error_name="EAI_NONAME",
+        )
         with (
             patch.object(
                 transaction_import_jobs,
@@ -379,7 +429,7 @@ class TransactionImportLeaseHeartbeatTests(unittest.IsolatedAsyncioTestCase):
                 transaction_import_jobs,
                 "run_provider_dns_resolution",
                 new=AsyncMock(
-                    return_value=SimpleNamespace(status="resolved", error_name=None)
+                    return_value=dns_failure if noname else SimpleNamespace(status="resolved", error_name=None)
                 ),
             ),
             patch.object(
@@ -387,6 +437,15 @@ class TransactionImportLeaseHeartbeatTests(unittest.IsolatedAsyncioTestCase):
                 "run_sync_network_gate",
                 new=AsyncMock(return_value=SimpleNamespace(status="ready")),
             ) as recovery_gate,
+            patch.object(
+                transaction_import_jobs,
+                "TRANSPORT_RECOVERY_STABILIZATION_DELAY_SECONDS",
+                0.0,
+            ),
+            patch(
+                "app.services.network_preflight._run_dns_resolution",
+                new=AsyncMock(return_value=dns_failure),
+            ),
             patch(
                 "app.connectors.orchestration.run_connector_sync",
                 new=run_connector,

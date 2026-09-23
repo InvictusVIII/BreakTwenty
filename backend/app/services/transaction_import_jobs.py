@@ -37,7 +37,10 @@ from app.services.event_bus import (
 )
 from app.services.provider_keys import provider_status_key
 from app.services.network_preflight import (
+    RECOVERABLE_TRANSPORT_TIMEOUT_MARKER,
+    TRANSPORT_RECOVERY_STABILIZATION_DELAY_SECONDS,
     TEMPORARY_DNS_FAILURE_MARKER,
+    is_recoverable_dns_preflight_result,
     run_provider_dns_resolution,
     run_sync_network_gate,
 )
@@ -109,6 +112,7 @@ def _job_payload(job: TransactionImportJob) -> dict[str, Any]:
         "attempt_id": job.attempt_id,
         "reason": job.reason,
         "last_error": job.last_error,
+        "recovery_message": job.recovery_message,
         "last_progress_at": job.last_progress_at.isoformat() if job.last_progress_at else None,
         "last_progress_label": job.last_progress_label,
         "stale_recovery_count": int(job.stale_recovery_count or 0),
@@ -177,6 +181,7 @@ def _archive_crashed_job(job_id: str, exc: BaseException) -> None:
             attempt_id=(job.attempt_id if job else None),
             trigger="tximport_task_crashed",
             error=f"{type(exc).__name__}: {exc}",
+            recovery_message=(job.recovery_message if job else None),
             extra_fields={
                 "job_id": job_id,
                 "sync_source": (str(job.reason or "") or None) if job else None,
@@ -527,11 +532,11 @@ async def resume_transaction_import_jobs(*, force_running: bool = False) -> None
             job.status = JOB_STATUS_QUEUED if resumable else JOB_STATUS_FAILED
             job.lease_token = None
             job.lease_expires_at = None
-            job.last_error = (
-                TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE
-                if resumable
-                else "Interrupted one-shot add import; retry needed."
-            )
+            if resumable:
+                job.last_error = None
+                job.recovery_message = TRANSACTION_JOB_RESTART_RECOVERY_MESSAGE
+            else:
+                job.last_error = "Interrupted one-shot add import; retry needed."
             job.last_progress_at = now
             job.last_progress_label = (
                 "Queued after backend restart."
@@ -672,6 +677,7 @@ async def _mark_job(
                 "attempt_id": job.attempt_id,
                 "trigger": f"tximport_mark_job_{status}",
                 "error": job.last_error,
+                "recovery_message": job.recovery_message,
                 "extra_fields": {
                     "job_id": job_id,
                     "previous_status": previous_status,
@@ -1081,6 +1087,7 @@ async def _run_transaction_import_job(job_id: str, *, delay_seconds: float = 0.0
                     attempt_id=finalized_job.attempt_id,
                     trigger=f"tximport_job_finalized_{finalized_job.status}",
                     error=finalized_job.last_error,
+                    recovery_message=finalized_job.recovery_message,
                     extra_fields={
                         "job_id": job_id,
                         "job_status": finalized_job.status,
@@ -1211,10 +1218,16 @@ async def _run_claimed_transaction_import_job(
             and str(response.get("status") or "").lower() == "network_error"
         ):
             dns_result = await run_provider_dns_resolution(job.provider)
+            transport_timeout_recovery = (
+                response.get(RECOVERABLE_TRANSPORT_TIMEOUT_MARKER) is True
+            )
             if (
-                response.get(TEMPORARY_DNS_FAILURE_MARKER) is True
-                or dns_result.status == "temporary_failure"
+                transport_timeout_recovery
+                or response.get(TEMPORARY_DNS_FAILURE_MARKER) is True
+                or await is_recoverable_dns_preflight_result(dns_result)
             ):
+                if transport_timeout_recovery:
+                    await asyncio.sleep(TRANSPORT_RECOVERY_STABILIZATION_DELAY_SECONDS)
                 await _touch_job_progress(
                     job_id,
                     "Waiting for internet connection to recover.",
@@ -1230,19 +1243,25 @@ async def _run_claimed_transaction_import_job(
                 if recovery_gate.status == "ready":
                     _log_provider_job_event(
                         job.provider,
-                        "transaction import temporary DNS recovery retry",
+                        "transaction import temporary network recovery retry",
                         user_id=job.user_id,
                         sync_id=source_sync_id,
                         job_id=job_id,
                         reason=normalized_reason,
                         source_sync_id=job.source_sync_id,
                         attempt_id=job.attempt_id,
+                        recovery_reason=(
+                            "transport_timeout_provider_reachable"
+                            if transport_timeout_recovery
+                            else "dns_resolution_recovered"
+                        ),
                         error_name=dns_result.error_name,
                     )
                     response = await run_transaction_sync(
                         include_network_recovery_hint=False
                     )
         response.pop(TEMPORARY_DNS_FAILURE_MARKER, None)
+        response.pop(RECOVERABLE_TRANSPORT_TIMEOUT_MARKER, None)
         response_status = str(response.get("status") or "")
         sync_id = str(response.get("sync_id") or "") or None
         _log_provider_job_event(

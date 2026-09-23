@@ -129,6 +129,8 @@ def _validate_backend_metadata(provider: str, metadata: dict[str, Any]) -> None:
         _expect_string(nightly.get("phase"), f"{provider}.backend.nightly.phase")
     if nightly.get("order") is not None and not isinstance(nightly.get("order"), int):
         raise ValueError(f"{provider}.backend.nightly.order must be an integer.")
+    if nightly.get("routeProvider") is not None:
+        _expect_string(nightly.get("routeProvider"), f"{provider}.backend.nightly.routeProvider")
 
     _expect_optional_string_list(
         metadata.get("settingInvalidationKeys"),
@@ -184,6 +186,17 @@ def _validate_provider_catalog(catalog: dict[str, Any]) -> dict[str, Any]:
         _expect_optional_mapping(entry.get("logo"), f"{provider}.logo")
         _validate_frontend_metadata(provider, _expect_optional_mapping(entry.get("frontend"), f"{provider}.frontend"))
         _validate_backend_metadata(provider, _expect_optional_mapping(entry.get("backend"), f"{provider}.backend"))
+    for provider, metadata in catalog.items():
+        nightly = (metadata.get("backend") or {}).get("nightly") or {}
+        route_provider = nightly.get("routeProvider")
+        if route_provider is None:
+            continue
+        route_metadata = catalog.get(route_provider)
+        route = ((route_metadata or {}).get("backend") or {}).get("route") or {}
+        if not route.get("syncPath"):
+            raise ValueError(
+                f"{provider}.backend.nightly.routeProvider must name a provider with a sync route."
+            )
     return catalog
 
 
@@ -310,7 +323,9 @@ def get_sync_route_provider_for_endpoint(endpoint: str | None) -> str | None:
 
 def resolve_sync_route_provider(provider: str, mode: str) -> str | None:
     if mode == "nightly":
-        return provider if get_route_metadata(provider).get("syncPath") else None
+        nightly = (get_provider_metadata(provider).get("backend") or {}).get("nightly") or {}
+        route_provider = str(nightly.get("routeProvider") or provider)
+        return route_provider if get_route_metadata(route_provider).get("syncPath") else None
     endpoint = get_frontend_sync_endpoint(provider, mode)
     route_provider = get_sync_route_provider_for_endpoint(endpoint)
     if route_provider:

@@ -63,6 +63,13 @@ class ApiProviderConnectorBaseTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result.status, SyncStatus.NETWORK_ERROR)
         self.assertEqual(result.message, "Connection failed")
+        self.assertFalse(result.recoverable_transport_timeout)
+
+    async def test_transport_timeout_is_marked_for_bounded_network_recovery(self) -> None:
+        result = await DummyApiConnector(exc=httpx.ConnectTimeout("route changed")).sync(1)
+
+        self.assertEqual(result.status, SyncStatus.NETWORK_ERROR)
+        self.assertTrue(result.recoverable_transport_timeout)
 
     async def test_mapping_result_is_normalized(self) -> None:
         account = NormalizedAccount(name="Example", account_type="chequing")

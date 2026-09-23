@@ -514,6 +514,7 @@ class TransactionImportJob(Base):
     source_sync_id = Column(String, nullable=True, index=True)
     attempt_id = Column(String, nullable=True, index=True)
     last_error = Column(Text, nullable=True)
+    recovery_message = Column(Text, nullable=True)
     last_progress_at = Column(UTC_TIMESTAMP, nullable=True, index=True)
     last_progress_label = Column(String, nullable=True)
     stale_recovery_count = Column(Integer, nullable=False, default=0)

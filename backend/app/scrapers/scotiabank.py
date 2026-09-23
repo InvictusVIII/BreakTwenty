@@ -863,7 +863,7 @@ async def try_headless_sync(
                 exception_type=type(exc).__name__,
                 message=_scotia_sanitize_log_text(str(exc) or type(exc).__name__),
             )
-            return scraper_network_error()
+            return scraper_network_error(exception=exc)
         _scotia_log_event(
             "headless sync failed",
             user_id=user_id,

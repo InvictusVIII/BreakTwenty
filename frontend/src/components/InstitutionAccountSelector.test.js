@@ -1,7 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import InstitutionAccountSelector, {
-  formatScopeSelectionSummary,
-} from './InstitutionAccountSelector';
+import InstitutionAccountSelector from './InstitutionAccountSelector';
+import { formatScopeSelectionSummary } from '../utils/scopeSelection';
 
 test('renders the canonical scope account shape', () => {
   const onToggleAccount = vi.fn();

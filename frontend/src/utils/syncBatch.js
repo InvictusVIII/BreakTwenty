@@ -107,13 +107,13 @@ export function mergeInstitutionAccounts(currentAccounts, institutionId, nextIns
   ];
 }
 
-export async function startSyncBatch(connections, mode, { signal } = {}) {
+export async function startSyncBatch(connections, mode, { signal, fetchImpl } = {}) {
   const resp = await fetchWithTimeout(`${API}/sync/batch`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ connections, mode }),
     signal,
-  }, DEFAULT_SYNC_REQUEST_TIMEOUT_MS);
+  }, DEFAULT_SYNC_REQUEST_TIMEOUT_MS, fetchImpl);
   const payload = await parseSyncBatchResponse(resp, 'Failed to start sync batch.');
   if (payload.status === 'started' && payload.batch_id) {
     rememberMonitoredSyncBatchId(payload.batch_id);
@@ -121,13 +121,14 @@ export async function startSyncBatch(connections, mode, { signal } = {}) {
   return payload;
 }
 
-export async function fetchSyncBatch(batchId, { signal } = {}) {
+export async function fetchSyncBatch(batchId, { signal, fetchImpl } = {}) {
   const normalizedId = normalizedBatchId(batchId);
   if (!normalizedId) throw new Error('Failed to read sync batch status.');
   const resp = await fetchWithTimeout(
     `${API}/sync/batch/${encodeURIComponent(normalizedId)}`,
     { signal },
     DEFAULT_SYNC_REQUEST_TIMEOUT_MS,
+    fetchImpl,
   );
   const payload = await parseSyncBatchResponse(resp, 'Failed to read sync batch status.');
   return payload.batch_id ? payload : { ...payload, batch_id: normalizedId };
@@ -243,6 +244,8 @@ export async function runSyncBatchUntilDone({
   onConnectionResult,
   signal,
   timeoutMs = SYNC_BATCH_MONITOR_TIMEOUT_MS,
+  fetchImpl,
+  subscribeToEvents = true,
 }) {
   const cancelledResult = (batchId = null) => ({
     status: 'error',
@@ -255,7 +258,7 @@ export async function runSyncBatchUntilDone({
   }
   let started;
   try {
-    started = await startSyncBatch(connections, mode, { signal });
+    started = await startSyncBatch(connections, mode, { signal, fetchImpl });
   } catch (error) {
     if (signal?.aborted) return cancelledResult();
     throw error;
@@ -305,7 +308,10 @@ export async function runSyncBatchUntilDone({
       const controller = new AbortController();
       activeReconcileController = controller;
       try {
-        handleBatch(await fetchSyncBatch(batchId, { signal: controller.signal }));
+        handleBatch(await fetchSyncBatch(batchId, {
+          signal: controller.signal,
+          fetchImpl,
+        }));
       } catch (_) {
         // SSE may still finish the batch; retry the authoritative snapshot after a short delay.
       } finally {
@@ -317,7 +323,9 @@ export async function runSyncBatchUntilDone({
         reconcileTimer = setTimeout(reconcile, SYNC_BATCH_RECONCILE_INTERVAL_MS);
       }
     };
-    unsubscribe = subscribeBatchEvents(batchId, handleBatch);
+    unsubscribe = subscribeToEvents
+      ? subscribeBatchEvents(batchId, handleBatch)
+      : () => {};
     signal?.addEventListener('abort', handleAbort, { once: true });
     deadlineTimer = setTimeout(() => finish({
       status: 'error',

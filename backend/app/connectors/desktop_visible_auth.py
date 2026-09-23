@@ -31,6 +31,7 @@ from app.scrapers.scraper_logging import scraper_log_context
 from app.services.sqlite_write_gate import sqlite_write_gate
 from app.services.sync_utils import (
     is_network_error,
+    is_recoverable_transport_timeout,
 )
 from app.services.transaction_import import (
     record_transaction_window_completed,
@@ -109,7 +110,11 @@ class DesktopVisibleAuthSavedSessionConnector(ModuleBackedScraperConnector):
             if provider_result is not None:
                 return provider_result
             if is_network_error(exc):
-                return SyncResult(status=SyncStatus.NETWORK_ERROR, message="Connection failed")
+                return SyncResult(
+                    status=SyncStatus.NETWORK_ERROR,
+                    message="Connection failed",
+                    recoverable_transport_timeout=is_recoverable_transport_timeout(exc),
+                )
             self._log_sync_exception(user_id, exc)
             return SyncResult(
                 status=SyncStatus.ERROR,
@@ -170,7 +175,13 @@ class DesktopVisibleAuthSavedSessionConnector(ModuleBackedScraperConnector):
         if status == "auth_required":
             return SyncResult(status=SyncStatus.AUTH_REQUIRED, message=message)
         if status == "network_error":
-            return SyncResult(status=SyncStatus.NETWORK_ERROR, message=message or "Connection failed")
+            return SyncResult(
+                status=SyncStatus.NETWORK_ERROR,
+                message=message or "Connection failed",
+                recoverable_transport_timeout=bool(
+                    payload.get("recoverable_transport_timeout")
+                ),
+            )
         if status == "error":
             return SyncResult(status=SyncStatus.ERROR, message=message or "Sync failed")
         return SyncResult(status=SyncStatus.ERROR, message=message or "Sync failed")

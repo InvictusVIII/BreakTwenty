@@ -37,6 +37,10 @@ inputs:
   updater-repo:
     required: true
     description: GitHub repository stamped into app-update.yml.
+  validation-mode:
+    required: false
+    default: release
+    description: release creates validated artifacts; native-preflight builds an unpacked app and runs native smoke only.
 
 runs:
   using: composite
@@ -55,7 +59,7 @@ runs:
       shell: bash
       run: |
         sudo apt-get update
-        sudo apt-get install --yes libgtk-3-dev pkg-config
+        sudo apt-get install --yes libgtk-3-dev pkg-config xvfb
 
     - name: Configure desktop package caches
       shell: bash
@@ -70,7 +74,7 @@ runs:
         } >> "$GITHUB_ENV"
 
     - name: Restore Electron package caches
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: |
           desktop/dist/ci-cache/${{ runner.os }}-${{ runner.arch }}/electron
@@ -80,7 +84,7 @@ runs:
           desktop-package-electron-${{ runner.os }}-${{ runner.arch }}-
 
     - name: Restore portable Python download caches
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: |
           desktop/dist/portable-python/cache
@@ -96,7 +100,7 @@ runs:
 
     - name: Download prebuilt frontend
       if: ${{ inputs.frontend-build-artifact != '' }}
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: ${{ inputs.frontend-build-artifact }}
         path: frontend/build
@@ -153,8 +157,13 @@ runs:
       env:
         ARTIFACT_BASENAME: ${{ inputs.artifact-basename }}
         DESKTOP_IDENTITY_CONFIG: ${{ inputs.desktop-identity-config }}
+        VALIDATION_MODE: ${{ inputs.validation-mode }}
       run: |
         set -euo pipefail
+        if [ "$VALIDATION_MODE" != "release" ] && [ "$VALIDATION_MODE" != "native-preflight" ]; then
+          echo "::error title=Invalid desktop validation mode::Expected release or native-preflight, got ${VALIDATION_MODE}."
+          exit 1
+        fi
         if [[ ! "$ARTIFACT_BASENAME" =~ ^[A-Za-z0-9._-]+$ ]]; then
           echo "::error title=Unsafe artifact basename::Use only letters, numbers, dots, underscores, or hyphens."
           exit 1
@@ -319,6 +328,7 @@ runs:
       run: python3 scripts/verify_desktop_linux_icon_contract.py --artifact-basename "${{ inputs.artifact-basename }}"
 
     - name: Verify updater metadata
+      if: ${{ inputs.validation-mode == 'release' }}
       shell: bash
       env:
         DESKTOP_SCRIPT: ${{ inputs.script }}
@@ -415,8 +425,22 @@ runs:
         BREAKTWENTY_EXPECTED_ARTIFACT_BASENAME: ${{ inputs.artifact-basename }}
       run: ./scripts/verify_macos_signing.sh desktop/dist/electron
 
+    - name: Exercise packaged native application startup
+      shell: bash
+      env:
+        # GitHub's hosted Linux kernel cannot satisfy Electron's SUID or namespace
+        # sandbox requirements. The smoke itself remains isolated and loopback-only.
+        BREAKTWENTY_PACKAGED_SMOKE_NO_SANDBOX: ${{ runner.os == 'Linux' && '1' || '0' }}
+      run: node scripts/run_packaged_native_smoke.js --dist desktop/dist/electron --app-name "${{ inputs.artifact-basename }}"
+
+    - name: Exercise packaged OS secure storage
+      if: ${{ inputs.signing-platform == 'win' || inputs.signing-platform == 'mac' || (inputs.validation-mode == 'native-preflight' && runner.os == 'Windows') }}
+      shell: bash
+      run: node scripts/run_packaged_safe_storage_smoke.js --dist desktop/dist/electron --app-name "${{ inputs.artifact-basename }}"
+
     - name: Upload validated package artifacts
-      uses: actions/upload-artifact@v4
+      if: ${{ inputs.validation-mode == 'release' }}
+      uses: actions/upload-artifact@v7
       with:
         name: desktop-${{ inputs.artifact }}
         if-no-files-found: error

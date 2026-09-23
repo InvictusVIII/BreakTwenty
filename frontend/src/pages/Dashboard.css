@@ -1166,6 +1166,10 @@
   color: var(--color-retry-warning);
 }
 
+.institution-status-badge.is-delayed {
+  color: var(--color-warning);
+}
+
 .institution-status-badge.is-never {
   color: var(--color-text-secondary);
 }

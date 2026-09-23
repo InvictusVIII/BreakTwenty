@@ -25,14 +25,14 @@ import {
   CRYPTO_ACCOUNT_TYPES,
   MANUAL_INSTITUTION_ICON_HINT,
   validateManualInstitutionIconFile,
-} from './ManualInstitutionWizard';
+} from '../utils/manualInstitution';
 import { CURRENCY_OPTIONS } from '../constants/currencies';
 import {
   USER_INITIATED_SYNC_REQUEST_TIMEOUT_MS,
   fetchWithTimeout,
 } from '../utils/syncRequests';
 import { isPlainObject, readJsonResponse } from '../utils/apiResponse';
-import { todayLocalDateValue } from '../utils/date';
+import { formatPurchaseDate, todayLocalDateValue } from '../utils/date';
 import { isPromoDemoActive } from './promoDemoEnvironment';
 
 const SCRAPER_CREDENTIAL_VALIDATION_PROVIDERS = new Set(['wealthsimple']);
@@ -79,18 +79,6 @@ function signedAmount(asset, value) {
 }
 function signedAssetValue(asset) {
   return signedAmount(asset, asset.balance);
-}
-
-export function formatPurchaseDate(iso) {
-  if (!iso) return '';
-  const datePrefix = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (datePrefix) {
-    const [, year, month, day] = datePrefix;
-    const localDate = new Date(Number(year), Number(month) - 1, Number(day));
-    return localDate.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-  }
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 async function fetchInstitutionAccounts(institutionId) {

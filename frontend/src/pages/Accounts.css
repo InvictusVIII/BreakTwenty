@@ -310,6 +310,11 @@
   font-weight: var(--font-weight-bold);
 }
 
+.sync-timestamp.is-delayed {
+  color: var(--color-warning);
+  font-weight: var(--font-weight-bold);
+}
+
 .sync-timestamp.is-failed {
   color: var(--color-negative);
   font-weight: var(--font-weight-bold);
@@ -2646,6 +2651,10 @@
   color: var(--color-retry-warning);
 }
 
+.inst-sync-btn.is-delayed {
+  color: var(--color-warning);
+}
+
 .inst-sync-btn.is-failed {
   color: var(--color-negative);
 }
@@ -2661,6 +2670,10 @@
 
 .inst-sync-btn.is-partial:hover svg {
   filter: drop-shadow(0 0 7px var(--color-retry-warning));
+}
+
+.inst-sync-btn.is-delayed:hover svg {
+  filter: drop-shadow(0 0 7px rgba(var(--rgb-warning), 0.62));
 }
 
 .inst-sync-btn.is-failed:hover svg {

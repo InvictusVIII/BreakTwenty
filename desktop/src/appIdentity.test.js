@@ -11,6 +11,7 @@ const {
   APP_UPDATE_REPOSITORY_URL,
   configureApplicationIdentity,
   resolvePackagedIdentity,
+  resolveSafeStorageIdentity,
   resolveWindowsLocalAppRoot,
 } = require('./appIdentity');
 
@@ -142,6 +143,23 @@ test('keeps the Windows local runtime root on the permanent storage namespace', 
     }),
     '/fallback',
   );
+});
+
+test('uses configured packaged Safe Storage identities without changing the public identity', () => {
+  assert.equal(resolveSafeStorageIdentity({
+    isPackaged: true,
+    identity: resolvePackagedIdentity(),
+  }), 'BreakTwenty');
+  assert.equal(resolveSafeStorageIdentity({
+    isPackaged: true,
+    identity: resolvePackagedIdentity({
+      breaktwentyDesktopIdentity: {
+        technicalId: 'app.breaktwenty.testbuild',
+        storageNamespace: 'TestBuild',
+      },
+    }),
+  }), 'TestBuild');
+  assert.equal(resolveSafeStorageIdentity({ isPackaged: false }), 'BreakTwenty Development');
 });
 
 test('release metadata matches the permanent desktop and declared update lanes', () => {

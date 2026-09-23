@@ -128,6 +128,61 @@ class SyncRouteMetadataTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("single_sync_recovery", gate.await_args_list[1].kwargs["flow"])
         enqueue.assert_awaited_once()
 
+    async def test_autosync_retries_once_after_reachable_transport_timeout(self):
+        run_connector = AsyncMock(
+            side_effect=(
+                {
+                    "status": "network_error",
+                    "sync_id": "moomoo-sync-1",
+                    sync_route.RECOVERABLE_TRANSPORT_TIMEOUT_MARKER: True,
+                },
+                {"status": "ok", "sync_id": "moomoo-sync-1"},
+            )
+        )
+        gate = AsyncMock(side_effect=(_gate_result("ready"), _gate_result("ready")))
+        enqueue = AsyncMock(side_effect=lambda *args, **_kwargs: args[2])
+        with (
+            patch.object(sync_route, "acquire_sync_lock", new=AsyncMock(return_value=True)),
+            patch.object(sync_route, "release_sync_lock", new=AsyncMock()),
+            patch.object(sync_route, "_ensure_request_connection", new=AsyncMock(return_value=17)),
+            patch.object(
+                sync_route,
+                "ensure_provider_sync_attempt",
+                return_value={"sync_id": "moomoo-sync-1"},
+            ),
+            patch.object(sync_route, "set_provider_activity", return_value=None),
+            patch.object(sync_route, "clear_provider_activity"),
+            patch.object(sync_route, "_delete_visible_auth_attempt_dir_async", new=AsyncMock()),
+            patch.object(sync_route, "run_sync_network_gate", new=gate),
+            patch.object(
+                sync_route,
+                "run_provider_dns_resolution",
+                new=AsyncMock(return_value=_dns_result("resolved")),
+            ),
+            patch.object(sync_route, "_run_connector_sync", new=run_connector),
+            patch.object(sync_route, "_enqueue_transaction_import_after_sync", new=enqueue),
+            patch.object(sync_route.asyncio, "sleep", new=AsyncMock()) as recovery_delay,
+        ):
+            response = await sync_route._sync_connector_route(
+                object(),
+                1,
+                provider="moomoo",
+                body={
+                    "sync_id": "moomoo-sync-1",
+                    "institution_id": 17,
+                    "sync_source": "autosync",
+                },
+            )
+
+        self.assertEqual("ok", response["status"])
+        self.assertNotIn(sync_route.RECOVERABLE_TRANSPORT_TIMEOUT_MARKER, response)
+        self.assertEqual(2, run_connector.await_count)
+        recovery_delay.assert_awaited_once_with(
+            sync_route.TRANSPORT_RECOVERY_STABILIZATION_DELAY_SECONDS
+        )
+        self.assertEqual(2, gate.await_count)
+        enqueue.assert_awaited_once()
+
     async def test_individual_sync_does_not_retry_network_error(self):
         run_connector = AsyncMock(
             return_value={"status": "network_error", "sync_id": "moomoo-sync-1"}

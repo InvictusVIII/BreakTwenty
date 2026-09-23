@@ -54,7 +54,17 @@ def scraper_auth_required(message: str | None = None, **extra: Any) -> dict[str,
     return scraper_result("auth_required", message=message, **extra)
 
 
-def scraper_network_error(message: str | None = "Connection failed", **extra: Any) -> dict[str, Any]:
+def scraper_network_error(
+    message: str | None = "Connection failed",
+    *,
+    exception: Exception | None = None,
+    **extra: Any,
+) -> dict[str, Any]:
+    if exception is not None:
+        from app.services.sync_utils import is_recoverable_transport_timeout
+
+        if is_recoverable_transport_timeout(exception):
+            extra["recoverable_transport_timeout"] = True
     return scraper_result("network_error", message=message, **extra)
 
 

@@ -21,6 +21,7 @@ from app.services.connection_auth_storage import (
 from app.services.replay_diagnostics import begin_replay_diagnostics, record_provider_payload_sections
 from app.services.sync_utils import (
     is_network_error,
+    is_recoverable_transport_timeout,
 )
 
 
@@ -73,6 +74,7 @@ class ModuleBackedScraperConnector(ScraperConnector):
                 return SyncResult(
                     status=SyncStatus.NETWORK_ERROR,
                     message="Connection failed",
+                    recoverable_transport_timeout=is_recoverable_transport_timeout(e),
                 )
             return SyncResult(status=SyncStatus.ERROR, message=safe_connector_public_message(e))
 
@@ -107,7 +109,13 @@ class ModuleBackedScraperConnector(ScraperConnector):
             return SyncResult(status=SyncStatus.AUTH_REQUIRED, message=message)
 
         if status == "network_error":
-            return SyncResult(status=SyncStatus.NETWORK_ERROR, message=message or "Connection failed")
+            return SyncResult(
+                status=SyncStatus.NETWORK_ERROR,
+                message=message or "Connection failed",
+                recoverable_transport_timeout=bool(
+                    payload.get("recoverable_transport_timeout")
+                ),
+            )
 
         if status == "error":
             return SyncResult(status=SyncStatus.ERROR, message=message or "Sync failed")

@@ -1,15 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import { ACCOUNT_TYPE_LABELS } from '../constants/providers';
 import { formatCompactMoney, formatMoney } from '../utils/format';
-import { escapeHtml } from '../utils/html';
 import { useTheme } from '../appState';
+import {
+  ALLOCATION_INSTITUTION_LEGEND_ROW_LIMIT,
+  OTHER_INSTITUTIONS_COLOR_KEY,
+  OTHER_INSTITUTIONS_LABEL,
+  buildAllocationPieOption,
+  formatAllocationPercent,
+} from '../utils/allocationChartOptions';
 import FitMoney from './FitMoney';
 import StablePieTooltipEChart from './charts/StablePieTooltipEChart';
 import TriangleIcon from './TriangleIcon';
-
-export const ALLOCATION_INSTITUTION_LEGEND_ROW_LIMIT = 8;
-export const OTHER_INSTITUTIONS_COLOR_KEY = 'other-institutions';
-export const OTHER_INSTITUTIONS_LABEL = 'Other Institutions';
 
 function getOtherAllocationLabel(nameKey) {
   if (nameKey === 'institution') return OTHER_INSTITUTIONS_LABEL;
@@ -28,13 +30,6 @@ function formatSignedMoney(value, sign = 'none', currency = 'CAD', { compact = f
   if (sign === 'positive') return `+${fmt(absoluteValue, currency)}`;
   if (sign === 'negative' && absoluteValue > 0) return `-${fmt(absoluteValue, currency)}`;
   return fmt(absoluteValue, currency);
-}
-
-function formatPercent(value, total) {
-  if (!total) return '0.0%';
-  const pct = (Number(value || 0) / total) * 100;
-  if (pct > 0 && pct < 0.1) return '<0.1%';
-  return `${pct.toFixed(1)}%`;
 }
 
 function getItemColorKey(item, nameKey) {
@@ -135,7 +130,7 @@ function AllocationBreakdownRows({ items, total, balancesHidden, currency = 'CAD
             {balancesHidden ? '******' : (
               <>
                 <span className="tooltip-money">{formatMoney(item.value, currency)}</span>
-                <span className="tooltip-share">({formatPercent(item.value, total)})</span>
+                <span className="tooltip-share">({formatAllocationPercent(item.value, total)})</span>
               </>
             )}
           </span>
@@ -143,82 +138,6 @@ function AllocationBreakdownRows({ items, total, balancesHidden, currency = 'CAD
       ))}
     </div>
   );
-}
-
-function allocationValueHtml(value, total, balancesHidden, currency = 'CAD') {
-  if (balancesHidden) return '******';
-  return `<span class="tooltip-money">${escapeHtml(formatMoney(value, currency))}</span>`
-    + `<span class="tooltip-share">(${escapeHtml(formatPercent(value, total))})</span>`;
-}
-
-function allocationRowHtml(item, total, balancesHidden, mainClass, currency = 'CAD') {
-  const rowClass = mainClass ? `tooltip-row ${mainClass}` : 'tooltip-row';
-  return `<div class="${rowClass}">`
-    + `<span class="tooltip-dot" style="background:${item.legendColor}"></span>`
-    + `<span class="tooltip-name">${escapeHtml(item.legendLabel)}</span>`
-    + `<span class="tooltip-value">${allocationValueHtml(item.value, total, balancesHidden, currency)}</span></div>`;
-}
-
-// HTML for the ECharts pie tooltip — same markup/classes as the old React
-// AllocationTooltip, including grouped Other breakdowns.
-function buildAllocationTooltipHtml(item, total, balancesHidden, currency = 'CAD') {
-  if (!item) return '';
-  let html = '<div class="tooltip-card">';
-  html += allocationRowHtml(item, total, balancesHidden, 'tooltip-row-main', currency);
-  if (Array.isArray(item.otherItems)) {
-    html += '<div class="tooltip-breakdown">';
-    item.otherItems.forEach((sub) => { html += allocationRowHtml(sub, total, balancesHidden, '', currency); });
-    html += '</div>';
-  }
-  html += '</div>';
-  return html;
-}
-
-function createAllocationTooltipFormatter(total, balancesHidden, currency = 'CAD') {
-  let lastKey = null;
-  let lastHtml = '';
-  return (params) => {
-    const key = params?.dataIndex ?? params?.name ?? null;
-    if (key !== null && key === lastKey) return lastHtml;
-    lastKey = key;
-    lastHtml = buildAllocationTooltipHtml(params?.data?._item, total, balancesHidden, currency);
-    return lastHtml;
-  };
-}
-
-export function buildAllocationPieOption(displayData, total, balancesHidden, currency = 'CAD', chartColors) {
-  return {
-    tooltip: {
-      trigger: 'item',
-      triggerOn: 'none',
-      // Attach to <body> so the panel's overflow/stacking context can't clip it,
-      // and lift it above the app's chrome. Standard for every migrated chart.
-      appendToBody: true,
-      backgroundColor: 'transparent',
-      borderWidth: 0,
-      padding: 0,
-      extraCssText: 'box-shadow:none;',
-      transitionDuration: 0,
-      hideDelay: 80,
-      formatter: createAllocationTooltipFormatter(total, balancesHidden, currency),
-    },
-    series: [{
-      type: 'pie',
-      radius: ['68%', '90%'],
-      center: ['50%', '50%'],
-      avoidLabelOverlap: false,
-      label: { show: false },
-      labelLine: { show: false },
-      itemStyle: { borderColor: chartColors.segmentBorder, borderWidth: 1 },
-      emphasis: { scale: false },
-      data: displayData.map((item) => ({
-        name: item.legendLabel,
-        value: item.value,
-        itemStyle: { color: item.legendColor },
-        _item: item,
-      })),
-    }],
-  };
 }
 
 function DonutChart({
@@ -302,7 +221,7 @@ function DonutChart({
                   {balancesHidden ? '******' : (
                     <>
                       <span className="legend-money">{formatMoney(item.value, currency)}</span>
-                      <span className="legend-share">{formatPercent(item.value, total)}</span>
+                      <span className="legend-share">{formatAllocationPercent(item.value, total)}</span>
                     </>
                   )}
                 </span>
@@ -318,7 +237,7 @@ function DonutChart({
                   {balancesHidden ? '******' : (
                     <>
                       <span className="legend-money">{formatMoney(item.value, currency)}</span>
-                      <span className="legend-share">({formatPercent(item.value, total)})</span>
+                      <span className="legend-share">({formatAllocationPercent(item.value, total)})</span>
                     </>
                   )}
                 </span>

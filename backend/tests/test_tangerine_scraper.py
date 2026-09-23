@@ -2,6 +2,8 @@ import socket
 import unittest
 from unittest.mock import AsyncMock, patch
 
+import httpx
+
 from app.scrapers import tangerine
 
 
@@ -86,6 +88,25 @@ class TangerineDirectSyncTests(unittest.IsolatedAsyncioTestCase):
             exception_type="gaierror",
             message="[Errno -3] Temporary failure in name resolution",
         )
+
+    async def test_direct_read_timeout_is_marked_for_network_handoff_recovery(self):
+        with (
+            patch.object(
+                tangerine,
+                "load_saved_artifact_replay_session_async",
+                new=AsyncMock(return_value=_FakeReplaySession()),
+            ),
+            patch.object(
+                tangerine,
+                "_sync_tangerine_with_saved_artifacts",
+                new=AsyncMock(side_effect=httpx.ReadTimeout("route changed")),
+            ),
+            patch.object(tangerine, "_tangerine_log_event"),
+        ):
+            result = await tangerine.try_headless_sync(1)
+
+        self.assertEqual("network_error", result["status"])
+        self.assertTrue(result["recoverable_transport_timeout"])
 
 
 if __name__ == "__main__":

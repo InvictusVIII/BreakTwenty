@@ -140,6 +140,12 @@
         "pendingRuntimeNamespaces": [
           "ibkr"
         ]
+      },
+      "nightly": {
+        "enabled": true,
+        "phase": "api",
+        "order": 10,
+        "routeProvider": "ibkr_flex"
       }
     }
   },
@@ -178,11 +184,6 @@
         "browserEngine": "none",
         "authMode": "api",
         "reuseMode": "api_credentials"
-      },
-      "nightly": {
-        "enabled": true,
-        "phase": "api",
-        "order": 10
       },
       "transactionImport": {
         "enabled": true,

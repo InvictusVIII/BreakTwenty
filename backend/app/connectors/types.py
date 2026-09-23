@@ -21,6 +21,7 @@ class SyncStatus(str, Enum):
     TWO_FA_REQUIRED = "2fa_required"
     WAITING = "waiting"
     NETWORK_ERROR = "network_error"
+    PROVIDER_DELAYED = "provider_delayed"
     SKIPPED = "skipped"
     ALREADY_SYNCING = "already_syncing"
 
@@ -98,6 +99,7 @@ class SyncResult:
     transaction_fetch_succeeded_accounts: set[str] = field(default_factory=set)
     challenge_method: Optional[str] = None
     transaction_import_deferred: bool = False
+    recoverable_transport_timeout: bool = False
 
     def to_route_response(self) -> dict:
         """Convert to the dict shape routes currently return to the frontend."""

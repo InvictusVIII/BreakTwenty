@@ -5,7 +5,8 @@ import CsvExportButton from '../components/CsvExportButton';
 import AppStatusNotice from '../components/AppStatusNotice';
 import { getTourHint, isTourDemoActive } from '../components/tourDemoData';
 import EditableAccountName from '../components/EditableAccountName';
-import InstitutionAccountSelector, { ScopeSelectorTrigger, formatScopeSelectionSummary } from '../components/InstitutionAccountSelector';
+import InstitutionAccountSelector from '../components/InstitutionAccountSelector';
+import ScopeSelectorTrigger from '../components/ScopeSelectorTrigger';
 import CategoryPill from '../components/CategoryPill';
 import ScraperAuthModal from '../components/ScraperAuthModal';
 import InstitutionSettingsModal from '../components/InstitutionSettingsModal';
@@ -22,6 +23,7 @@ import { useCurrency, useRightTrayOpenState, useTheme } from '../appState';
 import AccountWebsiteIcon from '../assets/icons/account-website-icon.svg?react';
 import useDismissibleLayer, { APP_NON_DISMISS_INTERACTION_SELECTOR } from '../hooks/useDismissibleLayer';
 import useBalancesHidden from '../hooks/useBalancesHidden';
+import { formatScopeSelectionSummary } from '../utils/scopeSelection';
 import FitMoney from '../components/FitMoney';
 import EChart from '../components/charts/EChart';
 import { SideDetailDrawerPanel } from '../components/SideDetailDrawer';
@@ -620,14 +622,15 @@ function getInstLastSynced(accounts, instId, optimisticDateStr = null) {
   return getMostRecentSyncedAt(synced.length > 0 ? synced[0] : null, optimisticDateStr);
 }
 
-const MESSAGE_PRESERVING_STATUSES = new Set(['network_error', 'error', 'error_flex', 'error_scraper']);
-// Failure statuses that, once a sync result reports them, must not be reconciled
+const MESSAGE_PRESERVING_STATUSES = new Set(['provider_delayed', 'network_error', 'error', 'error_flex', 'error_scraper']);
+// Terminal warning/failure statuses that, once a sync result reports them, must not be reconciled
 // back to a (possibly stale) healthier backend sync_status while the provider is
 // still settling — the pending-status accumulator holds the real write until the
 // provider family goes idle, so the DB can briefly still read the previous "ok".
-const SETTLING_PRESERVED_FAILURE_STATUSES = new Set([
+const SETTLING_PRESERVED_TERMINAL_STATUSES = new Set([
   'auth_required',
   'different_profile_detected',
+  'provider_delayed',
   'network_error',
   'error',
   'error_flex',
@@ -2337,7 +2340,7 @@ function Accounts({
           return;
         }
         if (!local) return;
-        if (local.status === 'syncing' || SETTLING_PRESERVED_FAILURE_STATUSES.has(local.status)) {
+        if (local.status === 'syncing' || SETTLING_PRESERVED_TERMINAL_STATUSES.has(local.status)) {
           const autoState = autoSyncStates?.[key];
           const providerStillActive = syncInFlightConnectionsRef.current.has(key)
             || activeSyncConnectionIds.has(Number(inst.id))
@@ -2924,6 +2927,15 @@ function Accounts({
           'already_syncing',
           result.message || 'Sync already in progress',
         );
+      } else if (result.status === 'provider_delayed') {
+        setSyncState((prev) => ({
+          ...prev,
+          [stateKey]: {
+            status: 'provider_delayed',
+            message: result.message || null,
+            provider: inst.provider,
+          },
+        }));
       } else if (result.status === 'network_error') {
         setSyncState((prev) => ({
           ...prev,
@@ -3025,6 +3037,15 @@ function Accounts({
         'already_syncing',
         result.message || 'Sync already in progress',
       );
+    } else if (result.status === 'provider_delayed') {
+      setSyncState((prev) => ({
+        ...prev,
+        [stateKey]: {
+          status: 'provider_delayed',
+          message: result.message || null,
+          provider: inst.provider,
+        },
+      }));
     } else if (result.status === 'network_error') {
       setSyncState((prev) => ({
         ...prev,
@@ -3211,7 +3232,7 @@ function Accounts({
       ...prev,
       [stateKey]: { status, message, provider },
     }));
-    if (SETTLING_PRESERVED_FAILURE_STATUSES.has(status)) {
+    if (SETTLING_PRESERVED_TERMINAL_STATUSES.has(status)) {
       void queueRefreshData();
     }
   };

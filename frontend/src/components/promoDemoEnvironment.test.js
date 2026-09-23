@@ -7,6 +7,7 @@ import { SELECTABLE_CURRENCIES } from '../constants/currencies';
 import { readCashFlowResponse } from '../utils/apiResponse';
 import { getAppClockOverride, getAppNow } from '../utils/appClock';
 import {
+  fetchOutsidePromoDemo,
   installPromoDemoFetch,
   isPromoDemoActive,
   PROMO_DEMO_NOW_ISO,
@@ -670,5 +671,19 @@ describe('promo demo environment fetch shim', () => {
     const body = await response.json();
 
     expect(body).toEqual({ real: true });
+  });
+
+  it('keeps an authenticated live-backend path available while promo mode is active', async () => {
+    const realFetch = window.fetch;
+    installPromoDemoFetch();
+    setPromoDemoActive(true);
+
+    const promoResponse = await window.fetch(`${API}/institutions/all`);
+    const liveResponse = await fetchOutsidePromoDemo(`${API}/institutions/all`);
+
+    expect(await promoResponse.json()).toEqual(expect.any(Array));
+    expect(await liveResponse.json()).toEqual({ real: true });
+    expect(realFetch).toHaveBeenCalledTimes(1);
+    expect(realFetch).toHaveBeenCalledWith(`${API}/institutions/all`, undefined);
   });
 });
