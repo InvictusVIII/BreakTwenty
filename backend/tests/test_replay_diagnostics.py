@@ -67,8 +67,14 @@ class ReplayDiagnosticsTests(unittest.TestCase):
         )
         path = capture.finish("succeeded")
 
-        self.assertIn("sync-cibc-abc", path.name)
-        self.assertIn("attempt-attempt-123", path.name)
+        self.assertIn(
+            f"sync-{replay_diagnostics._diagnostic_identity_component('cibc-abc')}",
+            path.name,
+        )
+        self.assertIn(
+            f"attempt-{replay_diagnostics._diagnostic_identity_component('attempt-123')}",
+            path.name,
+        )
 
         entries = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
         self.assertEqual(
@@ -89,6 +95,64 @@ class ReplayDiagnosticsTests(unittest.TestCase):
         self.assertTrue(str(sample["number"]).startswith("<redacted:"))
         self.assertEqual("0", sample["transactionId"])
         self.assertEqual("<redacted>", sample["authToken"])
+
+    def test_generated_phase2_filename_is_bounded_for_long_attempt_identity(self) -> None:
+        sync_id = f"sync-{'s' * 1_000}"
+        attempt_id = f"attempt-{'a' * 1_000}"
+        capture = replay_diagnostics.ReplayDiagnosticsCapture(
+            "cibc",
+            1,
+            sync_id=sync_id,
+            attempt_id=attempt_id,
+            provider_dir="CIBC",
+        )
+
+        path = capture.finish(f"result-{'r' * 1_000}")
+        first_entry = json.loads(path.read_text(encoding="utf-8").splitlines()[0])
+
+        self.assertLessEqual(len(path.name.encode("utf-8")), 255)
+        self.assertEqual(sync_id, first_entry["sync_id"])
+        self.assertEqual(attempt_id, first_entry["attempt_id"])
+        self.assertNotIn(sync_id, path.name)
+        self.assertNotIn(attempt_id, path.name)
+
+    def test_phase1_har_lookup_matches_hashed_and_legacy_identity_names(self) -> None:
+        directory = Path(self.tmpdir.name) / "CIBC"
+        directory.mkdir(parents=True, exist_ok=True)
+        sync_id = f"sync-{'s' * 1_000}"
+        attempt_id = f"attempt-{'a' * 1_000}"
+        hashed_path = directory / (
+            "cibc_visible_auth_user1_20260925T143000Z_"
+            f"sync-{replay_diagnostics._diagnostic_identity_component(sync_id)}_"
+            f"attempt-{replay_diagnostics._diagnostic_identity_component(attempt_id)}_failed.har"
+        )
+        hashed_path.write_text("{}", encoding="utf-8")
+        legacy_path = directory / (
+            "cibc_visible_auth_user1_20260925T142900Z_"
+            "sync-cibc-legacy_attempt-popup-legacy_failed.har"
+        )
+        legacy_path.write_text("{}", encoding="utf-8")
+
+        self.assertEqual(
+            hashed_path,
+            replay_diagnostics.find_phase1_har_path(
+                "cibc",
+                1,
+                sync_id=sync_id,
+                attempt_id=attempt_id,
+                provider_dir="CIBC",
+            ),
+        )
+        self.assertEqual(
+            legacy_path,
+            replay_diagnostics.find_phase1_har_path(
+                "cibc",
+                1,
+                sync_id="cibc-legacy",
+                attempt_id="popup-legacy",
+                provider_dir="CIBC",
+            ),
+        )
 
     def test_capture_sanitizes_sdk_records_and_payload_sections(self) -> None:
         capture = replay_diagnostics.ReplayDiagnosticsCapture(

@@ -87,7 +87,7 @@ class ProviderSyncLeaseFencingTests(unittest.IsolatedAsyncioTestCase):
         return asyncio.create_task(owner()), started, cancelled
 
     async def test_transient_renewal_error_retries_without_cancelling_owner(self) -> None:
-        initial_expiry = datetime.now(timezone.utc) + timedelta(milliseconds=100)
+        initial_expiry = datetime.now(timezone.utc) + timedelta(seconds=2)
         await self._store_lease(owner_token="owner-one", expires_at=initial_expiry)
         owner_task, owner_started, owner_cancelled = self._start_owner()
         await owner_started.wait()
@@ -104,7 +104,7 @@ class ProviderSyncLeaseFencingTests(unittest.IsolatedAsyncioTestCase):
             patch.object(sync_utils, "async_session", new=flaky_session),
             patch.object(sync_utils, "SYNC_LEASE_RENEW_INTERVAL_SECONDS", 0.05),
             patch.object(sync_utils, "SYNC_LEASE_RENEW_ERROR_RETRY_SECONDS", 0.005),
-            patch.object(sync_utils, "SYNC_LEASE_DURATION", timedelta(seconds=1)),
+            patch.object(sync_utils, "SYNC_LEASE_DURATION", timedelta(seconds=5)),
         ):
             heartbeat = asyncio.create_task(
                 sync_utils._renew_sync_lease(

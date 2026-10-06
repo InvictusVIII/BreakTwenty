@@ -98,6 +98,21 @@ def probe_linux_identity(asset: dict[str, str]) -> dict[str, str]:
         return installer.runtime_identity(installer.python_executable(runtime))
 
 
+def latest_playwright_image(policy: dict[str, object]) -> tuple[str, str]:
+    repository = policy["maintenance"]["playwrightRepository"]
+    release = maintenance.github_latest_release(repository)
+    release_tag = str(release.get("tag_name", ""))
+    if not re.fullmatch(r"v\d+\.\d+\.\d+", release_tag):
+        raise RuntimeError(f"Unexpected Playwright release tag: {release_tag!r}")
+    current_image = str(policy["developmentDocker"]["baseImage"])
+    image_repository, separator, current_tag = current_image.rpartition(":")
+    if not separator or "-" not in current_tag:
+        raise RuntimeError(f"Unexpected Playwright image pin: {current_image!r}")
+    image_flavor = current_tag.split("-", 1)[1]
+    image = f"{image_repository}:{release_tag}-{image_flavor}"
+    return image, maintenance.remote_docker_digest(image)
+
+
 def proposed_policy(policy: dict[str, object]) -> dict[str, object]:
     repository = policy["maintenance"]["pythonBuildStandaloneRepository"]
     release = maintenance.github_latest_release(repository)
@@ -112,6 +127,9 @@ def proposed_policy(policy: dict[str, object]) -> dict[str, object]:
     policy["python"]["opensslVersion"] = identity["opensslVersion"]
     policy["python"]["release"] = release["tag_name"]
     policy["python"]["assets"] = assets
+    docker_image, docker_digest = latest_playwright_image(policy)
+    policy["developmentDocker"]["baseImage"] = docker_image
+    policy["developmentDocker"]["baseImageDigest"] = docker_digest
     return policy
 
 

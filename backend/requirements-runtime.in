@@ -30,7 +30,7 @@ pycparser==3.0
 pydantic==2.9.2
 pydantic-core==2.23.4
 pyee==13.0.1
-PyJWT==2.13.0
+PyJWT==2.15.1
 pypdfium2==5.12.1
 python-multipart==0.0.32
 pytz==2026.3.post1
@@ -44,7 +44,7 @@ typing-inspection==0.4.2
 typing-extensions==4.16.0
 tzdata==2026.3
 tzlocal==5.4.4
-urllib3==2.7.0
+urllib3==2.8.0
 uvicorn==0.30.6
 websockets==13.1
 ws-api==0.35.0

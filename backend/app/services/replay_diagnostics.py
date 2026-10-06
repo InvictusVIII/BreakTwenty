@@ -205,6 +205,13 @@ def _safe_file_component(value: Any, *, max_length: int = 96) -> str:
     return normalized[:max_length]
 
 
+def _diagnostic_identity_component(value: Any) -> str:
+    normalized = str(value or "").strip()
+    if not normalized:
+        return ""
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:32]
+
+
 def _provider_dir(provider: str, provider_dir: str | None = None) -> str:
     configured = str(provider_dir or "").strip()
     if configured:
@@ -227,8 +234,8 @@ def _phase2_prefix(provider: str) -> str:
 
 def _run_suffix(sync_id: str | None, attempt_id: str | None) -> str:
     parts: list[str] = []
-    sync_component = _safe_file_component(sync_id)
-    attempt_component = _safe_file_component(attempt_id)
+    sync_component = _diagnostic_identity_component(sync_id)
+    attempt_component = _diagnostic_identity_component(attempt_id)
     if sync_component:
         parts.append(f"sync-{sync_component}")
     if attempt_component:
@@ -298,8 +305,22 @@ def find_phase1_har_path(
     directory = _diagnostic_dir(provider, provider_dir)
     if not directory.exists():
         return None
-    sync_component = _safe_file_component(sync_id)
-    attempt_component = _safe_file_component(attempt_id)
+    sync_components = {
+        component
+        for component in (
+            _diagnostic_identity_component(sync_id),
+            _safe_file_component(sync_id),
+        )
+        if component
+    }
+    attempt_components = {
+        component
+        for component in (
+            _diagnostic_identity_component(attempt_id),
+            _safe_file_component(attempt_id),
+        )
+        if component
+    }
     candidates: list[tuple[float, str, Path]] = []
     provider_slug = _safe_file_component(provider, max_length=40) or "provider"
     patterns = (
@@ -309,9 +330,13 @@ def find_phase1_har_path(
     for pattern in patterns:
         for path in directory.glob(pattern):
             name = path.name
-            if sync_component and f"sync-{sync_component}" not in name:
+            if sync_components and not any(
+                f"sync-{component}" in name for component in sync_components
+            ):
                 continue
-            if attempt_component and f"attempt-{attempt_component}" not in name:
+            if attempt_components and not any(
+                f"attempt-{component}" in name for component in attempt_components
+            ):
                 continue
             try:
                 candidates.append((path.stat().st_mtime, name, path))

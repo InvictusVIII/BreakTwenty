@@ -1,9 +1,11 @@
 import asyncio
+from dataclasses import dataclass
 import math
 import re
 import time
 from datetime import date, datetime, timezone
 from typing import Any
+from urllib.parse import urlsplit
 
 from defusedxml import ElementTree as DefusedElementTree
 import httpx
@@ -17,6 +19,7 @@ from app.services.connection_auth_storage import get_api_credentials
 from app.services.sqlite_write_gate import sqlite_write_gate
 
 FLEX_URL = "https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService"
+FLEX_STATEMENT_PATH = "/AccountManagement/FlexWebService/GetStatement"
 IBKR_FLEX_PROVIDER = "ibkr_flex"
 
 logger = get_connector_logger(IBKR_FLEX_PROVIDER)
@@ -27,7 +30,8 @@ logger = get_connector_logger(IBKR_FLEX_PROVIDER)
 # request step with backoff instead of surfacing it as a hard failure.
 FLEX_REQUEST_MAX_ATTEMPTS = 8
 FLEX_REQUEST_RETRY_DELAY_SECONDS = 10
-FLEX_FETCH_MAX_ATTEMPTS = 20
+FLEX_FETCH_MAX_ATTEMPTS = 22
+FLEX_FETCH_INITIAL_DELAY_SECONDS = 1
 FLEX_FETCH_RETRY_DELAY_SECONDS = 7
 FLEX_HTTP_HEADERS = {"User-Agent": "BreakTwenty Flex Web Service Client"}
 FLEX_RETRYABLE_HTTP_STATUS_CODES = {408, 429, 500, 502, 503, 504}
@@ -59,6 +63,12 @@ class IBKRFlexNetworkBlockedError(Exception):
 
 class IBKRFlexReportPendingTimeout(TimeoutError):
     pass
+
+
+@dataclass(frozen=True)
+class FlexReportRequest:
+    reference_code: str
+    statement_url: str
 
 
 IBKR_CASH_TX_TYPE_MAP = {
@@ -151,6 +161,29 @@ def _parse_ibkr_report_date(value):
         except (ValueError, TypeError):
             continue
     return None
+
+
+def _validated_flex_statement_url(value: str | None) -> str:
+    statement_url = (value or "").strip()
+    try:
+        parsed = urlsplit(statement_url)
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("IBKR Flex returned an invalid statement retrieval URL") from exc
+
+    hostname = (parsed.hostname or "").lower()
+    if (
+        parsed.scheme.lower() != "https"
+        or not hostname.endswith(".interactivebrokers.com")
+        or parsed.username is not None
+        or parsed.password is not None
+        or port not in (None, 443)
+        or parsed.path.rstrip("/") != FLEX_STATEMENT_PATH
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError("IBKR Flex returned an invalid statement retrieval URL")
+    return statement_url
 
 
 def derive_change_pct(close_price, prev_close_price):
@@ -315,6 +348,11 @@ async def request_flex_report(token: str, query_id: str, *, user_id: int | None 
             if status is not None and status.text == "Success":
                 ref_code = root.find("ReferenceCode")
                 reference_code = (ref_code.text or "").strip() if ref_code is not None else ""
+                if not reference_code:
+                    raise ValueError("IBKR Flex request succeeded without a reference code")
+                statement_url = _validated_flex_statement_url(
+                    root.findtext("Url") or root.findtext("URL") or root.findtext("url")
+                )
                 log_connector_event(
                     logger,
                     provider=IBKR_FLEX_PROVIDER,
@@ -322,10 +360,11 @@ async def request_flex_report(token: str, query_id: str, *, user_id: int | None 
                     user_id=user_id,
                     status="success",
                     reference_code_present=bool(reference_code),
+                    statement_host=urlsplit(statement_url).hostname,
                     attempts=attempt,
                     debug=True,
                 )
-                return reference_code or None
+                return FlexReportRequest(reference_code, statement_url)
             error_text = _flex_error_message(root, "IBKR Flex request failed")
             error_code = root.findtext("ErrorCode")
             if _is_flex_ip_restriction(error_text, error_code):
@@ -370,17 +409,32 @@ async def request_flex_report(token: str, query_id: str, *, user_id: int | None 
 async def fetch_flex_report(
     token: str,
     reference_code: str,
+    statement_url: str,
     max_retries: int = FLEX_FETCH_MAX_ATTEMPTS,
     *,
     user_id: int | None = None,
 ):
     """Step 2: Poll until the report is ready and download it."""
+    statement_url = _validated_flex_statement_url(statement_url)
+    statement_host = urlsplit(statement_url).hostname
     last_pending_message = ""
     async with httpx.AsyncClient(timeout=60, trust_env=False, headers=FLEX_HTTP_HEADERS) as client:
+        log_connector_event(
+            logger,
+            provider=IBKR_FLEX_PROVIDER,
+            stage="fetch report start",
+            user_id=user_id,
+            statement_host=statement_host,
+            debug=True,
+        )
         for attempt in range(max_retries):
-            await asyncio.sleep(FLEX_FETCH_RETRY_DELAY_SECONDS)
+            await asyncio.sleep(
+                FLEX_FETCH_INITIAL_DELAY_SECONDS
+                if attempt == 0
+                else FLEX_FETCH_RETRY_DELAY_SECONDS
+            )
             resp = await client.get(
-                f"{FLEX_URL}/GetStatement",
+                statement_url,
                 params={"t": token, "q": reference_code, "v": "3"},
             )
             if resp.status_code == 200 and "FlexQueryResponse" in resp.text:
@@ -390,6 +444,7 @@ async def fetch_flex_report(
                     stage="fetch report result",
                     user_id=user_id,
                     status="success",
+                    statement_host=statement_host,
                     attempts=attempt + 1,
                     debug=True,
                 )
@@ -403,6 +458,7 @@ async def fetch_flex_report(
                         level="warning",
                         user_id=user_id,
                         status_code=resp.status_code,
+                        statement_host=statement_host,
                         attempt=attempt + 1,
                     )
                     raise IBKRFlexNetworkBlockedError(IBKR_FLEX_NETWORK_BLOCKED_MESSAGE)
@@ -414,6 +470,7 @@ async def fetch_flex_report(
                         level="warning",
                         user_id=user_id,
                         status_code=resp.status_code,
+                        statement_host=statement_host,
                         attempt=attempt + 1,
                     )
                     raise Exception(f"IBKR Flex fetch failed with HTTP {resp.status_code}")
@@ -424,6 +481,7 @@ async def fetch_flex_report(
                     level="warning",
                     user_id=user_id,
                     status_code=resp.status_code,
+                    statement_host=statement_host,
                     attempt=attempt + 1,
                     debug=True,
                 )
@@ -439,6 +497,7 @@ async def fetch_flex_report(
                     user_id=user_id,
                     attempt=attempt + 1,
                     message=last_pending_message,
+                    statement_host=statement_host,
                     debug=True,
                 )
                 continue
@@ -455,6 +514,7 @@ async def fetch_flex_report(
                         user_id=user_id,
                         status=status.text if status is not None else "unknown",
                         error_code=error_code,
+                        statement_host=statement_host,
                     )
                     raise IBKRFlexNetworkBlockedError(IBKR_FLEX_NETWORK_BLOCKED_MESSAGE)
                 log_connector_event(
@@ -465,6 +525,7 @@ async def fetch_flex_report(
                     user_id=user_id,
                     status=status.text if status is not None else "unknown",
                     message=error_text,
+                    statement_host=statement_host,
                 )
                 raise Exception(f"Flex report error: {error_text}")
     log_connector_event(
@@ -475,6 +536,7 @@ async def fetch_flex_report(
         user_id=user_id,
         attempts=max_retries,
         message=last_pending_message or None,
+        statement_host=statement_host,
     )
     raise IBKRFlexReportPendingTimeout(
         f"Flex report remained pending after {max_retries} fetch attempts"
@@ -534,10 +596,13 @@ async def get_flex_report(token: str, query_id: str, *, user_id: int | None = No
             debug=True,
         )
         return cached
-    reference_code = await request_flex_report(token, query_id, user_id=user_id)
-    if not reference_code:
-        raise Exception("Failed to get reference code from IBKR")
-    xml_text = await fetch_flex_report(token, reference_code, user_id=user_id)
+    report_request = await request_flex_report(token, query_id, user_id=user_id)
+    xml_text = await fetch_flex_report(
+        token,
+        report_request.reference_code,
+        report_request.statement_url,
+        user_id=user_id,
+    )
     _store_flex_report(key, xml_text)
     return xml_text
 

@@ -223,7 +223,10 @@ class MoomooOAuthVisibleAuthRunnerTests(unittest.TestCase):
                     result="succeeded",
                 )
                 self.assertIsNotNone(saved)
-                self.assertIn("sync-sync-safe_attempt-attempt-safe", saved.name)
+                self.assertIn(
+                    RUNNER.visible_auth.diagnostic_scope_suffix("sync-safe", "attempt-safe"),
+                    saved.name,
+                )
                 text = saved.read_text(encoding="utf-8")
                 self.assertNotIn("state-secret", text)
                 self.assertNotIn("Bearer secret", text)

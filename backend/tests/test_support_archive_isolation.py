@@ -859,6 +859,63 @@ class SupportArchiveIsolationTests(unittest.TestCase):
 
             self.assertIsNotNone(archive)
 
+    def test_listed_long_run_id_packages_without_truncating_its_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            log_dir = Path(temp_dir)
+            runs_dir = log_dir / "runs"
+            run_dir = self._make_run(
+                runs_dir,
+                "2026-09-25_09-54-13_EDT_ibkr_flex-4c5455d397_"
+                "sync_result_provider_delayed_accounts",
+                user_id=1,
+                sync_id="ibkr_flex-4c5455d397",
+                payloads=(b"ibkr delayed attempt",),
+                provider="ibkr_flex",
+            )
+
+            with (
+                patch.object(support_auto_archive, "LOG_DIR", log_dir),
+                patch.object(support_auto_archive, "RUNS_DIR", runs_dir),
+                patch.object(
+                    support_auto_archive,
+                    "_provider_family",
+                    return_value=("ibkr", "ibkr_flex"),
+                ),
+            ):
+                listed = support_auto_archive.list_runs(provider="ibkr", user_id=1)
+                archive = support_auto_archive.package_run_zip(
+                    "ibkr",
+                    listed[0]["run_id"],
+                    user_id=1,
+                )
+
+            self.assertGreater(len(run_dir.name), 80)
+            self.assertIsNotNone(archive)
+            with zipfile.ZipFile(archive.path) as bundle:
+                self.assertIn(b"ibkr delayed attempt", b"\n".join(
+                    bundle.read(name) for name in bundle.namelist()
+                ))
+
+    def test_run_lookup_rejects_unsafe_path_components(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            log_dir = Path(temp_dir)
+            runs_dir = log_dir / "runs"
+            with (
+                patch.object(support_auto_archive, "LOG_DIR", log_dir),
+                patch.object(support_auto_archive, "RUNS_DIR", runs_dir),
+            ):
+                for run_id in (
+                    "../outside",
+                    "..",
+                    "folder/run",
+                    "bad run",
+                    "x" * 256,
+                ):
+                    with self.subTest(run_id=run_id):
+                        self.assertIsNone(
+                            support_auto_archive.get_run("ibkr", run_id, user_id=1)
+                        )
+
     def test_list_runs_keeps_attempt_within_seven_day_retention(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             log_dir = Path(temp_dir)

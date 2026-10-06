@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "projects": {
+    "desktop": {
+      "allowedAdvisories": []
+    },
+    "frontend": {
+      "allowedAdvisories": [
+        {
+          "id": "GHSA-vfj7-8cjw-p6xm",
+          "package": "braces",
+          "expires": "2026-11-05",
+          "reason": "Development-only Stylelint dependency; upstream has not published a patched npm release."
+        }
+      ]
+    }
+  }
+}

@@ -108,6 +108,7 @@ def _check_catalog() -> dict[str, CheckSpec]:
                 "unittest",
                 "scripts.tests.test_desktop_signing_release",
                 "scripts.tests.test_packaged_runtime_parity",
+                "scripts.tests.test_runtime_policy",
             ),
             evidence=("release-health-wiring", "packaged-runtime-policy"),
         ),
@@ -256,6 +257,9 @@ def infer_validation_plan(root: Path, paths: Iterable[str | Path]) -> Validation
                 packaged_native_required = True
             if name.startswith("requirements") or path == "backend/runtime-policy.json":
                 packaged_native_required = True
+            if path == "backend/runtime-policy.json":
+                boundaries.add("release_tooling")
+                path_checks.add("release_tooling_tests")
             mapped_paths.add(path)
 
         if path.startswith("config/"):
@@ -299,6 +303,13 @@ def infer_validation_plan(root: Path, paths: Iterable[str | Path]) -> Validation
             if name == "validate_frontend_contracts.py":
                 path_checks.add("frontend_contracts")
             if name == "run_release_health.py" or "release" in name or "public_tree" in name:
+                boundaries.add("release_tooling")
+                path_checks.add("release_tooling_tests")
+            if name in {
+                "check_runtime_maintenance.py",
+                "propose_runtime_policy_update.py",
+                "test_runtime_policy.py",
+            }:
                 boundaries.add("release_tooling")
                 path_checks.add("release_tooling_tests")
             if name == "run_release_health.py":

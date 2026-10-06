@@ -18,10 +18,12 @@ from app.database import Base
 from app.models import Account, BalanceHistory, Institution, Transaction, User
 from app.services.categories import seed_default_categories_for_user
 from app.services.flex_query import (
+    FLEX_FETCH_INITIAL_DELAY_SECONDS,
     FLEX_FETCH_MAX_ATTEMPTS,
     IBKR_FLEX_NETWORK_BLOCKED_MESSAGE,
     IBKRFlexNetworkBlockedError,
     IBKRFlexReportPendingTimeout,
+    FlexReportRequest,
     clear_flex_report_cache,
     fetch_flex_report,
     get_flex_report,
@@ -260,6 +262,7 @@ class _FakeFlexClient:
     def __init__(self, responses: list[_FakeFlexResponse]) -> None:
         self._responses = responses
         self.calls = 0
+        self.urls = []
 
     async def __aenter__(self) -> "_FakeFlexClient":
         return self
@@ -268,15 +271,32 @@ class _FakeFlexClient:
         return False
 
     async def get(self, url, params=None) -> _FakeFlexResponse:
+        self.urls.append(url)
         response = self._responses[min(self.calls, len(self._responses) - 1)]
         self.calls += 1
         return response
 
 
-def _flex_request_xml(status: str, *, reference: str = "", error: str = "") -> str:
+_FLEX_STATEMENT_URL = (
+    "https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/GetStatement"
+)
+_GDC_FLEX_STATEMENT_URL = (
+    "https://gdcdyn.interactivebrokers.com/AccountManagement/FlexWebService/GetStatement"
+)
+
+
+def _flex_request_xml(
+    status: str,
+    *,
+    reference: str = "",
+    error: str = "",
+    statement_url: str = _FLEX_STATEMENT_URL,
+    url_tag: str = "Url",
+) -> str:
     ref = f"<ReferenceCode>{reference}</ReferenceCode>" if reference else ""
+    url = f"<{url_tag}>{statement_url}</{url_tag}>" if reference else ""
     err = f"<ErrorMessage>{error}</ErrorMessage>" if error else ""
-    return f"<FlexStatementResponse><Status>{status}</Status>{ref}{err}</FlexStatementResponse>"
+    return f"<FlexStatementResponse><Status>{status}</Status>{ref}{url}{err}</FlexStatementResponse>"
 
 
 class IBKRFlexRequestRetryTests(unittest.IsolatedAsyncioTestCase):
@@ -297,9 +317,10 @@ class IBKRFlexRequestRetryTests(unittest.IsolatedAsyncioTestCase):
             patch("app.services.flex_query.httpx.AsyncClient", return_value=client),
             patch("app.services.flex_query.asyncio.sleep", AsyncMock()),
         ):
-            reference = await request_flex_report("token", "query", user_id=1)
+            request = await request_flex_report("token", "query", user_id=1)
 
-        self.assertEqual(reference, "ABC123")
+        self.assertEqual(request.reference_code, "ABC123")
+        self.assertEqual(request.statement_url, _FLEX_STATEMENT_URL)
         self.assertEqual(client.calls, 3)
 
     async def test_request_retries_http_503_then_succeeds(self) -> None:
@@ -313,9 +334,10 @@ class IBKRFlexRequestRetryTests(unittest.IsolatedAsyncioTestCase):
             patch("app.services.flex_query.httpx.AsyncClient", return_value=client),
             patch("app.services.flex_query.asyncio.sleep", AsyncMock()) as sleep,
         ):
-            reference = await request_flex_report("token", "query", user_id=1)
+            request = await request_flex_report("token", "query", user_id=1)
 
-        self.assertEqual(reference, "ABC123")
+        self.assertEqual(request.reference_code, "ABC123")
+        self.assertEqual(request.statement_url, _FLEX_STATEMENT_URL)
         self.assertEqual(client.calls, 3)
         self.assertEqual(
             [call.args[0] for call in sleep.await_args_list],
@@ -394,7 +416,59 @@ class IBKRFlexRequestRetryTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(client.calls, 1)
 
-    async def test_fetch_waits_past_one_minute_for_slow_statement(self) -> None:
+    async def test_returned_statement_url_is_used_for_report_download(self) -> None:
+        ready_xml = "<FlexQueryResponse><FlexStatements /></FlexQueryResponse>"
+        client = _FakeFlexClient([
+            _FakeFlexResponse(
+                200,
+                _flex_request_xml(
+                    "Success",
+                    reference="ABC123",
+                    statement_url=_GDC_FLEX_STATEMENT_URL,
+                    url_tag="url",
+                ),
+            ),
+            _FakeFlexResponse(200, ready_xml),
+        ])
+
+        with (
+            patch("app.services.flex_query.httpx.AsyncClient", return_value=client),
+            patch("app.services.flex_query.asyncio.sleep", AsyncMock()),
+        ):
+            request = await request_flex_report("token", "query", user_id=1)
+            xml = await fetch_flex_report(
+                "token",
+                request.reference_code,
+                request.statement_url,
+                user_id=1,
+            )
+
+        self.assertEqual(xml, ready_xml)
+        self.assertEqual(
+            client.urls,
+            [
+                "https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/SendRequest",
+                _GDC_FLEX_STATEMENT_URL,
+            ],
+        )
+
+    async def test_request_rejects_untrusted_statement_url(self) -> None:
+        client = _FakeFlexClient([
+            _FakeFlexResponse(
+                200,
+                _flex_request_xml(
+                    "Success",
+                    reference="ABC123",
+                    statement_url="https://example.com/AccountManagement/FlexWebService/GetStatement",
+                ),
+            ),
+        ])
+
+        with patch("app.services.flex_query.httpx.AsyncClient", return_value=client):
+            with self.assertRaisesRegex(ValueError, "invalid statement retrieval URL"):
+                await request_flex_report("token", "query", user_id=1)
+
+    async def test_fetch_waits_until_last_allowed_attempt(self) -> None:
         pending_xml = (
             "<FlexStatementResponse><Status>Warn</Status>"
             "<ErrorMessage>Statement generation in progress. Please try again shortly.</ErrorMessage>"
@@ -402,7 +476,7 @@ class IBKRFlexRequestRetryTests(unittest.IsolatedAsyncioTestCase):
         )
         ready_xml = "<FlexQueryResponse><FlexStatements /></FlexQueryResponse>"
         client = _FakeFlexClient([
-            *[_FakeFlexResponse(200, pending_xml) for _ in range(10)],
+            *[_FakeFlexResponse(200, pending_xml) for _ in range(21)],
             _FakeFlexResponse(200, ready_xml),
         ])
 
@@ -410,13 +484,18 @@ class IBKRFlexRequestRetryTests(unittest.IsolatedAsyncioTestCase):
             patch("app.services.flex_query.httpx.AsyncClient", return_value=client),
             patch("app.services.flex_query.asyncio.sleep", AsyncMock()) as sleep,
         ):
-            xml = await fetch_flex_report("token", "ref", user_id=1)
+            xml = await fetch_flex_report(
+                "token",
+                "ref",
+                _FLEX_STATEMENT_URL,
+                user_id=1,
+            )
 
         self.assertEqual(xml, ready_xml)
-        self.assertEqual(client.calls, 11)
+        self.assertEqual(client.calls, 22)
         self.assertEqual(
             [call.args[0] for call in sleep.await_args_list],
-            [7] * 11,
+            [FLEX_FETCH_INITIAL_DELAY_SECONDS] + [7] * 21,
         )
 
     async def test_fetch_pending_exhaustion_times_out_after_configured_attempts(self) -> None:
@@ -432,7 +511,12 @@ class IBKRFlexRequestRetryTests(unittest.IsolatedAsyncioTestCase):
             patch("app.services.flex_query.asyncio.sleep", AsyncMock()),
         ):
             with self.assertRaises(IBKRFlexReportPendingTimeout):
-                await fetch_flex_report("token", "ref", user_id=1)
+                await fetch_flex_report(
+                    "token",
+                    "ref",
+                    _FLEX_STATEMENT_URL,
+                    user_id=1,
+                )
 
         self.assertEqual(client.calls, FLEX_FETCH_MAX_ATTEMPTS)
 
@@ -445,7 +529,9 @@ class IBKRFlexReportCacheTests(unittest.IsolatedAsyncioTestCase):
         clear_flex_report_cache()
 
     async def test_second_call_reuses_cached_statement(self) -> None:
-        request_report = AsyncMock(return_value="ref")
+        request_report = AsyncMock(
+            return_value=FlexReportRequest("ref", _GDC_FLEX_STATEMENT_URL)
+        )
         fetch_report = AsyncMock(return_value="<FlexQueryResponse />")
 
         with (
@@ -459,12 +545,21 @@ class IBKRFlexReportCacheTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(second, "<FlexQueryResponse />")
         request_report.assert_awaited_once()
         fetch_report.assert_awaited_once()
+        fetch_report.assert_awaited_once_with(
+            "token",
+            "ref",
+            _GDC_FLEX_STATEMENT_URL,
+            user_id=1,
+        )
 
     async def test_distinct_credentials_are_not_shared(self) -> None:
         fetch_report = AsyncMock(return_value="<FlexQueryResponse />")
 
         with (
-            patch("app.services.flex_query.request_flex_report", AsyncMock(return_value="ref")),
+            patch(
+                "app.services.flex_query.request_flex_report",
+                AsyncMock(return_value=FlexReportRequest("ref", _FLEX_STATEMENT_URL)),
+            ),
             patch("app.services.flex_query.fetch_flex_report", fetch_report),
         ):
             await get_flex_report("token", "query", user_id=1)

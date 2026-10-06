@@ -74,13 +74,6 @@ IBKR_CODE_SELECTORS = (
     "input[name='code']",
     "input[type='tel']",
 )
-IBKR_ERROR_SELECTORS = (
-    ".xyz-error",
-    ".alert-danger",
-    "[class*='error-msg']",
-    "[class*='error']",
-    ".error",
-)
 IBKR_WAIT_POLL_SECONDS = 0.35
 IBKR_STORAGE_STATE_TIMEOUT_SECONDS = 15
 IBKR_STORAGE_STATE_FALLBACK_TIMEOUT_SECONDS = 5
@@ -413,8 +406,10 @@ async def _capture_ibkr_response(response, auth_signals: dict[str, Any]) -> None
         parsed = urlsplit(url)
     except ValueError:
         return
-    if not _is_ibkr_storage_host(parsed.hostname) or not parsed.path.endswith("/portfolio2/accounts"):
+    if not _is_ibkr_storage_host(parsed.hostname):
         return
+    response_status = int(getattr(response, "status", 0) or 0)
+    response_path = parsed.path.lower()
     try:
         text = await response.text()
     except Exception:
@@ -423,6 +418,16 @@ async def _capture_ibkr_response(response, auth_signals: dict[str, Any]) -> None
         payload = json.loads(text)
     except json.JSONDecodeError:
         payload = None
+    if response_path.endswith("/sso/authenticator"):
+        if response_status in {401, 403}:
+            auth_signals["invalid_credentials"] = True
+        elif isinstance(payload, dict) and "error" in payload:
+            auth_signals["invalid_credentials"] = bool(
+                str(payload.get("error") or "").strip() or payload.get("reached_max_login") is True
+            )
+        return
+    if not response_path.endswith("/portfolio2/accounts"):
+        return
     if isinstance(payload, list) and payload:
         auth_signals["authenticated"] = True
 
@@ -543,7 +548,7 @@ async def get_ibkr_page_state(page, auth_signals: dict[str, Any]) -> dict[str, A
     try:
         state = await raw_page.evaluate(
             """
-            ({ usernameSelectors, passwordSelectors, codeSelectors, errorSelectors }) => {
+            ({ usernameSelectors, passwordSelectors, codeSelectors }) => {
                 const isVisible = (el) => {
                     if (!el) return false;
                     const rect = el.getBoundingClientRect();
@@ -558,14 +563,12 @@ async def get_ibkr_page_state(page, auth_signals: dict[str, Any]) -> dict[str, A
                 const usernameVisible = visibleMatches(usernameSelectors);
                 const passwordVisible = visibleMatches(passwordSelectors);
                 const codeVisible = visibleMatches(codeSelectors);
-                const invalidCredentials = visibleMatches(errorSelectors);
                 const authenticatedRoute = path.includes("/portal") && !path.includes("/sso");
                 return {
                     current_url: href,
                     username_visible: usernameVisible,
                     password_visible: passwordVisible,
                     code_visible: codeVisible,
-                    invalid_credentials: invalidCredentials,
                     authenticated_route: authenticatedRoute,
                     authenticated: false,
                 };
@@ -575,13 +578,13 @@ async def get_ibkr_page_state(page, auth_signals: dict[str, Any]) -> dict[str, A
                 "usernameSelectors": list(IBKR_USERNAME_SELECTORS),
                 "passwordSelectors": list(IBKR_PASSWORD_SELECTORS),
                 "codeSelectors": list(IBKR_CODE_SELECTORS),
-                "errorSelectors": list(IBKR_ERROR_SELECTORS),
             },
         )
     except Exception:
         state = {"current_url": visible_auth.safe_page_url(raw_page), "authenticated": False}
     if not isinstance(state, dict):
         state = {"current_url": visible_auth.safe_page_url(raw_page), "authenticated": False}
+    state["invalid_credentials"] = bool(auth_signals.get("invalid_credentials"))
     if auth_signals.get("authenticated"):
         state["authenticated"] = True
     elif state.get("authenticated_route") and not (
@@ -632,7 +635,7 @@ async def _maybe_prefill_ibkr_credentials(
 ) -> bool:
     if not credentials or prefill_state.get("done"):
         return False
-    if state.get("authenticated") or state.get("code_visible") or state.get("invalid_credentials"):
+    if state.get("authenticated") or state.get("code_visible"):
         if popup_lock is not None and popup_lock.locked:
             await popup_lock.set_locked(False)
         return False

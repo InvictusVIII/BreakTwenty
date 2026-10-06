@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import builtins
+import hashlib
 import json
 import os
 import tempfile
@@ -491,6 +492,39 @@ class SupportAutoArchiveTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual({paths["current.har"].name, paths["current.jsonl"].name}, copied)
 
+    def test_hashed_har_filename_matches_full_attempt_identity(self) -> None:
+        sync_id = f"sync-{'s' * 1_000}"
+        attempt_id = f"attempt-{'a' * 1_000}"
+        sync_digest = hashlib.sha256(sync_id.encode("utf-8")).hexdigest()[:32]
+        attempt_digest = hashlib.sha256(attempt_id.encode("utf-8")).hexdigest()[:32]
+        path = Path(
+            "bmo_visible_auth_user-1_20260925T143000Z_"
+            f"sync-{sync_digest}_attempt-{attempt_digest}_failed.har"
+        )
+
+        self.assertLessEqual(len(path.name.encode("utf-8")), 255)
+        self.assertTrue(
+            support_auto_archive._diagnostic_file_matches_attempt(
+                path,
+                sync_id=sync_id,
+                attempt_id=attempt_id,
+            )
+        )
+        self.assertTrue(
+            support_auto_archive._diagnostic_file_matches_attempt(
+                path,
+                sync_id=None,
+                attempt_id=attempt_id,
+            )
+        )
+        self.assertFalse(
+            support_auto_archive._diagnostic_file_matches_attempt(
+                path,
+                sync_id=f"{sync_id}-other",
+                attempt_id=attempt_id,
+            )
+        )
+
     def test_attempt_export_deduplicates_identical_diagnostics_across_phase_names(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -721,6 +755,79 @@ class SupportAutoArchiveTests(unittest.IsolatedAsyncioTestCase):
                 support_auto_archive.RUN_COMPLETION_FILENAME,
                 {entry["path"] for entry in listed[0]["files"]},
             )
+
+    async def test_generated_run_name_roundtrips_extreme_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            log_dir = Path(temp_dir)
+            runs_dir = log_dir / "runs"
+            sync_id = f"sync-{'s' * 1_000}"
+            attempt_id = f"attempt-{'a' * 1_000}"
+            trigger = f"result-{'r' * 1_000}"
+            collector = AsyncMock(return_value={})
+            with (
+                patch.object(support_auto_archive, "LOG_DIR", log_dir),
+                patch.object(support_auto_archive, "RUNS_DIR", runs_dir),
+                patch.object(support_auto_archive, "DIAGNOSTIC_DIR", log_dir / "providers"),
+                patch.object(
+                    support_auto_archive,
+                    "_user_timezone_info",
+                    new=AsyncMock(return_value=None),
+                ),
+                patch.object(support_diagnostics, "_collect_state_snapshots", collector),
+            ):
+                run_dir = await support_auto_archive.archive_run(
+                    user_id=1,
+                    provider="bmo",
+                    sync_id=sync_id,
+                    attempt_id=attempt_id,
+                    trigger=trigger,
+                    extra_fields={"sync_scope": f"scope-{'x' * 1_000}"},
+                )
+                listed = support_auto_archive.list_runs(provider="bmo", user_id=1)
+                packaged = support_auto_archive.package_run_zip(
+                    "bmo",
+                    listed[0]["run_id"],
+                    user_id=1,
+                )
+
+            trigger_payload = json.loads((run_dir / "trigger.json").read_text(encoding="utf-8"))
+
+        self.assertRegex(
+            run_dir.name,
+            r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_[A-Za-z0-9]+_run-[0-9a-f]{32}$",
+        )
+        self.assertLessEqual(
+            len(run_dir.name.encode("utf-8")),
+            support_auto_archive.RUN_DIRECTORY_NAME_MAX_BYTES,
+        )
+        self.assertEqual([run_dir.name], [row["run_id"] for row in listed])
+        self.assertIsNotNone(packaged)
+        self.assertEqual(sync_id, trigger_payload["sync_id"])
+        self.assertEqual(attempt_id, trigger_payload["attempt_id"])
+        self.assertEqual(trigger, trigger_payload["trigger"])
+
+    def test_visible_auth_runner_log_lookup_matches_broker_filename_bounds(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            desktop_auth_dir = root / "desktop-auth"
+            run_dir = root / "run"
+            run_dir.mkdir()
+            provider = "p" * 64
+            attempt_id = "a" * 128
+            source = desktop_auth_dir / "logs" / "visible-auth" / f"{provider}-{attempt_id}.log"
+            source.parent.mkdir(parents=True)
+            source.write_text("runner evidence\n", encoding="utf-8")
+
+            with patch.object(support_auto_archive, "DESKTOP_AUTH_DIR", desktop_auth_dir):
+                support_auto_archive._copy_visible_auth_runner_log_into_run(
+                    run_dir=run_dir,
+                    provider=provider,
+                    attempt_id=attempt_id,
+                )
+
+            copied = run_dir / "diagnostics" / "visible-auth-runner.log"
+            self.assertTrue(copied.is_file())
+            self.assertIn("runner evidence", copied.read_text(encoding="utf-8"))
 
     def test_regular_state_snapshot_redacts_account_names_and_identifier_fragments(self) -> None:
         account = SimpleNamespace(

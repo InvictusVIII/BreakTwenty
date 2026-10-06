@@ -46,6 +46,8 @@ ALL_RECENT_SUPPORT_TREE_SCAN_LIMIT = 16_384
 SUPPORT_ARCHIVE_METADATA_MAX_BYTES = 16 * 1024
 SANITIZER_FAILURE_TEXT = "[support-log content omitted: sanitizer unavailable]"
 RUN_COMPLETION_FILENAME = "completion.json"
+RUN_DIRECTORY_ID_PREFIX = "run-"
+RUN_DIRECTORY_NAME_MAX_BYTES = 255
 
 logger = logging.getLogger("breaktwenty.support_auto_archive")
 
@@ -871,6 +873,10 @@ def _safe_name_component(value: Any, *, fallback: str = "item") -> str:
     return text[:80] or fallback
 
 
+def _new_run_dir_name(now: datetime, tz: ZoneInfo | None) -> str:
+    return f"{_format_local_filename_timestamp(now, tz)}_{RUN_DIRECTORY_ID_PREFIX}{uuid.uuid4().hex}"
+
+
 def _format_local_filename_timestamp(now: datetime, tz: ZoneInfo | None) -> str:
     """Format `now` as a filesystem-safe local timestamp tagged with tz abbr.
 
@@ -931,11 +937,7 @@ async def archive_run(
                 type(exc).__name__,
             )
     safe_provider = _safe_name_component(normalized_provider, fallback="provider")
-    sync_id_text = _safe_name_component(sync_id or "no-sync-id", fallback="no-sync-id")
-    folder_name = f"{_format_local_filename_timestamp(now, user_tz)}_{sync_id_text}_{_safe_name_component(trigger, fallback='trigger')}"
-    sync_scope_value = (extra_fields or {}).get("sync_scope") if isinstance(extra_fields, dict) else None
-    if isinstance(sync_scope_value, str) and sync_scope_value.strip():
-        folder_name = f"{folder_name}_{_safe_name_component(sync_scope_value, fallback='scope')}"
+    folder_name = _new_run_dir_name(now, user_tz)
     provider_root = RUNS_DIR / safe_provider
     final_run_dir = provider_root / folder_name
     run_dir = LOG_DIR / ".runs-staging" / safe_provider / str(uuid.uuid4())
@@ -1149,8 +1151,9 @@ async def archive_run(
 
     try:
         await asyncio.to_thread(provider_root.mkdir, parents=True, exist_ok=True)
-        if await asyncio.to_thread(final_run_dir.exists):
-            final_run_dir = provider_root / f"{folder_name}_{uuid.uuid4().hex[:8]}"
+        while await asyncio.to_thread(final_run_dir.exists):
+            folder_name = _new_run_dir_name(now, user_tz)
+            final_run_dir = provider_root / folder_name
         await asyncio.to_thread(os.replace, run_dir, final_run_dir)
     except OSError as exc:
         logger.warning("auto-archive publish failed provider=%s: %s", normalized_provider, exc)
@@ -1226,10 +1229,17 @@ def archive_run_fire_and_forget(
 
 
 def _diagnostic_filename_has_identity(filename: str, *, label: str, value: str) -> bool:
-    component = _SAFE_NAME_RE.sub("-", str(value or "").strip()).strip("-._")[:96]
-    if not component:
+    normalized = str(value or "").strip()
+    if not normalized:
         return False
-    return f"_{label}-{component}_" in f"_{Path(filename).name}_"
+    hashed_component = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:32]
+    legacy_component = _SAFE_NAME_RE.sub("-", normalized).strip("-._")[:96]
+    wrapped_name = f"_{Path(filename).name}_"
+    return any(
+        f"_{label}-{component}_" in wrapped_name
+        for component in (hashed_component, legacy_component)
+        if component
+    )
 
 
 def _jsonl_attempt_identity(path: Path) -> tuple[str, str] | None:
@@ -1380,14 +1390,19 @@ def _copy_visible_auth_runner_log_into_run(
     provider: str,
     attempt_id: str | None,
 ) -> None:
-    safe_attempt_id = _safe_name_component(attempt_id or "", fallback="")
+    safe_attempt_id = re.sub(
+        r"[^A-Za-z0-9_-]",
+        "_",
+        str(attempt_id or ""),
+    )[:128]
     if not safe_attempt_id:
         return
+    safe_provider = re.sub(r"[^A-Za-z0-9_-]", "_", str(provider or "provider"))[:64]
     source_path = (
         DESKTOP_AUTH_DIR
         / "logs"
         / "visible-auth"
-        / f"{_safe_name_component(provider, fallback='provider')}-{safe_attempt_id}.log"
+        / f"{safe_provider or 'provider'}-{safe_attempt_id}.log"
     )
     if not source_path.is_file():
         return
@@ -1503,7 +1518,16 @@ def _safe_provider_dir_name(provider: str) -> str:
 
 
 def _safe_run_dir_name(run_id: str) -> str:
-    return _safe_name_component(run_id, fallback="run")
+    value = str(run_id or "").strip()
+    if (
+        not value
+        or len(value.encode("utf-8")) > RUN_DIRECTORY_NAME_MAX_BYTES
+        or value in {".", ".."}
+        or Path(value).name != value
+        or _SAFE_NAME_RE.sub("-", value) != value
+    ):
+        return ""
+    return value
 
 
 def _trigger_payload_for(run_dir: Path) -> dict[str, Any] | None:
@@ -1622,6 +1646,8 @@ def list_runs(*, provider: str | None = None, user_id: int | None = None) -> lis
                 break
             if not child.is_dir():
                 continue
+            if _safe_run_dir_name(child.name) != child.name:
+                continue
             if not _run_is_complete(child):
                 continue
             if user_id is not None:
@@ -1644,6 +1670,8 @@ def list_runs(*, provider: str | None = None, user_id: int | None = None) -> lis
 
 def get_run(provider: str, run_id: str, *, user_id: int | None = None) -> dict[str, Any] | None:
     safe_run = _safe_run_dir_name(run_id)
+    if not safe_run:
+        return None
     for family_member in _provider_family(provider):
         provider_root = RUNS_DIR / _safe_provider_dir_name(family_member)
         if not provider_root.exists():
@@ -1825,7 +1853,10 @@ def package_run_zip(provider: str, run_id: str, *, user_id: int) -> SupportArchi
     sync_id = str(summary.get("sync_id") or "").strip() or None
     attempt_id = str(summary.get("attempt_id") or "").strip() or None
     actual_provider = summary.get("provider") or provider
-    primary_run_dir = RUNS_DIR / _safe_provider_dir_name(actual_provider) / _safe_run_dir_name(run_id)
+    safe_run = _safe_run_dir_name(run_id)
+    if not safe_run:
+        return None
+    primary_run_dir = RUNS_DIR / _safe_provider_dir_name(actual_provider) / safe_run
     siblings = _sibling_run_dirs_for_attempt(
         actual_provider,
         sync_id,

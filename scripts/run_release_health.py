@@ -135,6 +135,7 @@ def run_step(
     env: dict[str, str] | None = None,
     attempts: int = 1,
     retry_delay_seconds: float = 5.0,
+    retry_exit_codes: set[int] | None = None,
 ) -> None:
     print(f"\n==> {title}", flush=True)
     # Release checks must never inherit a developer's live runtime targets.
@@ -180,7 +181,9 @@ def run_step(
             if ACTIVE_RELEASE_RECEIPT is not None:
                 ACTIVE_RELEASE_RECEIPT["checks"].append(record)
             return
-        if attempt >= max(attempts, 1):
+        if attempt >= max(attempts, 1) or (
+            retry_exit_codes is not None and result.exit_code not in retry_exit_codes
+        ):
             record["status"] = "failed"
             record["duration_ms"] = round((time.monotonic() - started) * 1000)
             if ACTIVE_RELEASE_RECEIPT is not None:
@@ -342,11 +345,16 @@ def run_backend_health(root: Path) -> None:
             [str(venv_python), "-m", "pip", "check"],
             cwd=root,
         )
-        run_step(
-            "Backend dependency audit",
-            [str(venv_python), "-m", "pip_audit", "-r", "backend/requirements.lock"],
-            cwd=root,
-        )
+        for title, requirement_lock in (
+            ("Backend and Python tooling dependency audit", "backend/requirements-audit.lock"),
+            ("macOS x64 build dependency audit", "backend/requirements-macos-x64-build.lock"),
+            ("Visible-auth dependency audit", "scripts/desktop_visible_auth_requirements.lock"),
+        ):
+            run_step(
+                title,
+                [str(venv_python), "-m", "pip_audit", "-r", requirement_lock],
+                cwd=root,
+            )
         run_step(
             "Backend runtime license and SBOM inventory",
             [
@@ -427,11 +435,12 @@ def run_release_health(root: Path, args: argparse.Namespace) -> int:
     )
 
     run_step(
-        "Frontend dependency audit",
-        [npm, "--prefix", "frontend", "audit"],
+        "Frontend full dependency audit",
+        [sys.executable, "scripts/audit_release_node_dependencies.py", "--project", "frontend"],
         cwd=root,
         attempts=3,
         retry_delay_seconds=10.0,
+        retry_exit_codes={75},
     )
     run_step(
         "Frontend provider catalog check",
@@ -464,11 +473,12 @@ def run_release_health(root: Path, args: argparse.Namespace) -> int:
     )
     run_step("Frontend CSS lint", [npm, "--prefix", "frontend", "run", "--if-present", "lint:css"], cwd=root)
     run_step(
-        "Desktop production audit",
-        [npm, "--prefix", "desktop", "audit", "--omit=dev"],
+        "Desktop full dependency audit",
+        [sys.executable, "scripts/audit_release_node_dependencies.py", "--project", "desktop"],
         cwd=root,
         attempts=3,
         retry_delay_seconds=10.0,
+        retry_exit_codes={75},
     )
     release_test_modules = ["scripts.tests.test_packaged_runtime_parity"]
     for module, relative in (

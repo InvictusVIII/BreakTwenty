@@ -121,6 +121,23 @@ class ChangeValidationTests(unittest.TestCase):
             {"release_tooling_tests"},
         )
 
+    def test_runtime_policy_and_maintenance_tools_run_release_contracts(self) -> None:
+        paths = [
+            "backend/runtime-policy.json",
+            "scripts/check_runtime_maintenance.py",
+            "scripts/propose_runtime_policy_update.py",
+            "scripts/tests/test_runtime_policy.py",
+        ]
+        for path in paths:
+            self.write(path)
+
+        plan = infer_validation_plan(self.root, paths)
+
+        self.assertIn("release_tooling", plan.boundaries)
+        self.assertIn("packaged_native_renderer", plan.boundaries)
+        self.assertIn("release_tooling_tests", {check.check_id for check in plan.checks})
+        self.assertIn("packaged_native_smoke", {check.check_id for check in plan.checks})
+
     def test_packaged_desktop_tooling_requires_desktop_electron_and_native_smoke(self) -> None:
         paths = [
             "scripts/run_packaged_native_smoke.test.js",

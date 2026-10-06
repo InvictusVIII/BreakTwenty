@@ -81,6 +81,23 @@ def request_json(url: str, payload: dict[str, object] | None = None) -> dict[str
     return parsed
 
 
+def request_json_list(url: str) -> list[dict[str, object]]:
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "BreakTwenty runtime maintenance checker",
+    }
+    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    if token and urllib.parse.urlparse(url).hostname == "api.github.com":
+        headers["Authorization"] = f"Bearer {token}"
+        headers["X-GitHub-Api-Version"] = "2022-11-28"
+    request = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(request, timeout=30) as response:  # nosec B310
+        parsed = json.loads(response.read())
+    if not isinstance(parsed, list) or any(not isinstance(item, dict) for item in parsed):
+        raise ValueError(f"unexpected JSON response from {url}")
+    return parsed
+
+
 def github_latest_release(repository: str) -> dict[str, object]:
     return request_json(f"https://api.github.com/repos/{repository}/releases/latest")
 
@@ -88,6 +105,24 @@ def github_latest_release(repository: str) -> dict[str, object]:
 def version_tuple(value: str) -> tuple[int, ...]:
     match = re.search(r"(\d+)\.(\d+)(?:\.(\d+))?", value)
     return tuple(int(part) for part in match.groups(default="0")) if match else ()
+
+
+def latest_openssl_release(policy: dict[str, object]) -> str:
+    current_version = str(policy["python"]["opensslVersion"]).split()[1]
+    current_series = version_tuple(current_version)[:2]
+    repository = policy["maintenance"]["opensslRepository"]
+    releases = request_json_list(
+        f"https://api.github.com/repos/{repository}/releases?per_page=100"
+    )
+    versions = []
+    for release in releases:
+        tag = str(release.get("tag_name", ""))
+        match = re.fullmatch(r"openssl-(\d+\.\d+\.\d+)", tag)
+        if match and version_tuple(match.group(1))[:2] == current_series:
+            versions.append(match.group(1))
+    if not versions:
+        raise ValueError(f"no OpenSSL releases found for series {current_series}")
+    return max(versions, key=version_tuple)
 
 
 def latest_runtime_assets(policy: dict[str, object]) -> dict[str, object]:
@@ -221,6 +256,19 @@ def build_report(
             )
     except Exception as exc:  # noqa: BLE001
         report["checkErrors"].append(f"Playwright release check failed: {exc}")
+
+    try:
+        pinned_openssl = str(python["opensslVersion"]).split()[1]
+        latest_openssl = latest_openssl_release(policy)
+        report["latestOpenSSLRelease"] = latest_openssl
+        if version_tuple(latest_openssl) > version_tuple(pinned_openssl):
+            report["messages"].append(
+                f"OpenSSL {latest_openssl} is available for the pinned "
+                f"{'.'.join(str(part) for part in version_tuple(pinned_openssl)[:2])} "
+                f"series; policy pins {pinned_openssl}."
+            )
+    except Exception as exc:  # noqa: BLE001
+        report["checkErrors"].append(f"OpenSSL release check failed: {exc}")
 
     advisory_version = python["opensslVersion"].split()[1]
     advisories: dict[str, list[dict[str, str]]] = {}

@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from scripts.quiet_validation import run_quiet_command
 from scripts import run_release_health
@@ -91,6 +92,55 @@ class QuietValidationTests(unittest.TestCase):
         self.assertEqual(attempt["output"]["status"], "passed")
         self.assertFalse(attempt["output"]["retained"])
         self.assertNotIn("release-noise", console.getvalue())
+
+    def test_release_step_does_not_retry_a_non_retryable_exit_code(self) -> None:
+        run_release_health.ACTIVE_RELEASE_RECEIPT = {"checks": []}
+        console = io.StringIO()
+        with (
+            mock.patch.object(run_release_health, "SOURCE_ROOT", self.root),
+            contextlib.redirect_stdout(console),
+            self.assertRaisesRegex(RuntimeError, "failed with exit code 1"),
+        ):
+            run_release_health.run_step(
+                "Deterministic failure",
+                [sys.executable, "-c", "raise SystemExit(1)"],
+                cwd=self.root,
+                attempts=3,
+                retry_delay_seconds=0,
+                retry_exit_codes={75},
+            )
+
+        record = run_release_health.ACTIVE_RELEASE_RECEIPT["checks"][0]
+        self.assertEqual(len(record["attempts"]), 1)
+        self.assertNotIn("retrying", console.getvalue())
+
+    def test_release_step_retries_a_retryable_exit_code(self) -> None:
+        run_release_health.ACTIVE_RELEASE_RECEIPT = {"checks": []}
+        counter = self.root / "attempt-count"
+        source = (
+            "from pathlib import Path; "
+            f"path = Path({str(counter)!r}); "
+            "attempt = int(path.read_text()) if path.exists() else 0; "
+            "path.write_text(str(attempt + 1)); "
+            "raise SystemExit(75 if attempt == 0 else 0)"
+        )
+        console = io.StringIO()
+        with (
+            mock.patch.object(run_release_health, "SOURCE_ROOT", self.root),
+            contextlib.redirect_stdout(console),
+        ):
+            run_release_health.run_step(
+                "Transient failure",
+                [sys.executable, "-c", source],
+                cwd=self.root,
+                attempts=3,
+                retry_delay_seconds=0,
+                retry_exit_codes={75},
+            )
+
+        record = run_release_health.ACTIVE_RELEASE_RECEIPT["checks"][0]
+        self.assertEqual([attempt["exit_code"] for attempt in record["attempts"]], [75, 0])
+        self.assertIn("retrying", console.getvalue())
 
 
 if __name__ == "__main__":

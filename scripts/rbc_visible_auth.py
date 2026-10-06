@@ -59,18 +59,23 @@ VISIBLE_AUTH_CLIENT = visible_auth.VisibleAuthBackendClient(
     sync_id=VISIBLE_AUTH_SYNC_ID,
 )
 
-RBC_LOGIN_URL = "https://www1.royalbank.com/cgi-bin/rbaccess/rbunxcgi?F6=1&F7=IB&F21=IB&F22=IB&REQUEST=ClientSignin&LANGUAGE=ENGLISH"
+RBC_LOGIN_URL = "https://secure.royalbank.com/signin.html"
 RBC_ACCOUNT_LIST_URL = "https://www1.royalbank.com/sgw5/digital/product-summary-presentation-service-v3/v3/accountListSummary"
 RBC_PAGE_URL_MARKERS = (
     "royalbank.com",
     "rbc.com",
 )
 RBC_USERNAME_SELECTORS = (
+    "input#userName",
+    "input[name='userName']",
+    "input[autocomplete='username']",
     "input#K1[name='K1']",
     "form#rbunxcgi input#K1[name='K1']",
     "form[name='rbunxcgi'] input#K1[name='K1']",
 )
 RBC_PASSWORD_SELECTORS = (
+    "input#password[name='password']",
+    "input#password",
     "input#QQ[name='QQ']",
     "input#QQ",
     "input[name='QQ']",
@@ -112,12 +117,16 @@ RBC_CREDENTIAL_CAPTURE_REQUEST_BURST_SECONDS = 1.5 if RBC_WINDOWS_FLOW else 0.45
 RBC_CREDENTIAL_CAPTURE_REQUEST_BURST_POLL_SECONDS = 0.03 if RBC_WINDOWS_FLOW else 0.05
 RBC_CREDENTIAL_CAPTURE_TASK_DRAIN_SECONDS = 2.0
 RBC_WINDOWS_LOGIN_ROUTE_CAPTURE_TIMEOUT_SECONDS = 1.0
-RBC_WINDOWS_LOGIN_ROUTE_PATTERN = "**/cgi-bin/rbaccess/**"
+RBC_WINDOWS_LOGIN_ROUTE_PATTERN = re.compile(
+    r"^https://(?:[^/]+\.)?(?:royalbank\.com|rbc\.com)/(?:cgi-bin/rbaccess/.*|sgw5/idp/signin)(?:\?.*)?$",
+    re.IGNORECASE,
+)
 RBC_WINDOWS_CONTEXT_CLOSE_TIMEOUT_SECONDS = 8.0
 RBC_WINDOWS_BROWSER_CLOSE_TIMEOUT_SECONDS = 4.0
 RBC_GENERATED_SECRET_MAX_LENGTH = 512
 RBC_GENERATED_SECRET_PAYLOAD_RE = re.compile(r"^(?:\d+,)?eyJ[A-Za-z0-9+/=_-]{80,}$")
 RBC_GENERATED_SECRET_HEX_RE = re.compile(r"^[0-9a-fA-F]{160,}$")
+RBC_CREDENTIAL_FIELD_NAMES = ("K1", "QQ", "Q1", "signinUid", "signinPwd")
 
 
 @dataclass
@@ -156,7 +165,7 @@ class RBCCredentialCaptureState:
     route_capture_error_types: set[str] = field(default_factory=set)
     field_observations: dict[str, dict[str, set[str]]] = field(
         default_factory=lambda: {
-            source: {"K1": set(), "QQ": set(), "Q1": set()}
+            source: {key: set() for key in RBC_CREDENTIAL_FIELD_NAMES}
             for source in ("cdp_request", "request", "route")
         }
     )
@@ -630,6 +639,8 @@ async def any_selector_is_visible(page, selectors: tuple[str, ...]) -> bool:
 
 
 async def _dismiss_rbc_cookie_banner(page) -> None:
+    if VISIBLE_AUTH_ADD_FLOW:
+        return
     base_page = getattr(page, "raw_page", page)
     try:
         await base_page.evaluate(RBC_COOKIE_BANNER_SCRIPT)
@@ -737,7 +748,9 @@ async def _rbc_page_summary(page) -> dict[str, Any]:
         hash_query = parsed_url.fragment.split("?", 1)[1] if "?" in parsed_url.fragment else ""
         hash_params = dict(parse_qsl(hash_query))
         mfa_method = str(search_params.get("mfaMethodName") or hash_params.get("mfaMethodName") or "").upper()
-    login_visible = await any_selector_is_visible(page, RBC_USERNAME_SELECTORS) and await any_selector_is_visible(page, RBC_PASSWORD_SELECTORS)
+    username_visible = await any_selector_is_visible(page, RBC_USERNAME_SELECTORS)
+    password_visible = await any_selector_is_visible(page, RBC_PASSWORD_SELECTORS)
+    login_visible = username_visible or password_visible
     is_mfa_app_url = host == "omni.royalbank.com" and "/statics/rbc-mfa-app/" in path
     mfa_notification_visible = (
         await visible_auth.selector_is_visible(page, "core-banking-trusted-device-notification, core-banking-notification-view, [data-testid='notification_button'][data-dig-id='MFA_PMSM_001']")
@@ -747,6 +760,8 @@ async def _rbc_page_summary(page) -> dict[str, Any]:
     return {
         "url": current_url,
         "login_visible": login_visible,
+        "username_visible": username_visible,
+        "password_visible": password_visible,
         "signin_url": any(marker in current_url.lower() for marker in ("clientsignin", "signin", "sign-in", "login")),
         "mfa_app_visible": is_mfa_app_url or await visible_auth.selector_is_visible(page, "core-banking-root"),
         "mfa_method": mfa_method,
@@ -845,8 +860,8 @@ def _rbc_credential_mapping_from_post_data(post_data: str) -> dict[str, Any]:
 def _rbc_credential_field_classifications(mapping: dict[str, Any]) -> dict[str, str]:
     normalized = {str(key).upper(): value for key, value in mapping.items()}
     classifications: dict[str, str] = {}
-    for key in ("K1", "QQ", "Q1"):
-        value = str(normalized.get(key) or "")
+    for key in RBC_CREDENTIAL_FIELD_NAMES:
+        value = str(normalized.get(key.upper()) or "")
         if not value:
             classifications[key] = "missing"
         elif _is_rbc_masked_secret(value):
@@ -864,6 +879,7 @@ def _rbc_is_login_request_url(url: str) -> bool:
         "rbunxcgi" in lowered
         or "rbcgi3m01" in lowered
         or "request=clientsignin" in lowered
+        or "/sgw5/idp/signin" in lowered
     )
 
 
@@ -927,16 +943,26 @@ def _capture_rbc_password(
         captured_credentials[key] = str(int(captured_credentials.get(key) or 0) + 1)
 
 
-def _credentials_from_mapping(mapping: dict[str, Any]) -> tuple[str, str] | None:
-    username = ""
-    password = ""
-    for key in ("K1", "k1", "username", "userName", "clientCard", "client_card"):
+def _rbc_username_from_mapping(mapping: dict[str, Any]) -> str:
+    for key in (
+        "K1",
+        "k1",
+        "username",
+        "userName",
+        "clientCard",
+        "client_card",
+        "signinUid",
+    ):
         value = mapping.get(key)
         if value:
-            username = str(value).strip()
-            break
+            return str(value).strip()
+    return ""
+
+
+def _rbc_password_from_mapping(mapping: dict[str, Any]) -> str:
+    password = ""
     password_fallback = ""
-    for key in ("QQ", "qq", "Q1", "q1", "password", "passcode"):
+    for key in ("QQ", "qq", "Q1", "q1", "password", "passcode", "signinPwd"):
         value = mapping.get(key)
         if value:
             candidate = str(value)
@@ -949,6 +975,12 @@ def _credentials_from_mapping(mapping: dict[str, Any]) -> tuple[str, str] | None
                 break
     if not password:
         password = password_fallback
+    return password
+
+
+def _credentials_from_mapping(mapping: dict[str, Any]) -> tuple[str, str] | None:
+    username = _rbc_username_from_mapping(mapping)
+    password = _rbc_password_from_mapping(mapping)
     if username and password:
         return username, password
     return None
@@ -968,12 +1000,13 @@ def _capture_rbc_credentials_from_post_data(
     credential_request = (
         _record_rbc_post_data_observation(capture_state, post_data=post_data, source=source)
         if capture_state is not None
-        else any(key in {str(item).upper() for item in mapping} for key in ("K1", "QQ", "Q1"))
+        else any(
+            key.upper() in {str(item).upper() for item in mapping}
+            for key in RBC_CREDENTIAL_FIELD_NAMES
+        )
     )
-    credential_pair = _credentials_from_mapping(mapping)
-    if credential_pair is None:
-        return credential_request
-    username, password = credential_pair
+    username = _rbc_username_from_mapping(mapping)
+    password = _rbc_password_from_mapping(mapping)
     _capture_rbc_username(captured_credentials, username, source=source)
     _capture_rbc_password(captured_credentials, password, source=source)
     return credential_request
@@ -1552,6 +1585,8 @@ def _rbc_prefill_slot_key(page, state: dict[str, Any], field: str) -> tuple[int,
 
 
 async def _prefill_rbc_input(page, selectors: tuple[str, ...], value: str) -> bool:
+    if VISIBLE_AUTH_ADD_FLOW:
+        return False
     if not value:
         return False
     for selector in selectors:
@@ -1578,6 +1613,8 @@ async def _maybe_prefill_rbc_credentials(
     prefill_state: dict[str, Any],
     popup_lock: PopupInteractionLock | None = None,
 ) -> None:
+    if VISIBLE_AUTH_ADD_FLOW:
+        return
     if not credentials:
         return
     username, password = credentials
@@ -2136,6 +2173,10 @@ async def run() -> None:
                     "browser_init_scripts_enabled": False,
                     "credential_capture_strategy": "bounded_post_load_input_polling_and_structured_request_capture_with_windows_login_route_pause",
                     "credential_capture_background_poll_seconds": RBC_CREDENTIAL_CAPTURE_BACKGROUND_POLL_SECONDS,
+                    "credential_field_control": (
+                        "passive_capture_only" if VISIBLE_AUTH_ADD_FLOW else "saved_credential_prefill"
+                    ),
+                    "cookie_banner_auto_dismiss_enabled": not VISIBLE_AUTH_ADD_FLOW,
                     "windows_cdp_request_capture_enabled": RBC_WINDOWS_FLOW,
                     "windows_login_route_capture_enabled": RBC_WINDOWS_FLOW,
                     "browser_runtime": runtime_description,

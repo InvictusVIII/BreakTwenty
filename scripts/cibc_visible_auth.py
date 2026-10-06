@@ -292,17 +292,6 @@ def _cibc_file_component(value: str | None, *, max_length: int = 96) -> str:
     return re.sub(r"[^A-Za-z0-9._-]+", "-", text).strip("-._")[:max_length]
 
 
-def _cibc_run_suffix(sync_id: str | None, attempt_id: str | None) -> str:
-    parts: list[str] = []
-    sync_component = _cibc_file_component(sync_id)
-    attempt_component = _cibc_file_component(attempt_id)
-    if sync_component:
-        parts.append(f"sync-{sync_component}")
-    if attempt_component:
-        parts.append(f"attempt-{attempt_component}")
-    return "_".join(parts)
-
-
 def _cibc_sanitized_har_path(
     user_id: int,
     timestamp_slug: str,
@@ -316,7 +305,7 @@ def _cibc_sanitized_har_path(
         f"user{user_id}",
         timestamp_slug,
     ]
-    run_suffix = _cibc_run_suffix(sync_id, attempt_id)
+    run_suffix = visible_auth.diagnostic_scope_suffix(sync_id, attempt_id)
     if run_suffix:
         filename_parts.append(run_suffix)
     filename_parts.append(_cibc_file_component(result, max_length=40) or "finished")

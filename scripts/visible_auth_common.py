@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import platform
@@ -174,7 +175,8 @@ def resolve_diagnostic_dir(repo_root: Path, provider_dir: str) -> Path:
 def diagnostic_scope_suffix(sync_id: str | None, attempt_id: str | None) -> str:
     parts: list[str] = []
     for label, value in (("sync", sync_id), ("attempt", attempt_id)):
-        component = re.sub(r"[^A-Za-z0-9._-]+", "-", str(value or "").strip()).strip("-._")[:96]
+        normalized = str(value or "").strip()
+        component = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:32] if normalized else ""
         if component:
             parts.append(f"{label}-{component}")
     return "_".join(parts)
@@ -459,6 +461,10 @@ def managed_browser_launch_args() -> list[str]:
     return []
 
 
+LINUX_MANAGED_BRAVE_STABILIZER_ARGS = (
+    "--disable-gpu",
+)
+
 WINDOWS_MANAGED_BRAVE_STABILIZER_ARGS = (
     "--disable-gpu",
     "--disable-background-networking",
@@ -487,6 +493,12 @@ def managed_browser_launch_kwargs(
     if launch_args:
         launch_kwargs["args"] = launch_args
     runtime_platform = str((browser_runtime or {}).get("platform") or "").strip().lower()
+    if runtime_platform == "linux64":
+        linux_args = list(launch_kwargs.get("args") or [])
+        for arg in LINUX_MANAGED_BRAVE_STABILIZER_ARGS:
+            if arg not in linux_args:
+                linux_args.append(arg)
+        launch_kwargs["args"] = linux_args
     if windows_managed_brave_stabilizers and runtime_platform == "win64":
         stabilized_args = list(launch_kwargs.get("args") or [])
         for arg in WINDOWS_MANAGED_BRAVE_STABILIZER_ARGS:
